@@ -1,3 +1,9 @@
+# CDM Desmontes SaaS — V6
+
+Versão atual com edição de produtos, impressão de etiquetas, upload/tratamento de imagens e ativação individual por marketplace.
+
+Consulte `ALTERACOES_CDM_V6.md` para os detalhes.
+
 # CDM Desmontes ERP — SaaS / Multiempresa V5
 
 Versão atualizada do CDM Desmontes com visual de ERP profissional, cadastro multiempresa, assinatura e integração self-service com Mercado Livre, Shopee e OLX.

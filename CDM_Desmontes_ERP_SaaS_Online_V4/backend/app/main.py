@@ -4,11 +4,35 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .db import Base, engine
+from sqlalchemy import inspect, text
 from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="CDM Desmontes ERP API", version="5.0.0")
+def ensure_v6_schema():
+    """Migração leve para instalações V4/V5 já existentes no Render."""
+    additions={
+        "publish_mercadolivre":"BOOLEAN DEFAULT TRUE",
+        "publish_shopee":"BOOLEAN DEFAULT TRUE",
+        "publish_olx":"BOOLEAN DEFAULT TRUE",
+        "ml_has_warranty":"BOOLEAN DEFAULT FALSE",
+        "ml_warranty_text":"VARCHAR(180) DEFAULT ''",
+        "ml_shipping_mode":"VARCHAR(60) DEFAULT ''",
+        "ml_free_shipping":"BOOLEAN DEFAULT FALSE",
+        "ml_local_pickup":"BOOLEAN DEFAULT TRUE",
+    }
+    try:
+        current={c["name"] for c in inspect(engine).get_columns("products")}
+        with engine.begin() as conn:
+            for name,ddl in additions.items():
+                if name not in current:
+                    conn.execute(text(f"ALTER TABLE products ADD COLUMN {name} {ddl}"))
+    except Exception as exc:
+        print("V6 schema warning:",exc)
+
+ensure_v6_schema()
+
+app = FastAPI(title="CDM Desmontes ERP API", version="6.0.0")
 
 frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
 origins = {"http://localhost:5173", "http://127.0.0.1:5173", frontend_url}
@@ -39,7 +63,7 @@ app.include_router(marketplaces.router, prefix="/api/marketplaces", tags=["Marke
 
 @app.get("/api/health")
 def health():
-    return {"status":"ok","service":"cdm-desmontes-erp","version":"5.0.0"}
+    return {"status":"ok","service":"cdm-desmontes-erp","version":"6.0.0"}
 
 # Em produção, o Docker copia o build do React para FRONTEND_DIST e o FastAPI
 # serve o sistema inteiro no mesmo domínio HTTPS. Em desenvolvimento local,

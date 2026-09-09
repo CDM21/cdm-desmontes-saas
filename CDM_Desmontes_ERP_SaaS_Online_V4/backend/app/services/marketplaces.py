@@ -358,11 +358,29 @@ def publish_product(db:Session, product:Product, marketplace:str, company_id:int
 
 
 def publish_all(db:Session, product:Product, company_id:int):
-    return [publish_product(db,product,m,company_id) for m in MARKETPLACES]
+    enabled={
+        "mercadolivre": bool(getattr(product,"publish_mercadolivre",True)),
+        "shopee": bool(getattr(product,"publish_shopee",True)),
+        "olx": bool(getattr(product,"publish_olx",True)),
+    }
+    return [publish_product(db,product,m,company_id) for m in MARKETPLACES if enabled.get(m,False)]
+
+
+def _public_base_url():
+    return (os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("FRONTEND_URL") or "http://localhost:8000").rstrip("/")
 
 
 def _image_urls(product):
-    return [x.strip() for x in (product.image_urls or "").replace(",","\n").splitlines() if x.strip()][:20]
+    text_value=product.image_urls or ""
+    source=text_value if "data:image/" in text_value else text_value.replace(",","\n")
+    raw=[x.strip() for x in source.splitlines() if x.strip()][:20]
+    out=[]
+    for idx,value in enumerate(raw):
+        if value.startswith("data:image/"):
+            out.append(f"{_public_base_url()}/api/products/public/{product.id}/images/{idx}")
+        else:
+            out.append(value)
+    return out
 
 
 def _publish_ml(db,row,product:Product):
@@ -370,6 +388,11 @@ def _publish_ml(db,row,product:Product):
     if product.price<=0 or product.stock<=0: raise RuntimeError("PRODUCT: Mercado Livre exige preço e estoque maiores que zero")
     token=_ml_token(db,row)
     payload={"title":product.name[:60],"category_id":product.ml_category_id,"price":product.price,"currency_id":"BRL","available_quantity":product.stock,"buying_mode":"buy_it_now","listing_type_id":product.ml_listing_type or "gold_special","condition":"used" if product.condition!="new" else "new"}
+    if getattr(product,"ml_has_warranty",False):
+        payload["warranty"]=(getattr(product,"ml_warranty_text","") or "Garantia do vendedor").strip()[:200]
+    shipping_mode=(getattr(product,"ml_shipping_mode","") or "").strip()
+    if shipping_mode:
+        payload["shipping"]={"mode":shipping_mode,"free_shipping":bool(getattr(product,"ml_free_shipping",False)),"local_pick_up":bool(getattr(product,"ml_local_pickup",True))}
     images=_image_urls(product)
     if images: payload["pictures"]=[{"source":u} for u in images]
     with httpx.Client(timeout=40) as c:

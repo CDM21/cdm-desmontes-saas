@@ -81,6 +81,9 @@ def pub_one(product_id:int,marketplace:str,db:Session=Depends(get_db),user=Depen
     if marketplace not in MARKETPLACES: raise HTTPException(400,"Marketplace inválido")
     p=db.query(Product).filter(Product.id==product_id,Product.company_id==user.company_id).first()
     if not p: raise HTTPException(404,"Peça não encontrada")
+    enabled={"mercadolivre":p.publish_mercadolivre,"shopee":p.publish_shopee,"olx":p.publish_olx}
+    if not enabled.get(marketplace,False):
+        raise HTTPException(400,f"{marketplace} está desativado para esta peça")
     return publish_product(db,p,marketplace,user.company_id)
 
 @router.post("/listings/{listing_id}/refresh")
