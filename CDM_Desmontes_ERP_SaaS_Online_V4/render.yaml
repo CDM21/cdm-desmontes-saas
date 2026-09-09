@@ -7,13 +7,17 @@ services:
     name: cdm-desmontes-saas
     runtime: docker
     plan: free
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./CDM_Desmontes_ERP_SaaS_Online_V4/Dockerfile
+    dockerContext: ./CDM_Desmontes_ERP_SaaS_Online_V4
+
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: cdm-desmontes-db
           property: connectionString
+
       - key: SECRET_KEY
         generateValue: true
+
       - key: BILLING_WEBHOOK_SECRET
         generateValue: true
