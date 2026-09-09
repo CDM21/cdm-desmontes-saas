@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Sale,SaleItem,Product
-from ..deps import current_user
+from ..deps import current_user, active_user
 
 router=APIRouter()
 class ItemIn(BaseModel):
@@ -15,11 +15,11 @@ class SaleIn(BaseModel):
     items:list[ItemIn]
 
 @router.get("")
-def list_sales(db:Session=Depends(get_db),user=Depends(current_user)):
+def list_sales(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Sale).filter(Sale.company_id==user.company_id).order_by(Sale.id.desc()).all()
 
 @router.post("")
-def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(current_user)):
+def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(active_user)):
     if not data.items: raise HTTPException(400,"Venda sem itens")
     sale=Sale(company_id=user.company_id,customer_id=data.customer_id,payment_method=data.payment_method,total=0)
     db.add(sale); db.flush()

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Product
-from ..deps import current_user
+from ..deps import current_user, active_user
 from ..services.marketplaces import publish_all
 
 router=APIRouter()
@@ -40,11 +40,11 @@ class ProductIn(BaseModel):
     auto_publish:bool=False
 
 @router.get("")
-def list_products(db:Session=Depends(get_db),user=Depends(current_user)):
+def list_products(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Product).filter(Product.company_id==user.company_id,Product.active==True).order_by(Product.id.desc()).all()
 
 @router.post("")
-def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(current_user)):
+def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(active_user)):
     if db.query(Product).filter(Product.company_id==user.company_id,Product.sku==data.sku).first(): raise HTTPException(409,"SKU já existe nesta empresa")
     payload=data.model_dump(exclude={"auto_publish"})
     p=Product(company_id=user.company_id,**payload); db.add(p); db.commit(); db.refresh(p)
@@ -52,7 +52,7 @@ def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(curren
     return p
 
 @router.get("/{product_id}")
-def get_product(product_id:int,db:Session=Depends(get_db),user=Depends(current_user)):
+def get_product(product_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
     p=db.query(Product).filter(Product.id==product_id,Product.company_id==user.company_id).first()
     if not p: raise HTTPException(404,"Peça não encontrada")
     return p

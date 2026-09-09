@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import FinancialEntry
-from ..deps import current_user
+from ..deps import current_user, active_user
 
 router=APIRouter()
 class EntryIn(BaseModel):
@@ -14,9 +14,9 @@ class EntryIn(BaseModel):
     due_date:str=""
 
 @router.get("")
-def list_entries(db:Session=Depends(get_db),user=Depends(current_user)):
+def list_entries(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(FinancialEntry).filter(FinancialEntry.company_id==user.company_id).order_by(FinancialEntry.id.desc()).all()
 
 @router.post("")
-def create_entry(data:EntryIn,db:Session=Depends(get_db),user=Depends(current_user)):
+def create_entry(data:EntryIn,db:Session=Depends(get_db),user=Depends(active_user)):
     e=FinancialEntry(company_id=user.company_id,**data.model_dump()); db.add(e); db.commit(); db.refresh(e); return e

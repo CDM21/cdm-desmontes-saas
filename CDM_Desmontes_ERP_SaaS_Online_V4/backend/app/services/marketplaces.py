@@ -87,6 +87,46 @@ def connection_status(db:Session, company_id:int):
     return result
 
 
+
+
+def _safe_error(value: str):
+    text = str(value or "Erro desconhecido")
+    for secret_name in ("ML_CLIENT_SECRET", "SHOPEE_PARTNER_KEY", "OLX_CLIENT_SECRET"):
+        secret = _env(secret_name)
+        if secret:
+            text = text.replace(secret, "***")
+    # Evita gravar tokens caso algum provedor os inclua numa mensagem de erro.
+    import re
+    text = re.sub(r"APP_USR-[A-Za-z0-9\-_]+", "APP_USR-***", text)
+    text = re.sub(r"TG-[A-Za-z0-9\-_]+", "TG-***", text)
+    return text[:1000]
+
+
+def marketplace_diagnostics(db: Session, company_id: int, marketplace: str):
+    conn = _connection(db, company_id, marketplace)
+    return {
+        "marketplace": marketplace,
+        "app_ready": app_ready(marketplace),
+        "redirect_uri": _redirect_uri(marketplace),
+        "public_base_url": _public_base_url(),
+        "connected": bool(conn and conn.active and conn.status == "connected"),
+        "status": conn.status if conn else "disconnected",
+        "account_name": conn.account_name if conn else "",
+        "last_error": conn.last_error if conn else "",
+        "has_refresh_token": bool(conn and conn.refresh_token_enc),
+        "token_expires_at": conn.token_expires_at.isoformat() if conn and conn.token_expires_at else None,
+    }
+
+
+def record_connection_error(db: Session, company_id: int, marketplace: str, error):
+    row = _connection(db, company_id, marketplace, create=True)
+    row.active = False
+    row.status = "error"
+    row.last_error = _safe_error(str(error))
+    db.commit()
+    return row
+
+
 def authorization_url(company_id:int, marketplace:str):
     if marketplace not in MARKETPLACES: raise ValueError("Marketplace inválido")
     if not app_ready(marketplace):
@@ -137,11 +177,29 @@ def exchange_callback(db:Session, marketplace:str, code:str, state:str, shop_id:
     raise RuntimeError("Marketplace inválido")
 
 
+def _ml_oauth_error(response):
+    try:
+        data=response.json()
+        code=str(data.get("error") or data.get("code") or "")
+        message=str(data.get("message") or data.get("error_description") or response.text[:500])
+    except Exception:
+        code=""; message=response.text[:500]
+    low=(code+" "+message).lower()
+    if "invalid_operator" in low:
+        return "Use a conta principal/administradora do Mercado Livre; contas de colaborador não podem autorizar a aplicação."
+    if "redirect" in low:
+        return f"Redirect URI recusado. Confira se no Mercado Livre está exatamente: {_redirect_uri('mercadolivre')}"
+    if "invalid_client" in low or "client_secret" in low:
+        return "Client ID ou Client Secret da aplicação estão inválidos. Revise as variáveis ML_CLIENT_ID e ML_CLIENT_SECRET no Render."
+    if "invalid_grant" in low or "validating grant" in low:
+        return f"Código de autorização inválido/expirado ou Redirect URI diferente. Tente Conectar novamente e confirme: {_redirect_uri('mercadolivre')}"
+    return f"Mercado Livre OAuth: {message}"
+
 def _exchange_ml(db,company_id,code):
     data={"grant_type":"authorization_code","client_id":_env("ML_CLIENT_ID"),"client_secret":_env("ML_CLIENT_SECRET"),"code":code,"redirect_uri":_redirect_uri("mercadolivre")}
     with httpx.Client(timeout=30) as c:
         r=c.post("https://api.mercadolibre.com/oauth/token",data=data)
-        if r.status_code>=400: raise RuntimeError(f"Mercado Livre OAuth: {r.text[:600]}")
+        if r.status_code>=400: raise RuntimeError(_ml_oauth_error(r))
         token=r.json()
         access=token.get("access_token","")
         me=c.get("https://api.mercadolibre.com/users/me",headers={"Authorization":f"Bearer {access}"})
@@ -209,10 +267,45 @@ def _ml_token(db,row):
         data={"grant_type":"refresh_token","client_id":_env("ML_CLIENT_ID"),"client_secret":_env("ML_CLIENT_SECRET"),"refresh_token":refresh}
         with httpx.Client(timeout=30) as c:
             r=c.post("https://api.mercadolibre.com/oauth/token",data=data)
-            if r.status_code>=400: raise RuntimeError(f"Mercado Livre token: {r.text[:500]}")
+            if r.status_code>=400: raise RuntimeError(_ml_oauth_error(r))
             t=r.json()
         access=t.get("access_token",access);row.access_token_enc=encrypt_secret(access);row.refresh_token_enc=encrypt_secret(t.get("refresh_token",refresh));row.token_expires_at=datetime.utcnow()+timedelta(seconds=max(0,int(t.get("expires_in",21600))-60));db.commit()
     return access
+
+
+def ml_category_suggestions(db:Session, company_id:int, title:str, limit:int=3):
+    row=_active_connection(db,company_id,"mercadolivre")
+    token=_ml_token(db,row)
+    q=(title or "").strip()
+    if not q: raise RuntimeError("Informe o título da peça para sugerir a categoria")
+    with httpx.Client(timeout=30) as c:
+        r=c.get("https://api.mercadolibre.com/sites/MLB/domain_discovery/search",params={"q":q,"limit":max(1,min(int(limit),8))},headers={"Authorization":f"Bearer {token}"})
+    if r.status_code>=400: raise RuntimeError(f"Mercado Livre categorização: {r.text[:600]}")
+    out=[]
+    for item in r.json() or []:
+        out.append({"category_id":item.get("category_id"),"category_name":item.get("category_name"),"domain_id":item.get("domain_id"),"domain_name":item.get("domain_name")})
+    return out
+
+
+def _ml_item_attributes(client,token,product:Product):
+    # Só envia atributos que a categoria realmente conhece. Isso reduz erros de publicação em autopeças.
+    r=client.get(f"https://api.mercadolibre.com/categories/{product.ml_category_id}/attributes",headers={"Authorization":f"Bearer {token}"})
+    if r.status_code>=400: return []
+    allowed={str(a.get("id")) for a in (r.json() or [])}
+    candidates={
+        "BRAND":product.brand,
+        "MODEL":product.model,
+        "PART_NUMBER":product.oem,
+        "OEM":product.oem,
+    }
+    attrs=[]
+    for aid,value in candidates.items():
+        if aid in allowed and value:
+            attrs.append({"id":aid,"value_name":str(value)[:255]})
+    # Novo padrão de condição quando a categoria o disponibiliza.
+    if "ITEM_CONDITION" in allowed:
+        attrs.append({"id":"ITEM_CONDITION","value_name":"Novo" if product.condition=="new" else "Usado"})
+    return attrs
 
 
 def _shopee_token(db,row):
@@ -280,6 +373,8 @@ def _publish_ml(db,row,product:Product):
     images=_image_urls(product)
     if images: payload["pictures"]=[{"source":u} for u in images]
     with httpx.Client(timeout=40) as c:
+        attrs=_ml_item_attributes(c,token,product)
+        if attrs: payload["attributes"]=attrs
         r=c.post("https://api.mercadolibre.com/items",json=payload,headers={"Authorization":f"Bearer {token}"})
         if r.status_code>=400: raise RuntimeError(f"Mercado Livre: {r.text[:900]}")
         data=r.json();item_id=data.get("id")

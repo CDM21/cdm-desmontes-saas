@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -52,7 +53,7 @@ def register(data:Register, db:Session=Depends(get_db)):
     user=User(company_id=company.id,email=data.email.lower().strip(),name=data.name.strip(),role="owner",password_hash=hash_password(data.password))
     db.add(user)
     # O SaaS já nasce pronto para onboarding. O gateway de pagamento pode trocar trial -> active via webhook.
-    sub=Subscription(company_id=company.id,plan="mensal",status="trial",provider="onboarding",expires_at=datetime.utcnow()+timedelta(days=7))
+    sub=Subscription(company_id=company.id,plan="mensal-350",status="trial",provider="onboarding",expires_at=datetime.utcnow()+timedelta(days=7))
     db.add(sub); db.commit(); db.refresh(user)
     return session_payload(db,user)
 
@@ -64,6 +65,7 @@ def me(user=Depends(current_user), db:Session=Depends(get_db)):
 
 @router.post("/bootstrap")
 def bootstrap(db:Session=Depends(get_db)):
+    if os.getenv("ALLOW_BOOTSTRAP","").lower() not in {"1","true","yes"}: raise HTTPException(403,"Bootstrap desativado em produção")
     if db.query(User).count(): return {"message":"Já inicializado"}
     company=Company(trade_name="CDM Desmontes",legal_name="CDM Desmontes",email="admin@autodesmonte.local",responsible_name="Administrador",state="RJ")
     db.add(company); db.flush()

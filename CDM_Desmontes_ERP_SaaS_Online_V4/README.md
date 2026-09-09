@@ -1,6 +1,19 @@
-# CDM Desmontes ERP — SaaS / Multiempresa
+# CDM Desmontes ERP — SaaS / Multiempresa V5
 
 Versão atualizada do CDM Desmontes com visual de ERP profissional, cadastro multiempresa, assinatura e integração self-service com Mercado Livre, Shopee e OLX.
+
+## Novidades da V5
+
+- Marca -> modelo no cadastro de veículos e peças (Toyota -> Corolla, RAV4, SW4 etc.).
+- Vínculo da peça ao veículo/sucata de origem.
+- Preditor de categoria do Mercado Livre dentro do cadastro da peça.
+- Diagnóstico OAuth do Mercado Livre com último erro e Redirect URI real.
+- Plano padrão **R$ 350/mês** com checkout recorrente do Mercado Pago.
+- Bloqueio dos módulos operacionais quando a assinatura vence.
+- Login de produção sem criação automática de usuário/senha padrão.
+
+Veja `ALTERACOES_CDM_V5.md` para detalhes.
+
 
 ## O que mudou
 
@@ -46,12 +59,11 @@ npm run dev
 
 Frontend: http://localhost:5173
 
-### Usuário local inicial
+### Primeiro acesso
 
-- E-mail: `admin@autodesmonte.local`
-- Senha: `admin123`
+Em produção, use **Criar conta** na tela inicial. O bootstrap automático com senha padrão foi desativado por segurança.
 
-> Troque a senha/chaves antes de produção.
+Para um ambiente local de desenvolvimento antigo, `ALLOW_BOOTSTRAP=true` reativa explicitamente a rota de bootstrap. Não use isso no Render de produção.
 
 ## Integrações: como funciona no SaaS
 
