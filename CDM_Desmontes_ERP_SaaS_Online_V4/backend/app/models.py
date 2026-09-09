@@ -1,0 +1,258 @@
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Text, UniqueConstraint
+from datetime import datetime
+from .db import Base
+
+
+class Company(Base):
+    __tablename__ = "companies"
+    id = Column(Integer, primary_key=True)
+    trade_name = Column(String(180), default="")
+    legal_name = Column(String(220), default="")
+    cnpj = Column(String(30), default="", index=True)
+    state_registration = Column(String(40), default="")
+    tax_regime = Column(String(80), default="Simples Nacional")
+    email = Column(String(180), default="")
+    phone = Column(String(40), default="")
+    responsible_name = Column(String(180), default="")
+    rg = Column(String(40), default="")
+    cpf = Column(String(30), default="")
+    issuing_agency = Column(String(40), default="")
+    cep = Column(String(20), default="")
+    state = Column(String(10), default="RJ")
+    city = Column(String(120), default="")
+    address = Column(String(220), default="")
+    number = Column(String(40), default="")
+    complement = Column(String(120), default="")
+    logo_url = Column(String(500), default="")
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), unique=True, index=True)
+    plan = Column(String(60), default="mensal")
+    status = Column(String(30), default="trial")  # trial/active/past_due/canceled/inactive
+    provider = Column(String(60), default="manual")
+    external_subscription_id = Column(String(180), default="")
+    started_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+    auto_renew = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    email = Column(String(180), unique=True, index=True)
+    password_hash = Column(String(255))
+    name = Column(String(120))
+    role = Column(String(40), default="admin")
+    active = Column(Boolean, default=True)
+
+
+class Vehicle(Base):
+    __tablename__ = "vehicles"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    plate = Column(String(20), index=True)
+    vin = Column(String(80), index=True)
+    renavam = Column(String(40))
+    brand = Column(String(80))
+    model = Column(String(120))
+    year = Column(Integer)
+    fuel = Column(String(30))
+    transmission = Column(String(30))
+    color = Column(String(40))
+    acquisition_value = Column(Float, default=0)
+    other_costs = Column(Float, default=0)
+    status = Column(String(30), default="received")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Dismantling(Base):
+    __tablename__ = "dismantlings"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), index=True)
+    status = Column(String(30), default="pending")
+    notes = Column(Text, default="")
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+
+
+class Location(Base):
+    __tablename__ = "locations"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    warehouse = Column(String(80))
+    aisle = Column(String(40))
+    shelf = Column(String(40))
+    bin = Column(String(40))
+
+
+class Product(Base):
+    __tablename__ = "products"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    sku = Column(String(80), index=True)
+    name = Column(String(180), index=True)
+    category = Column(String(100))
+    part_group = Column(String(100), default="")
+    brand = Column(String(80))
+    model = Column(String(120))
+    year = Column(Integer)
+    oem = Column(String(100))
+    condition = Column(String(50), default="used")
+    side = Column(String(40))
+    position = Column(String(60))
+    cost = Column(Float, default=0)
+    price = Column(Float, default=0)
+    stock = Column(Integer, default=0)
+    location_id = Column(Integer, ForeignKey("locations.id"))
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"))
+    active = Column(Boolean, default=True)
+    description = Column(Text, default="")
+    compatibility = Column(Text, default="")
+    image_urls = Column(Text, default="")  # one URL per line
+    weight = Column(Float, default=1)
+    package_length = Column(Float, default=20)
+    package_width = Column(Float, default=20)
+    package_height = Column(Float, default=20)
+    ml_category_id = Column(String(60), default="")
+    ml_listing_type = Column(String(60), default="gold_special")
+    shopee_category_id = Column(String(60), default="")
+    shopee_logistic_id = Column(String(60), default="")
+    shopee_image_ids = Column(Text, default="")
+    olx_category_id = Column(String(60), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("company_id", "sku", name="uq_company_sku"),)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    name = Column(String(180))
+    cpf_cnpj = Column(String(30))
+    phone = Column(String(40))
+    email = Column(String(180))
+    address = Column(String(255))
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    name = Column(String(180))
+    cpf_cnpj = Column(String(30), default="")
+    phone = Column(String(40), default="")
+    email = Column(String(180), default="")
+
+
+class Carrier(Base):
+    __tablename__ = "carriers"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    name = Column(String(180))
+    cnpj = Column(String(30), default="")
+    phone = Column(String(40), default="")
+    email = Column(String(180), default="")
+
+
+class Seller(Base):
+    __tablename__ = "sellers"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    name = Column(String(180))
+    email = Column(String(180), default="")
+    phone = Column(String(40), default="")
+    commission_rate = Column(Float, default=0)
+    active = Column(Boolean, default=True)
+
+
+class PartGroup(Base):
+    __tablename__ = "part_groups"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    name = Column(String(120))
+    description = Column(Text, default="")
+
+
+class TaxConfig(Base):
+    __tablename__ = "tax_configs"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), unique=True, index=True, nullable=False)
+    regime = Column(String(80), default="Simples Nacional")
+    crt = Column(String(20), default="1")
+    cfop_default = Column(String(20), default="5102")
+    ncm_default = Column(String(20), default="")
+    csosn_default = Column(String(20), default="102")
+    notes = Column(Text, default="")
+
+
+class Sale(Base):
+    __tablename__ = "sales"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id"))
+    total = Column(Float, default=0)
+    payment_method = Column(String(40))
+    status = Column(String(30), default="paid")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SaleItem(Base):
+    __tablename__ = "sale_items"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    sale_id = Column(Integer, ForeignKey("sales.id"), index=True)
+    product_id = Column(Integer, ForeignKey("products.id"))
+    quantity = Column(Integer, default=1)
+    unit_price = Column(Float)
+
+
+class FinancialEntry(Base):
+    __tablename__ = "financial_entries"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    kind = Column(String(20)) # income/expense
+    description = Column(String(255))
+    amount = Column(Float)
+    status = Column(String(30), default="paid")
+    due_date = Column(String(20))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketplaceConnection(Base):
+    __tablename__ = "marketplace_connections"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    marketplace = Column(String(40), index=True)
+    account_name = Column(String(180), default="")
+    external_account_id = Column(String(120), default="")
+    access_token_enc = Column(Text, default="")
+    refresh_token_enc = Column(Text, default="")
+    token_expires_at = Column(DateTime, nullable=True)
+    metadata_json = Column(Text, default="{}")
+    active = Column(Boolean, default=False)
+    status = Column(String(30), default="disconnected")
+    last_error = Column(Text, default="")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("company_id", "marketplace", name="uq_company_marketplace"),)
+
+
+class MarketplaceListing(Base):
+    __tablename__ = "marketplace_listings"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), index=True)
+    marketplace = Column(String(40), index=True)
+    external_id = Column(String(180), default="")
+    status = Column(String(30), default="pending")
+    error_message = Column(Text, default="")
+    published_at = Column(DateTime)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("company_id", "product_id", "marketplace", name="uq_company_product_marketplace"),)
