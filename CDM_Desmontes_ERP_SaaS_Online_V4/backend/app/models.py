@@ -135,6 +135,9 @@ class Product(Base):
     ml_shipping_mode = Column(String(60), default="")
     ml_free_shipping = Column(Boolean, default=False)
     ml_local_pickup = Column(Boolean, default=True)
+    ml_attributes_json = Column(Text, default="{}")
+    ml_store_id = Column(String(80), default="")
+    ml_network_node_id = Column(String(120), default="")
     created_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (UniqueConstraint("company_id", "sku", name="uq_company_sku"),)
 
@@ -209,6 +212,8 @@ class Sale(Base):
     total = Column(Float, default=0)
     payment_method = Column(String(40))
     status = Column(String(30), default="paid")
+    source = Column(String(40), default="manual")
+    external_order_id = Column(String(180), default="", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -264,3 +269,39 @@ class MarketplaceListing(Base):
     published_at = Column(DateTime)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     __table_args__ = (UniqueConstraint("company_id", "product_id", "marketplace", name="uq_company_product_marketplace"),)
+
+
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), index=True, nullable=False)
+    kind = Column(String(30), default="sale")  # sale/adjustment/marketplace
+    quantity_delta = Column(Integer, default=0)
+    balance_after = Column(Integer, default=0)
+    reference = Column(String(180), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketplaceOrderEvent(Base):
+    __tablename__ = "marketplace_order_events"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    marketplace = Column(String(40), index=True, nullable=False)
+    external_order_id = Column(String(180), index=True, nullable=False)
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True)
+    payload_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("company_id", "marketplace", "external_order_id", name="uq_marketplace_order_event"),)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
+    action = Column(String(100), index=True)
+    entity = Column(String(80), default="")
+    entity_id = Column(String(100), default="")
+    details_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)

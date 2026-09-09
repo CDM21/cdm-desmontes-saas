@@ -1,11 +1,11 @@
 import os
-from fastapi import APIRouter,Depends,HTTPException,Query
+from fastapi import APIRouter,Depends,HTTPException,Query,Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_user
 from ..models import Product,MarketplaceListing
-from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions
+from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification,_active_connection,_ml_token
 from ..subscriptions import require_active_subscription
 from ..security import decode_oauth_state
 
@@ -26,6 +26,61 @@ def ml_categories(q:str=Query(default=""),limit:int=Query(default=3),db:Session=
     require_active_subscription(user,db)
     try: return ml_category_suggestions(db,user.company_id,q,limit)
     except RuntimeError as e: raise HTTPException(400,str(e))
+
+
+
+@router.get("/mercadolivre/stores")
+def ml_stores(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_active_subscription(user,db)
+    try:
+        row=_active_connection(db,user.company_id,"mercadolivre")
+        token=_ml_token(db,row)
+        import httpx
+        headers={"Authorization":f"Bearer {token}"}
+        with httpx.Client(timeout=30) as c:
+            u=c.get(f"https://api.mercadolibre.com/users/{row.external_account_id}",headers=headers)
+            if u.status_code>=400: raise RuntimeError(u.text[:700])
+            tags=u.json().get("tags") or []
+            if "warehouse_management" not in tags:
+                return {"warehouse_management":False,"multiwarehouse":False,"stores":[]}
+            r=c.get(f"https://api.mercadolibre.com/users/{row.external_account_id}/stores/search",params={"tags":"stock_location"},headers=headers)
+            if r.status_code>=400: raise RuntimeError(r.text[:700])
+        stores=[]
+        for x in r.json().get("results") or []:
+            loc=x.get("location") or {}
+            stores.append({"id":str(x.get("id") or ""),"network_node_id":str(x.get("network_node_id") or ""),"description":x.get("description") or f"Depósito {x.get('id')}","city":loc.get("city") or "","state":loc.get("state") or ""})
+        return {"warehouse_management":True,"multiwarehouse":"multiwarehouse" in tags,"stores":stores}
+    except Exception as e:
+        raise HTTPException(400,f"Mercado Livre: {str(e)}")
+
+@router.get("/mercadolivre/category/{category_id}/attributes")
+def ml_category_attributes(category_id:str,db:Session=Depends(get_db),user=Depends(current_user)):
+    require_active_subscription(user,db)
+    try:
+        row=_active_connection(db,user.company_id,"mercadolivre")
+        token=_ml_token(db,row)
+        import httpx
+        with httpx.Client(timeout=30) as c:
+            r=c.get(f"https://api.mercadolibre.com/categories/{category_id}/attributes",headers={"Authorization":f"Bearer {token}"})
+        if r.status_code>=400: raise RuntimeError(r.text[:700])
+        out=[]
+        for a in r.json() or []:
+            tags=a.get("tags") or {}
+            if tags.get("required") or tags.get("catalog_required") or tags.get("conditional_required"):
+                vals=[{"id":v.get("id"),"name":v.get("name")} for v in (a.get("values") or [])[:80]]
+                out.append({"id":a.get("id"),"name":a.get("name"),"value_type":a.get("value_type") or a.get("value_type_name"),"required":True,"values":vals})
+        return out
+    except Exception as e: raise HTTPException(400,f"Mercado Livre: {str(e)}")
+
+@router.post("/webhooks/mercadolivre",include_in_schema=False)
+async def mercadolivre_webhook(request:Request,db:Session=Depends(get_db)):
+    try: body=await request.json()
+    except Exception: body={}
+    try: return process_ml_notification(db,body if isinstance(body,dict) else {})
+    except Exception as exc:
+        # Retorna 200 para evitar tempestade de retentativas; o erro fica visível nos logs do Render.
+        print("Mercado Livre webhook warning:",str(exc)[:900])
+        return {"ok":False,"message":str(exc)[:300]}
 
 @router.get("/{marketplace}/diagnostics")
 def diagnostics(marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):

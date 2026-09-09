@@ -120,3 +120,9 @@ Para produção, recomenda-se migrar para PostgreSQL e usar HTTPS.
 - O cliente final não precisa informar credenciais de aplicativo; apenas autoriza a própria conta no marketplace.
 - Defina `SECRET_KEY` forte e `APP_ENCRYPTION_KEY` em produção.
 
+
+## CDM Desmontes V7
+
+A V7 amplia o sistema para operação comercial SaaS: interface com tipografia maior, fotos de peças centralizadas e completas, administração de empresas, cobrança recorrente de R$ 350/mês via Mercado Pago, PDV com baixa automática de estoque, backup lógico e sincronização com marketplaces conectados.
+
+Veja `ALTERACOES_CDM_V7.md` e `CONFIGURAR_V7_RENDER.md` antes de ativar cobrança e publicação real em produção.

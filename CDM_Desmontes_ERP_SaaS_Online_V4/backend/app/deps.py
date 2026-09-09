@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from .db import get_db
-from .models import User
+from .models import User, Company
 from .security import SECRET_KEY, ALGORITHM
 
 bearer=HTTPBearer()
@@ -16,6 +16,8 @@ def current_user(credentials=Depends(bearer), db:Session=Depends(get_db)):
         raise HTTPException(401,"Token inválido")
     user=db.get(User,uid)
     if not user or not user.active: raise HTTPException(401,"Usuário inválido")
+    company=db.get(Company,user.company_id)
+    if not company or not company.active: raise HTTPException(403,"Empresa desativada")
     return user
 
 

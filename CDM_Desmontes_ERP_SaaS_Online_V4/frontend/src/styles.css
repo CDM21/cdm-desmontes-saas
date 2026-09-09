@@ -25,3 +25,34 @@
   .stockLabel{margin:0 0 1mm 0}
   @page{size:100mm 50mm;margin:0}
 }
+
+/* CDM V7 — leitura maior, fotos inteiras e telas comerciais */
+body{font-size:16px}
+.brand{min-height:68px}.brandMark{width:42px;height:42px;font-size:12px}.brand h1{font-size:14px}.brand small{font-size:11px}
+.navMain{min-height:44px;padding:10px 11px;font-size:14px}.subNav button{min-height:38px;font-size:13px;padding:9px 10px}.navIcon{font-size:16px}
+.topbar{min-height:62px}.topbar button,.profileButton{font-size:13px}
+.pageTitle span{font-size:12px}.pageTitle h2{font-size:30px;line-height:1.15}.pageTitle p{font-size:15px;line-height:1.5}
+.panelTitle small{font-size:11px}.panelTitle h2{font-size:22px}.panelTitle p{font-size:14px;line-height:1.5}
+.panel h3,.formSectionTitle{font-size:17px}.field>span{font-size:13px;font-weight:700}.fieldHelp{font-size:12px}
+input,select,textarea{font-size:15px;min-height:44px;padding:11px 12px}textarea{min-height:96px}
+.primary,.ghost,.danger,.publishBtn,.labelBtn,.uploadButton{font-size:14px;min-height:42px;padding:10px 14px}
+.tableWrap th{font-size:12px}.tableWrap td{font-size:13px}.tableWrap th,.tableWrap td{padding:11px 10px}
+.productName strong{font-size:14px;line-height:1.35}.productName small{font-size:12px}.productMeta small{font-size:11px}.productMeta b{font-size:14px}.cardTabs b,.cardTabs span{font-size:13px}.mini{font-size:10px}.productActions button{font-size:12px;min-height:42px}
+.marketBody h3{font-size:19px}.marketBody p,.marketStats,.connection{font-size:13px}.marketError{font-size:13px}
+.choiceCard b{font-size:14px}.choiceCard small{font-size:12px}.switchRows b{font-size:13px}.switchRows small{font-size:11px}.modalHead small{font-size:11px}.modalHead h2{font-size:24px}.modalHead p{font-size:13px}
+.channelToggle b{font-size:13px}.channelToggle small{font-size:11px}.tinyCheck{font-size:12px}.advancedUrls summary{font-size:12px}
+
+/* Toda foto entra centralizada, sem corte e sem deformação. */
+.productImage{height:230px;padding:12px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.productImage img,.rowImage img,.imagePreview img{width:100%;height:100%;object-fit:contain!important;object-position:center center!important;background:#fff;display:block}
+.rowImage{background:#fff;padding:4px}.imagePreview{background:#fff;display:flex;flex-direction:column}.imagePreview img{height:190px;padding:10px;flex:0 0 auto}
+.imagePreviewGrid{align-items:stretch}
+
+/* Mercado Livre: atributos carregados conforme a categoria. */
+.mlAttributeGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+
+/* PDV e administração SaaS. */
+.saleAddRow{display:grid;grid-template-columns:minmax(0,1fr) 130px auto;gap:10px;align-items:end}.saleAddBtn{height:44px}.saleCart{display:grid;gap:8px;margin:14px 0}.saleCartRow{display:grid;grid-template-columns:minmax(0,1fr) auto auto 34px;gap:12px;align-items:center;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:10px}.saleCartRow b,.saleCartRow small{display:block}.saleCartRow b{font-size:14px}.saleCartRow small{font-size:11px;color:var(--muted);margin-top:2px}.saleCartRow span,.saleCartRow strong{font-size:13px}.saleCartRow button{width:32px;height:32px;border-radius:7px;background:#6a2428;color:#fff;font-size:18px}.saleTotal{display:flex;justify-content:space-between;align-items:center;margin:16px 0;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:16px}.saleTotal strong{font-size:24px}.bigBtn{width:100%;min-height:50px;font-size:15px}
+.adminCompanyGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.adminCompany{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:15px;display:grid;gap:13px}.adminCompany small{font-size:11px;color:var(--muted)}.adminCompany h3{font-size:18px;margin:3px 0}.adminCompany p{font-size:13px;margin:0;color:var(--muted)}.adminStats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.adminStats span{background:var(--soft);border-radius:8px;padding:8px;text-align:center;font-size:11px}.adminStats b{display:block;font-size:17px}.adminActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.adminActions select{width:auto;min-width:135px}.pill{font-size:11px}
+
+@media(max-width:900px){body{font-size:15px}.pageTitle h2{font-size:26px}.mlAttributeGrid,.adminCompanyGrid,.saleAddRow{grid-template-columns:1fr}.saleCartRow{grid-template-columns:1fr auto}.saleCartRow strong{grid-column:1}.adminStats{grid-template-columns:repeat(2,1fr)}.productImage{height:210px}}

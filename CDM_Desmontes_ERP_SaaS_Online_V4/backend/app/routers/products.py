@@ -49,6 +49,9 @@ class ProductIn(BaseModel):
     ml_shipping_mode:str="me2"
     ml_free_shipping:bool=False
     ml_local_pickup:bool=True
+    ml_attributes_json:str="{}"
+    ml_store_id:str=""
+    ml_network_node_id:str=""
     auto_publish:bool=False
 
 @router.get("")

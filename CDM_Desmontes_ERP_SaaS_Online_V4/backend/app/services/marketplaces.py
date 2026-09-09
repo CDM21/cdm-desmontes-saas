@@ -304,7 +304,7 @@ def _ml_item_attributes(client,token,product:Product):
             attrs.append({"id":aid,"value_name":str(value)[:255]})
     # Novo padrão de condição quando a categoria o disponibiliza.
     if "ITEM_CONDITION" in allowed:
-        attrs.append({"id":"ITEM_CONDITION","value_name":"Novo" if product.condition=="new" else "Usado"})
+        attrs.append({"id":"ITEM_CONDITION","value_name":"Novo" if product.condition=="new" else ("Recondicionado" if product.condition=="reconditioned" else "Usado")})
     return attrs
 
 
@@ -337,16 +337,16 @@ def publish_product(db:Session, product:Product, marketplace:str, company_id:int
         _ensure_subscription(db,company_id)
         conn=_active_connection(db,company_id,marketplace)
         company=db.get(Company,company_id)
-        if marketplace=="mercadolivre": result=_publish_ml(db,conn,product)
-        elif marketplace=="shopee": result=_publish_shopee(db,conn,product)
-        elif marketplace=="olx": result=_publish_olx(conn,product,company)
+        if marketplace=="mercadolivre": result=_publish_ml(db,conn,product,row)
+        elif marketplace=="shopee": result=_publish_shopee(db,conn,product,row)
+        elif marketplace=="olx": result=_publish_olx(conn,product,company,row)
         else: raise ValueError("Marketplace inválido")
-        row.external_id=str(result.get("external_id") or "")
+        row.external_id=str(result.get("external_id") or row.external_id or "")
         row.status=result.get("status","published")
         row.error_message=""
         if row.status=="published": row.published_at=datetime.utcnow()
     except Exception as exc:
-        msg=str(exc)
+        msg=_safe_error(str(exc))
         if "CONNECT:" in msg: row.status="needs_connection"
         elif "PRODUCT:" in msg: row.status="needs_product_data"
         elif "SUBSCRIPTION:" in msg: row.status="subscription_required"
@@ -383,49 +383,223 @@ def _image_urls(product):
     return out
 
 
-def _publish_ml(db,row,product:Product):
-    if not product.ml_category_id: raise RuntimeError("PRODUCT: Informe a categoria do Mercado Livre no cadastro da peça")
-    if product.price<=0 or product.stock<=0: raise RuntimeError("PRODUCT: Mercado Livre exige preço e estoque maiores que zero")
-    token=_ml_token(db,row)
-    payload={"title":product.name[:60],"category_id":product.ml_category_id,"price":product.price,"currency_id":"BRL","available_quantity":product.stock,"buying_mode":"buy_it_now","listing_type_id":product.ml_listing_type or "gold_special","condition":"used" if product.condition!="new" else "new"}
-    if getattr(product,"ml_has_warranty",False):
-        payload["warranty"]=(getattr(product,"ml_warranty_text","") or "Garantia do vendedor").strip()[:200]
+def _extra_ml_attributes(product:Product):
+    try:
+        raw=json.loads(getattr(product,"ml_attributes_json","{}") or "{}")
+    except Exception:
+        return []
+    if isinstance(raw,list):
+        return [x for x in raw if isinstance(x,dict) and x.get("id")]
+    if not isinstance(raw,dict): return []
+    out=[]
+    for aid,value in raw.items():
+        if value in (None,""): continue
+        out.append({"id":str(aid),"value_name":str(value)[:255]})
+    return out
+
+
+def _ml_user_profile(client,token,row):
+    seller_id=str(row.external_account_id or "").strip()
+    if not seller_id: return {"tags":[]}
+    r=client.get(f"https://api.mercadolibre.com/users/{seller_id}",headers={"Authorization":f"Bearer {token}"})
+    if r.status_code>=400: raise RuntimeError(f"Mercado Livre usuário: {r.text[:700]}")
+    return r.json()
+
+
+def _ml_store_list(client,token,row):
+    seller_id=str(row.external_account_id or "").strip()
+    r=client.get(f"https://api.mercadolibre.com/users/{seller_id}/stores/search",params={"tags":"stock_location"},headers={"Authorization":f"Bearer {token}"})
+    if r.status_code>=400: raise RuntimeError(f"Mercado Livre depósitos: {r.text[:700]}")
+    return r.json().get("results") or []
+
+
+def _ml_pick_store(client,token,row,product:Product):
+    stores=_ml_store_list(client,token,row)
+    wanted=str(getattr(product,"ml_store_id","") or "")
+    store=next((x for x in stores if str(x.get("id"))==wanted),None) if wanted else None
+    if not store and len(stores)==1:
+        store=stores[0]
+        product.ml_store_id=str(store.get("id") or "")
+        product.ml_network_node_id=str(store.get("network_node_id") or "")
+    if not store:
+        if not stores: raise RuntimeError("PRODUCT: Sua conta Mercado Livre usa estoque por depósito, mas nenhum depósito de estoque foi encontrado")
+        raise RuntimeError("PRODUCT: Escolha o depósito do Mercado Livre na configuração deste produto")
+    return {"store_id":str(store.get("id") or ""),"network_node_id":str(store.get("network_node_id") or getattr(product,"ml_network_node_id","") or "")}
+
+
+def _ml_payload(client,token,product:Product,for_update=False,use_up=False,multiwarehouse=False):
+    attrs=_ml_item_attributes(client,token,product)
+    # Campos extras preenchidos no modal Mercado Livre sobrescrevem os gerados automaticamente.
+    extra=_extra_ml_attributes(product)
+    byid={str(x.get("id")):x for x in attrs if x.get("id")}
+    for x in extra: byid[str(x.get("id"))]=x
+    payload={"price":float(product.price)}
+    if not multiwarehouse:
+        payload["available_quantity"]=max(0,int(product.stock))
+    if not for_update:
+        payload.update({
+            "category_id":product.ml_category_id,"currency_id":"BRL",
+            "buying_mode":"buy_it_now","listing_type_id":product.ml_listing_type or "gold_special",
+            "condition":"new" if product.condition=="new" else "used","channels":["marketplace"],
+        })
+        if use_up: payload["family_name"]=product.name[:120]
+        else: payload["title"]=product.name[:60]
+    else:
+        # Em sellers User Products o Mercado Livre gera title; editar title diretamente retorna erro.
+        if use_up: payload["family_name"]=product.name[:120]
+        else: payload["title"]=product.name[:60]
+    if byid: payload["attributes"]=list(byid.values())
     shipping_mode=(getattr(product,"ml_shipping_mode","") or "").strip()
     if shipping_mode:
         payload["shipping"]={"mode":shipping_mode,"free_shipping":bool(getattr(product,"ml_free_shipping",False)),"local_pick_up":bool(getattr(product,"ml_local_pickup",True))}
     images=_image_urls(product)
     if images: payload["pictures"]=[{"source":u} for u in images]
-    with httpx.Client(timeout=40) as c:
-        attrs=_ml_item_attributes(c,token,product)
-        if attrs: payload["attributes"]=attrs
-        r=c.post("https://api.mercadolibre.com/items",json=payload,headers={"Authorization":f"Bearer {token}"})
-        if r.status_code>=400: raise RuntimeError(f"Mercado Livre: {r.text[:900]}")
-        data=r.json();item_id=data.get("id")
+    if getattr(product,"ml_has_warranty",False) and getattr(product,"ml_warranty_text",""):
+        payload["warranty"]=str(product.ml_warranty_text).strip()[:200]
+    return payload
+
+
+def _ml_sync_stock_client(client,token,row,product:Product,item_id:str,profile:dict|None=None):
+    profile=profile or _ml_user_profile(client,token,row)
+    tags=profile.get("tags") or []
+    headers={"Authorization":f"Bearer {token}","Content-Type":"application/json"}
+    if "warehouse_management" not in tags:
+        r=client.put(f"https://api.mercadolibre.com/items/{item_id}",json={"available_quantity":max(0,int(product.stock))},headers=headers)
+        if r.status_code>=400: raise RuntimeError(f"Mercado Livre estoque: {r.text[:700]}")
+        return {"mode":"item"}
+    # Multi-origem: estoque é gerenciado pelo User Product e exige x-version.
+    ir=client.get(f"https://api.mercadolibre.com/items/{item_id}",headers={"Authorization":f"Bearer {token}"})
+    if ir.status_code>=400: raise RuntimeError(f"Mercado Livre item: {ir.text[:700]}")
+    up=str(ir.json().get("user_product_id") or "")
+    if not up: raise RuntimeError("Mercado Livre: item sem user_product_id para sincronizar estoque multi-origem")
+    sr=client.get(f"https://api.mercadolibre.com/user-products/{up}/stock",headers={"Authorization":f"Bearer {token}"})
+    if sr.status_code>=400: raise RuntimeError(f"Mercado Livre estoque UP: {sr.text[:700]}")
+    version=sr.headers.get("x-version")
+    locations=sr.json().get("locations") or []
+    seller=[x for x in locations if x.get("type")=="seller_warehouse"]
+    if not seller:
+        # Fulfillment é gerido pelo próprio Mercado Livre e não aceita alteração do seller.
+        if any(x.get("type")=="meli_facility" for x in locations): return {"mode":"meli_facility","user_product_id":up}
+        raise RuntimeError("Mercado Livre: não há depósito do vendedor inicializado para este User Product")
+    wanted=str(getattr(product,"ml_store_id","") or "")
+    target=next((x for x in seller if str(x.get("store_id"))==wanted),None) if wanted else None
+    if not target and len(seller)==1: target=seller[0]
+    if not target:
+        raise RuntimeError("Mercado Livre: selecione no produto qual depósito deve receber a sincronização de estoque")
+    out=[]
+    for loc in seller:
+        out.append({"store_id":str(loc.get("store_id") or ""),"network_node_id":str(loc.get("network_node_id") or ""),"quantity":max(0,int(product.stock)) if loc is target else int(loc.get("quantity") or 0)})
+    if not version: raise RuntimeError("Mercado Livre: x-version do estoque não retornado")
+    rr=client.put(f"https://api.mercadolibre.com/user-products/{up}/stock/type/seller_warehouse",json={"locations":out},headers={**headers,"x-version":str(version)})
+    if rr.status_code==409:
+        # Uma atualização concorrente pode trocar a versão. Tenta novamente uma vez.
+        sr=client.get(f"https://api.mercadolibre.com/user-products/{up}/stock",headers={"Authorization":f"Bearer {token}"})
+        version=sr.headers.get("x-version")
+        fresh=sr.json().get("locations") or []
+        seller=[x for x in fresh if x.get("type")=="seller_warehouse"]
+        target=next((x for x in seller if str(x.get("store_id"))==str(target.get("store_id"))),None)
+        out=[{"store_id":str(loc.get("store_id") or ""),"network_node_id":str(loc.get("network_node_id") or ""),"quantity":max(0,int(product.stock)) if target and str(loc.get("store_id"))==str(target.get("store_id")) else int(loc.get("quantity") or 0)} for loc in seller]
+        rr=client.put(f"https://api.mercadolibre.com/user-products/{up}/stock/type/seller_warehouse",json={"locations":out},headers={**headers,"x-version":str(version or "")})
+    if rr.status_code>=400: raise RuntimeError(f"Mercado Livre estoque multi-origem: {rr.text[:900]}")
+    return {"mode":"seller_warehouse","user_product_id":up}
+
+
+def _publish_ml(db,row,product:Product,listing:MarketplaceListing):
+    if not product.ml_category_id: raise RuntimeError("PRODUCT: Informe a categoria do Mercado Livre no cadastro da peça")
+    if product.price<=0 or product.stock<=0: raise RuntimeError("PRODUCT: Mercado Livre exige preço e estoque maiores que zero")
+    token=_ml_token(db,row)
+    headers={"Authorization":f"Bearer {token}","Content-Type":"application/json"}
+    with httpx.Client(timeout=45) as c:
+        profile=_ml_user_profile(c,token,row)
+        tags=profile.get("tags") or []
+        use_up="user_product_seller" in tags
+        multiwarehouse="warehouse_management" in tags
+        existing=(listing.external_id or "").strip()
+        if existing.upper().startswith("MLB"):
+            payload=_ml_payload(c,token,product,for_update=True,use_up=use_up,multiwarehouse=multiwarehouse)
+            r=c.put(f"https://api.mercadolibre.com/items/{existing}",json=payload,headers=headers)
+            if r.status_code>=400: raise RuntimeError(f"Mercado Livre: {r.text[:1200]}")
+            item_id=existing
+            if multiwarehouse: _ml_sync_stock_client(c,token,row,product,item_id,profile)
+        else:
+            payload=_ml_payload(c,token,product,for_update=False,use_up=use_up,multiwarehouse=multiwarehouse)
+            endpoint="https://api.mercadolibre.com/items"
+            if multiwarehouse:
+                store=_ml_pick_store(c,token,row,product)
+                payload["stock_locations"]=[{"store_id":store["store_id"],"network_node_id":store["network_node_id"],"quantity":max(0,int(product.stock))}]
+                endpoint="https://api.mercadolibre.com/items/multiwarehouse"
+            r=c.post(endpoint,json=payload,headers=headers)
+            if r.status_code>=400: raise RuntimeError(f"Mercado Livre: {r.text[:1200]}")
+            data=r.json(); item_id=data.get("id")
+            if multiwarehouse and getattr(product,"ml_store_id",""): db.commit()
         if item_id and (product.description or product.compatibility):
             text=(product.description or product.name)+(f"\n\nCompatibilidade:\n{product.compatibility}" if product.compatibility else "")
-            c.post(f"https://api.mercadolibre.com/items/{item_id}/description",json={"plain_text":text[:50000]},headers={"Authorization":f"Bearer {token}"})
+            c.post(f"https://api.mercadolibre.com/items/{item_id}/description",json={"plain_text":text[:50000]},headers=headers)
     return {"external_id":item_id,"status":"published"}
 
 
-def _publish_shopee(db,row,product:Product):
-    category=(product.shopee_category_id or "").strip();logistic=(product.shopee_logistic_id or "").strip();image_ids=[x.strip() for x in (product.shopee_image_ids or "").replace(",","\n").splitlines() if x.strip()]
-    if not category or not logistic: raise RuntimeError("PRODUCT: Informe categoria e logística da Shopee no cadastro da peça")
-    if not image_ids: raise RuntimeError("PRODUCT: Informe os IDs de imagem da Shopee no cadastro da peça")
-    token=_shopee_token(db,row);shop_id=int(row.external_account_id);path="/api/v2/product/add_item";ts=int(time.time())
+def _shopee_call(db,row,path,payload=None,method="POST"):
+    token=_shopee_token(db,row);shop_id=int(row.external_account_id);ts=int(time.time())
     params={"partner_id":int(_env("SHOPEE_PARTNER_ID")),"timestamp":ts,"access_token":token,"shop_id":shop_id,"sign":_shopee_shop_sign(path,ts,token,shop_id)}
-    payload={"item_name":product.name,"description":product.description or product.name,"category_id":int(category),"original_price":product.price,"weight":max(.01,float(product.weight or 1)),"dimension":{"package_length":max(1,int(product.package_length or 20)),"package_width":max(1,int(product.package_width or 20)),"package_height":max(1,int(product.package_height or 20))},"seller_stock":[{"stock":max(0,int(product.stock))}],"image":{"image_id_list":image_ids[:9]},"logistic_info":[{"logistic_id":int(logistic),"enabled":True}]}
-    with httpx.Client(timeout=40) as c:
-        r=c.post("https://partner.shopeemobile.com"+path,params=params,json=payload)
-        if r.status_code>=400: raise RuntimeError(f"Shopee: {r.text[:900]}")
-        data=r.json()
+    with httpx.Client(timeout=45) as c:
+        if method=="GET": r=c.get("https://partner.shopeemobile.com"+path,params={**params,**(payload or {})})
+        else: r=c.post("https://partner.shopeemobile.com"+path,params=params,json=payload or {})
+    if r.status_code>=400: raise RuntimeError(f"Shopee: {r.text[:1000]}")
+    data=r.json()
     if data.get("error"): raise RuntimeError(f"Shopee: {data.get('message') or data.get('error')}")
-    return {"external_id":(data.get("response") or {}).get("item_id"),"status":"published"}
+    return data
+
+
+def _shopee_upload_images(db,row,product:Product):
+    ids=[]
+    for url in _image_urls(product)[:9]:
+        try:
+            token=_shopee_token(db,row);shop_id=int(row.external_account_id);path="/api/v2/media_space/upload_image";ts=int(time.time())
+            params={"partner_id":int(_env("SHOPEE_PARTNER_ID")),"timestamp":ts,"access_token":token,"shop_id":shop_id,"sign":_shopee_shop_sign(path,ts,token,shop_id)}
+            with httpx.Client(timeout=45,follow_redirects=True) as c:
+                img=c.get(url)
+                img.raise_for_status()
+                r=c.post("https://partner.shopeemobile.com"+path,params=params,files={"image":("produto.jpg",img.content,img.headers.get("content-type","image/jpeg"))})
+            data=r.json()
+            if r.status_code>=400 or data.get("error"): continue
+            info=(data.get("response") or {}).get("image_info") or {}
+            iid=info.get("image_id") or (data.get("response") or {}).get("image_id")
+            if iid: ids.append(str(iid))
+        except Exception:
+            continue
+    return ids
+
+
+def _publish_shopee(db,row,product:Product,listing:MarketplaceListing):
+    category=(product.shopee_category_id or "").strip();logistic=(product.shopee_logistic_id or "").strip()
+    if not category or not logistic: raise RuntimeError("PRODUCT: Informe categoria e logística da Shopee no cadastro da peça")
+    image_ids=[x.strip() for x in (product.shopee_image_ids or "").replace(",","\n").splitlines() if x.strip()]
+    if not image_ids:
+        image_ids=_shopee_upload_images(db,row,product)
+        if image_ids:
+            product.shopee_image_ids="\n".join(image_ids); db.commit()
+    if not image_ids: raise RuntimeError("PRODUCT: A Shopee exige imagens. O envio automático não foi aceito; confira a conexão e as fotos.")
+    base={"item_name":product.name[:120],"description":product.description or product.name,"category_id":int(category),"weight":max(.01,float(product.weight or 1)),"dimension":{"package_length":max(1,int(product.package_length or 20)),"package_width":max(1,int(product.package_width or 20)),"package_height":max(1,int(product.package_height or 20))},"image":{"image_id_list":image_ids[:9]},"logistic_info":[{"logistic_id":int(logistic),"enabled":True}]}
+    existing=(listing.external_id or "").strip()
+    if existing:
+        _shopee_call(db,row,"/api/v2/product/update_item",{"item_id":int(existing),**base})
+        _shopee_call(db,row,"/api/v2/product/update_price",{"item_id":int(existing),"price_list":[{"model_id":0,"original_price":float(product.price)}]})
+        _shopee_call(db,row,"/api/v2/product/update_stock",{"item_id":int(existing),"stock_list":[{"model_id":0,"seller_stock":[{"stock":max(0,int(product.stock))}]}]})
+        item_id=existing
+    else:
+        payload={**base,"original_price":float(product.price),"seller_stock":[{"stock":max(0,int(product.stock))}]}
+        data=_shopee_call(db,row,"/api/v2/product/add_item",payload)
+        item_id=(data.get("response") or {}).get("item_id")
+    return {"external_id":item_id,"status":"published"}
 
 
 def _digits(value): return "".join(ch for ch in (value or "") if ch.isdigit())
 
 
-def _publish_olx(row,product:Product,company:Company):
+def _olx_internal_id(company_id:int, product_id:int): return f"CDM{company_id}_{product_id}"[:19]
+
+
+def _publish_olx(row,product:Product,company:Company,listing:MarketplaceListing):
     if not product.olx_category_id: raise RuntimeError("PRODUCT: Informe a categoria OLX no cadastro da peça")
     images=_image_urls(product)
     phone=_digits(company.phone);zipcode=_digits(company.cep)
@@ -433,32 +607,112 @@ def _publish_olx(row,product:Product,company:Company):
     if len(phone) not in {10,11}: raise RuntimeError("PRODUCT: Cadastre um telefone com DDD nas Informações da Empresa para publicar na OLX")
     if len(zipcode)!=8: raise RuntimeError("PRODUCT: Cadastre um CEP válido nas Informações da Empresa para publicar na OLX")
     token=decrypt_secret(row.access_token_enc)
-    internal_id=f"CDM{company.id}_{product.id}"[:19]
+    internal_id=_olx_internal_id(company.id,product.id)
     ad={"id":internal_id,"operation":"insert","category":int(product.olx_category_id),"Subject":product.name[:90],"Body":((product.description or product.name)+(f"\n\nCompatibilidade:\n{product.compatibility}" if product.compatibility else ""))[:6000],"Phone":int(phone),"type":"s","price":int(round(product.price)),"zipcode":zipcode,"images":images}
     payload={"access_token":token,"ad_list":[ad]}
-    with httpx.Client(timeout=40) as c:
+    with httpx.Client(timeout=45) as c:
         r=c.put("https://apps.olx.com.br/autoupload/import",json=payload,headers={"Content-Type":"application/json"})
-        if r.status_code>=400: raise RuntimeError(f"OLX: {r.text[:900]}")
+        if r.status_code>=400: raise RuntimeError(f"OLX: {r.text[:1200]}")
         data=r.json()
     if data.get("statusCode") not in {0,-8,None}: raise RuntimeError(f"OLX: {data.get('statusMessage') or data}")
-    return {"external_id":data.get("token") or internal_id,"status":"processing"}
+    # token é usado para acompanhar o lote; o ID do anúncio permanece determinístico para permitir edição/deleção.
+    return {"external_id":data.get("token") or listing.external_id or internal_id,"status":"processing"}
+
+
+def _mark_sync_error(db,listing,msg):
+    listing.status="sync_error";listing.error_message=_safe_error(msg);db.commit()
+
+
+def sync_marketplace_stock_for_product(db:Session,product:Product,company_id:int):
+    results=[]
+    for listing in db.query(MarketplaceListing).filter(MarketplaceListing.company_id==company_id,MarketplaceListing.product_id==product.id).all():
+        try:
+            conn=_active_connection(db,company_id,listing.marketplace)
+            if listing.marketplace=="mercadolivre" and listing.external_id.upper().startswith("MLB"):
+                token=_ml_token(db,conn)
+                with httpx.Client(timeout=30) as c:
+                    _ml_sync_stock_client(c,token,conn,product,listing.external_id)
+                listing.status="published" if product.stock>0 else "paused"
+            elif listing.marketplace=="shopee" and listing.external_id:
+                _shopee_call(db,conn,"/api/v2/product/update_stock",{"item_id":int(listing.external_id),"stock_list":[{"model_id":0,"seller_stock":[{"stock":max(0,int(product.stock))}]}]})
+                listing.status="published" if product.stock>0 else "sold_out"
+            elif listing.marketplace=="olx" and product.stock<=0:
+                company=db.get(Company,company_id);token=decrypt_secret(conn.access_token_enc)
+                payload={"access_token":token,"ad_list":[{"id":_olx_internal_id(company_id,product.id),"operation":"delete"}]}
+                with httpx.Client(timeout=30) as c:
+                    r=c.put("https://apps.olx.com.br/autoupload/import",json=payload,headers={"Content-Type":"application/json"})
+                if r.status_code>=400: raise RuntimeError(f"OLX estoque: {r.text[:700]}")
+                listing.status="processing"
+            listing.error_message="";db.commit();results.append({"marketplace":listing.marketplace,"ok":True})
+        except Exception as exc:
+            _mark_sync_error(db,listing,str(exc));results.append({"marketplace":listing.marketplace,"ok":False,"error":_safe_error(str(exc))})
+    return results
 
 
 def refresh_listing(db:Session, listing:MarketplaceListing):
-    if listing.marketplace!="olx" or not listing.external_id: return listing
-    conn=_active_connection(db,listing.company_id,"olx")
-    token=decrypt_secret(conn.access_token_enc)
-    with httpx.Client(timeout=30) as c:
-        r=c.post(f"https://apps.olx.com.br/autoupload/import/{listing.external_id}",json={"access_token":token})
+    conn=_active_connection(db,listing.company_id,listing.marketplace)
+    if listing.marketplace=="mercadolivre" and listing.external_id:
+        token=_ml_token(db,conn)
+        with httpx.Client(timeout=30) as c:
+            r=c.get(f"https://api.mercadolibre.com/items/{listing.external_id}",headers={"Authorization":f"Bearer {token}"})
+        if r.status_code>=400: raise RuntimeError(f"Mercado Livre: {r.text[:700]}")
+        data=r.json(); status=str(data.get("status") or "")
+        listing.status="published" if status=="active" else status or listing.status
+    elif listing.marketplace=="shopee" and listing.external_id:
+        data=_shopee_call(db,conn,"/api/v2/product/get_item_base_info",{"item_id_list":listing.external_id},method="GET")
+        items=(data.get("response") or {}).get("item_list") or []
+        if items:
+            st=str(items[0].get("item_status") or "").lower(); listing.status="published" if "normal" in st else st or listing.status
+    elif listing.marketplace=="olx":
+        token=decrypt_secret(conn.access_token_enc)
+        with httpx.Client(timeout=30) as c:
+            r=c.get("https://apps.olx.com.br/autoupload/v1/published",params={"fetch_size":200},headers={"Authorization":f"Bearer {token}"})
         if r.status_code>=400: raise RuntimeError(f"OLX: {r.text[:700]}")
-        data=r.json()
-    ads=data.get("ads") or {}
-    ad=next(iter(ads.values()),{}) if isinstance(ads,dict) else (ads[0] if ads else {})
-    status=ad.get("status") or data.get("autoupload_status")
-    if status in {"accepted","accept"}:
-        listing.status="published";listing.published_at=datetime.utcnow();listing.error_message="";listing.external_id=str(ad.get("list_id") or listing.external_id)
-    elif status in {"refused","error"}:
-        listing.status="error";listing.error_message=json.dumps(ad.get("message") or data,ensure_ascii=False)[:1000]
-    else:
-        listing.status="processing"
-    db.commit();db.refresh(listing);return listing
+        data=r.json(); target=_olx_internal_id(listing.company_id,listing.product_id)
+        found=next((x for x in (data.get("data") or []) if str(x.get("id"))==target),None)
+        if found:
+            listing.external_id=str(found.get("list_id") or listing.external_id);listing.status="published";listing.published_at=listing.published_at or datetime.utcnow()
+        elif listing.status=="processing": listing.status="processing"
+    listing.error_message="";db.commit();db.refresh(listing);return listing
+
+
+def process_ml_notification(db:Session, body:dict):
+    """Processa pedido do Mercado Livre de forma idempotente e baixa o estoque local."""
+    from ..models import MarketplaceOrderEvent, Sale, SaleItem, StockMovement, FinancialEntry
+    resource=str((body or {}).get("resource") or "")
+    topic=str((body or {}).get("topic") or "")
+    user_id=str((body or {}).get("user_id") or "")
+    if "order" not in topic.lower() and "/orders/" not in resource:
+        return {"ok":True,"ignored":True}
+    order_id=resource.rstrip("/").split("/")[-1]
+    if not order_id: return {"ok":True,"ignored":True}
+    conn=db.query(MarketplaceConnection).filter(MarketplaceConnection.marketplace=="mercadolivre",MarketplaceConnection.external_account_id==user_id,MarketplaceConnection.active==True).first()
+    if not conn: return {"ok":True,"ignored":True,"reason":"account_not_connected"}
+    existing=db.query(MarketplaceOrderEvent).filter(MarketplaceOrderEvent.company_id==conn.company_id,MarketplaceOrderEvent.marketplace=="mercadolivre",MarketplaceOrderEvent.external_order_id==order_id).first()
+    if existing: return {"ok":True,"duplicate":True,"sale_id":existing.sale_id}
+    token=_ml_token(db,conn)
+    with httpx.Client(timeout=30) as c:
+        r=c.get(f"https://api.mercadolibre.com/orders/{order_id}",headers={"Authorization":f"Bearer {token}"})
+    if r.status_code>=400: raise RuntimeError(f"Mercado Livre pedido: {r.text[:700]}")
+    order=r.json(); paid=float(order.get("paid_amount") or order.get("total_amount") or 0)
+    sale=Sale(company_id=conn.company_id,total=paid,payment_method="mercadolivre",status=str(order.get("status") or "paid"),source="mercadolivre",external_order_id=order_id)
+    db.add(sale);db.flush();touched=[]
+    for oi in order.get("order_items") or []:
+        item=oi.get("item") or {}; item_id=str(item.get("id") or ""); qty=max(1,int(oi.get("quantity") or 1))
+        listing=db.query(MarketplaceListing).filter(MarketplaceListing.company_id==conn.company_id,MarketplaceListing.marketplace=="mercadolivre",MarketplaceListing.external_id==item_id).first()
+        if not listing: continue
+        p=db.query(Product).filter(Product.id==listing.product_id,Product.company_id==conn.company_id).with_for_update().first()
+        if not p: continue
+        old=p.stock;p.stock=max(0,p.stock-qty);actual=old-p.stock
+        price=float(oi.get("unit_price") or p.price or 0)
+        db.add(SaleItem(company_id=conn.company_id,sale_id=sale.id,product_id=p.id,quantity=qty,unit_price=price))
+        db.add(StockMovement(company_id=conn.company_id,product_id=p.id,kind="marketplace",quantity_delta=-actual,balance_after=p.stock,reference=f"mercadolivre:{order_id}"))
+        touched.append(p)
+    event=MarketplaceOrderEvent(company_id=conn.company_id,marketplace="mercadolivre",external_order_id=order_id,sale_id=sale.id,payload_json=json.dumps(order,ensure_ascii=False)[:20000])
+    db.add(event)
+    if paid>0: db.add(FinancialEntry(company_id=conn.company_id,kind="income",description=f"Mercado Livre pedido {order_id}",amount=paid,status="paid",due_date=datetime.utcnow().strftime("%Y-%m-%d")))
+    db.commit()
+    for p in touched:
+        try: sync_marketplace_stock_for_product(db,p,conn.company_id)
+        except Exception: pass
+    return {"ok":True,"sale_id":sale.id,"products_updated":len(touched)}

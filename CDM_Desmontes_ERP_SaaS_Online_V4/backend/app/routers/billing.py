@@ -1,4 +1,6 @@
 import os
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
@@ -78,6 +80,8 @@ def status(db:Session=Depends(get_db),user=Depends(current_user)):
         "checkout_provider_configured":bool(_mp_token()),
         "monthly_price":_monthly_price(),
         "currency":"BRL",
+        "webhook_url":f"{_public_url()}/api/billing/mercadopago/webhook",
+        "webhook_signature_configured":bool(os.getenv("MP_WEBHOOK_SECRET","").strip()),
     }
 
 
@@ -125,18 +129,51 @@ def sync(db:Session=Depends(get_db),user=Depends(current_user)):
     return {"subscription":row,"active":subscription_is_active(row)}
 
 
+def _valid_mp_signature(request:Request, data_id:str):
+    secret=os.getenv("MP_WEBHOOK_SECRET","").strip()
+    if not secret: return True
+    sig=request.headers.get("x-signature",""); request_id=request.headers.get("x-request-id","")
+    parts={}
+    for chunk in sig.split(","):
+        if "=" in chunk:
+            k,v=chunk.split("=",1);parts[k.strip()]=v.strip()
+    ts=parts.get("ts","");v1=parts.get("v1","")
+    if not ts or not v1: return False
+    # O Mercado Pago usa o data.id da URL. Quando alfanumérico, a documentação pede minúsculas.
+    did=str(data_id or "")
+    if did and did.isalnum(): did=did.lower()
+    manifest=""
+    if did: manifest+=f"id:{did};"
+    if request_id: manifest+=f"request-id:{request_id};"
+    if ts: manifest+=f"ts:{ts};"
+    expected=hmac.new(secret.encode(),manifest.encode(),hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected,v1)
+
+@router.post("/cancel")
+def cancel_subscription(db:Session=Depends(get_db),user=Depends(current_user)):
+    sub=db.query(Subscription).filter(Subscription.company_id==user.company_id).first()
+    if not sub or not sub.external_subscription_id: raise HTTPException(404,"Assinatura não encontrada")
+    token=_mp_token()
+    if not token: raise HTTPException(400,"Mercado Pago não configurado")
+    with httpx.Client(timeout=30) as c:
+        r=c.put(f"https://api.mercadopago.com/preapproval/{sub.external_subscription_id}",json={"status":"canceled"},headers={"Authorization":f"Bearer {token}","Content-Type":"application/json"})
+    if r.status_code>=400: raise HTTPException(400,f"Mercado Pago: {r.text[:500]}")
+    data=r.json();row=_apply_mp_status(db,data)
+    return {"ok":True,"subscription":row}
+
 @router.post("/mercadopago/webhook",include_in_schema=False)
 async def mercadopago_webhook(request:Request,db:Session=Depends(get_db)):
     # A fonte de verdade é consultada novamente na API do Mercado Pago; não confiamos no status recebido no webhook.
     try: body=await request.json()
     except Exception: body={}
-    sid=""
-    if isinstance(body,dict):
+    query_sid=str(request.query_params.get("data.id") or request.query_params.get("id") or "")
+    sid=query_sid
+    if not sid and isinstance(body,dict):
         data=body.get("data") or {}
         if isinstance(data,dict): sid=str(data.get("id") or "")
         sid=sid or str(body.get("id") or "")
-    sid=sid or str(request.query_params.get("data.id") or request.query_params.get("id") or "")
     if not sid: return {"ok":True,"ignored":True}
+    if not _valid_mp_signature(request,query_sid): raise HTTPException(401,"Assinatura de webhook inválida")
     try:
         provider_data=_mp_get(sid)
         row=_apply_mp_status(db,provider_data)
