@@ -11,6 +11,15 @@ from ..services.marketplaces import publish_all
 
 router=APIRouter()
 
+def next_sequential_sku(db:Session, company_id:int)->str:
+    rows=db.query(Product.sku).filter(Product.company_id==company_id).all()
+    numbers=[]
+    for row in rows:
+        value=str(row[0] or "").strip()
+        if value.isdigit():
+            numbers.append(int(value))
+    return str((max(numbers) if numbers else 0)+1)
+
 class ProductIn(BaseModel):
     sku:str
     name:str
@@ -61,6 +70,10 @@ class ProductIn(BaseModel):
 @router.get("")
 def list_products(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Product).filter(Product.company_id==user.company_id,Product.active==True).order_by(Product.id.desc()).all()
+
+@router.get("/next-sku")
+def get_next_sku(db:Session=Depends(get_db),user=Depends(active_user)):
+    return {"sku":next_sequential_sku(db,user.company_id)}
 
 @router.post("")
 def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(active_user)):

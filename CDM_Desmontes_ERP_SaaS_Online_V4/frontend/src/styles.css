@@ -160,3 +160,161 @@ body{font-size:16px;line-height:1.5}
 .emptyState b{display:block;font-size:18px;margin-bottom:8px}.emptyState p{margin:0;color:var(--muted);font-size:14px}
 .sidebarFoot small{font-size:11px!important;line-height:1.35}
 @media(max-width:900px){.intelligenceSummary{grid-template-columns:1fr}.intelligenceActions>*{flex:1 1 180px}}
+
+/* CDM PRODUCT REGISTER V2 - START */
+.productRegisterPage{padding:0;background:transparent;border:0;box-shadow:none}
+.productRegisterShell{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:18px;align-items:start}
+.productRegisterMain{min-width:0}
+.productSectionCard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;box-shadow:0 1px 3px #0000000a}
+.productSectionHead{display:flex;align-items:center;justify-content:space-between;padding:17px 18px;border-bottom:1px solid var(--line)}
+.productSectionHead.compact{padding:14px 18px}
+.productSectionHead span{display:block;font-size:8px;font-weight:900;letter-spacing:1.2px;color:#6f8fe8;margin-bottom:4px}
+.productSectionHead h3{margin:0 0 4px;font-size:17px}
+.productSectionHead p{margin:0;color:var(--muted);font-size:10px}
+.productSectionBody{padding:18px}
+.productCoreGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.productCoreGrid .span2,.span2{grid-column:span 2}
+.productCoreGrid .span4,.span4{grid-column:1/-1}
+.inputWithButton{display:grid;grid-template-columns:1fr auto;gap:7px}
+.inputWithButton .mini{white-space:nowrap;padding:8px 10px}
+.productAdvanced{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.productAdvanced summary{cursor:pointer;font-size:10px;font-weight:800;color:var(--muted);user-select:none}
+.productAdvanced[open] summary{margin-bottom:14px;color:var(--text)}
+.advancedGrid{padding-top:2px}
+.productRegisterSide{position:sticky;top:82px;display:grid;gap:12px}
+.productStepNav,.productQuickSummary,.productSideActions{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 1px 3px #0000000a}
+.productStepNav{display:grid;gap:6px}
+.productStepNav button{display:flex;align-items:center;gap:10px;width:100%;background:transparent;color:var(--text);padding:10px 11px;border-radius:8px;text-align:left;font-size:10px;font-weight:800}
+.productStepNav button span{width:22px;height:22px;border-radius:999px;background:var(--soft);display:grid;place-items:center;font-size:9px;color:var(--muted)}
+.productStepNav button:hover{background:var(--soft)}
+.productStepNav button.active{background:linear-gradient(180deg,#e62d36,#c91c25);color:#fff}
+.productStepNav button.active span{background:#ffffff25;color:#fff}
+.productQuickSummary{display:grid;gap:5px}
+.productQuickSummary>small{font-size:8px;font-weight:900;letter-spacing:1px;color:#6f8fe8}
+.productQuickSummary>b{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.productQuickSummary>span{font-size:9px;color:var(--muted);margin-bottom:4px}
+.productQuickSummary>div{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:7px;margin-top:3px}
+.productQuickSummary em{font-style:normal;font-size:9px;color:var(--muted)}
+.productQuickSummary strong{font-size:11px}
+.productSideActions{display:grid;gap:8px}
+.productSideActions button{width:100%}
+.pricingGrid{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:14px;align-items:end}
+.pricingMetric{border:1px solid var(--line);background:var(--soft);border-radius:10px;padding:13px;min-height:68px}
+.pricingMetric small,.pricingMetric span{display:block;color:var(--muted);font-size:9px}
+.pricingMetric strong{display:block;font-size:18px;margin:4px 0}
+.markupButtons{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.markupButtons>span{font-size:9px;color:var(--muted);margin-right:4px}
+.markupButtons button{padding:8px 11px}
+@media(max-width:1100px){
+  .productRegisterShell{grid-template-columns:1fr}
+  .productRegisterSide{position:static;grid-template-columns:1fr}
+  .productStepNav{grid-template-columns:repeat(4,1fr)}
+  .productStepNav button{justify-content:center}
+  .productQuickSummary{display:none}
+  .productSideActions{grid-template-columns:repeat(2,1fr)}
+  .productCoreGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .productCoreGrid .span4,.span4{grid-column:1/-1}
+}
+@media(max-width:700px){
+  .productCoreGrid{grid-template-columns:1fr}
+  .productCoreGrid .span2,.productCoreGrid .span4,.span2,.span4{grid-column:1}
+  .productStepNav{grid-template-columns:1fr 1fr}
+  .productStepNav button{justify-content:flex-start}
+  .productSideActions{grid-template-columns:1fr}
+  .pricingGrid{grid-template-columns:1fr}
+  .dimensions{grid-template-columns:1fr 1fr}
+}
+/* CDM PRODUCT REGISTER V2 - END */
+
+
+/* CDM PRODUCT REGISTER ACCESSIBILITY V2 - START */
+.productRegisterPage .panelTitle small{font-size:10px}
+.productRegisterPage .panelTitle h2{font-size:22px}
+.productRegisterPage .panelTitle p{font-size:13px;line-height:1.45}
+.productRegisterPage .field>span{font-size:12px}
+.productRegisterPage input,.productRegisterPage select,.productRegisterPage textarea{font-size:14px;padding:12px 13px}
+.productRegisterPage button{font-size:12px}
+.productRegisterPage .productSectionHead span{font-size:10px}
+.productRegisterPage .productSectionHead h3{font-size:20px}
+.productRegisterPage .productSectionHead p{font-size:12px}
+.productRegisterPage .productStepNav button{font-size:13px}
+.productRegisterPage .productStepNav button span{font-size:11px}
+.categoryField{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.categorySearchBtn{white-space:nowrap}
+.categoryPickerModal{max-width:760px}
+.categorySearchBar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;margin-bottom:16px}
+.categoryResults{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.categoryResultsHead{padding:10px 13px;background:var(--soft);font-size:11px;font-weight:900;letter-spacing:.4px}
+.categoryResults>button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;background:var(--panel);color:var(--text);border-top:1px solid var(--line);text-align:left}
+.categoryResults>button:hover{background:var(--soft)}
+.categoryResults>button strong{display:block;font-size:14px}
+.categoryResults>button span{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.categoryResults>button small{font-size:11px;color:var(--muted);white-space:nowrap}
+.categoryEmpty{padding:24px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);text-align:center;font-size:12px}
+@media(max-width:700px){.categoryField,.categorySearchBar{grid-template-columns:1fr}}
+/* CDM PRODUCT REGISTER ACCESSIBILITY V2 - END */
+
+/* CDM GLOBAL READABILITY V1 - START */
+body{font-size:15px}
+.navMain{font-size:13px}
+.subNav button{font-size:12px}
+.sidebarFoot span{font-size:11px}
+.sidebarFoot small{font-size:10px}
+.brand h1{font-size:13px}
+.brand small{font-size:10px}
+.globalSearch input{font-size:13px}
+.profileButton span{font-size:14px}
+.pageTitle span{font-size:10px}
+.pageTitle h2{font-size:24px}
+.pageTitle p{font-size:12px}
+.statusBadge{font-size:11px}
+.panelTitle small{font-size:9px}
+.panelTitle h2{font-size:19px}
+.panelTitle p{font-size:12px}
+.field>span{font-size:11px}
+input,select,textarea{font-size:14px}
+.primary,.ghost,.excelBtn,.filterBtn,.publishBtn{font-size:11px}
+.metric small,.metric em{font-size:10px}
+.channel b{font-size:12px}
+.channel small{font-size:10px}
+.pill{font-size:9px}
+.moduleCard h3{font-size:13px}
+.moduleCard p{font-size:11px}
+.formSectionTitle{font-size:12px}
+.inventoryToolbar label{font-size:10px}
+.filterStrip{font-size:10px}
+.productName strong{font-size:11px}
+.productName small{font-size:9px}
+table{font-size:12px}
+.skuSequentialInput{font-weight:900;font-size:16px!important;letter-spacing:.4px;background:var(--soft);cursor:default}
+/* CDM GLOBAL READABILITY V1 - END */
+
+
+/* CDM EASY LOCATION V1 - START */
+.locationEasyModal{max-width:760px}
+.locationEasyModal .modalHead h2{font-size:22px}
+.locationEasyModal .modalHead p{font-size:13px;line-height:1.45}
+.locationHelp{display:grid;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:16px}
+.locationHelp b{font-size:13px}
+.locationHelp span{font-size:12px;color:var(--muted)}
+.locationSimpleGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.locationSimpleGrid .field>span{font-size:12px}
+.locationSimpleGrid input{font-size:14px;padding:12px 13px}
+.locationNameField{grid-column:1/-1}
+.locationNameField>small{display:block;margin-top:6px;color:var(--muted);font-size:11px}
+.locationPreview{display:grid;gap:5px;margin-top:16px;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--panel)}
+.locationPreview small{font-size:9px;font-weight:900;letter-spacing:1px;color:#6f8fe8}
+.locationPreview b{font-size:15px}
+.locationPreview span{font-size:12px;color:var(--muted)}
+.locationPreview em{font-size:11px;color:var(--muted);font-style:normal}
+.locationAdvanced{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.locationAdvanced summary{cursor:pointer;font-size:12px;font-weight:800;color:var(--muted)}
+.locationAdvanced>div{margin-top:12px;max-width:320px}
+.locationRow b{font-size:13px}
+.locationRow small{font-size:11px}
+@media(max-width:700px){
+  .locationSimpleGrid{grid-template-columns:1fr}
+  .locationNameField{grid-column:1}
+}
+/* CDM EASY LOCATION V1 - END */
+
