@@ -23,10 +23,8 @@ def current_user(credentials=Depends(bearer), db:Session=Depends(get_db)):
 
 def active_user(user=Depends(current_user), db:Session=Depends(get_db)):
     """Usuário autenticado com assinatura vigente para módulos operacionais."""
-    from datetime import datetime
-    from .models import Subscription
-    sub=db.query(Subscription).filter(Subscription.company_id==user.company_id).first()
-    valid=bool(sub and sub.status in {"active","trial"} and (not sub.expires_at or sub.expires_at>=datetime.utcnow()))
-    if not valid:
+    from .subscriptions import subscription_for, subscription_is_active
+    sub=subscription_for(db,user.company_id)
+    if not subscription_is_active(sub):
         raise HTTPException(402,"Sua assinatura do CDM está inativa. Regularize o plano para continuar usando os módulos operacionais.")
     return user
