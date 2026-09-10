@@ -84,12 +84,12 @@ async def mercadolivre_webhook(request:Request,db:Session=Depends(get_db)):
 
 @router.get("/{marketplace}/diagnostics")
 def diagnostics(marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):
-    if marketplace not in MARKETPLACES: raise HTTPException(400,"Marketplace inválido")
+    if marketplace not in MARKETPLACES: raise HTTPException(400,"Canal de venda inválido")
     return marketplace_diagnostics(db,user.company_id,marketplace)
 
 @router.get("/{marketplace}/authorize")
 def authorize(marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):
-    if marketplace not in MARKETPLACES: raise HTTPException(400,"Marketplace inválido")
+    if marketplace not in MARKETPLACES: raise HTTPException(400,"Canal de venda inválido")
     require_active_subscription(user,db)
     try: return {"url":authorization_url(user.company_id,marketplace)}
     except RuntimeError as e: raise HTTPException(400,str(e).replace("APP_CONFIG:","").strip())
@@ -120,7 +120,7 @@ def callback(marketplace:str,code:str=Query(default=""),state:str=Query(default=
 
 @router.delete("/{marketplace}/connection")
 def remove_connection(marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):
-    if marketplace not in MARKETPLACES: raise HTTPException(400,"Marketplace inválido")
+    if marketplace not in MARKETPLACES: raise HTTPException(400,"Canal de venda inválido")
     return disconnect(db,user.company_id,marketplace)
 
 @router.post("/products/{product_id}/publish-all")
@@ -133,7 +133,7 @@ def pub_all(product_id:int,db:Session=Depends(get_db),user=Depends(current_user)
 @router.post("/products/{product_id}/publish/{marketplace}")
 def pub_one(product_id:int,marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):
     require_active_subscription(user,db)
-    if marketplace not in MARKETPLACES: raise HTTPException(400,"Marketplace inválido")
+    if marketplace not in MARKETPLACES: raise HTTPException(400,"Canal de venda inválido")
     p=db.query(Product).filter(Product.id==product_id,Product.company_id==user.company_id).first()
     if not p: raise HTTPException(404,"Peça não encontrada")
     enabled={"mercadolivre":p.publish_mercadolivre,"shopee":p.publish_shopee,"olx":p.publish_olx}

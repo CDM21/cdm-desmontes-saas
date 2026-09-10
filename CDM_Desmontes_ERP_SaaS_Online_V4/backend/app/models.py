@@ -87,10 +87,16 @@ class Location(Base):
     __tablename__ = "locations"
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
-    warehouse = Column(String(80))
-    aisle = Column(String(40))
-    shelf = Column(String(40))
-    bin = Column(String(40))
+    code = Column(String(40), default="", index=True)
+    description = Column(String(180), default="")
+    max_quantity = Column(Integer, default=0)
+    auto_generate = Column(Boolean, default=False)
+    warehouse = Column(String(80), default="")
+    aisle = Column(String(40), default="")
+    shelf = Column(String(40), default="")
+    bin = Column(String(40), default="")
+    active = Column(Boolean, default=True)
+
 
 
 class Product(Base):
@@ -138,6 +144,10 @@ class Product(Base):
     ml_attributes_json = Column(Text, default="{}")
     ml_store_id = Column(String(80), default="")
     ml_network_node_id = Column(String(120), default="")
+    quality_grade = Column(String(10), default="B")
+    quality_notes = Column(Text, default="")
+    warranty_days = Column(Integer, default=90)
+    public_catalog = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (UniqueConstraint("company_id", "sku", name="uq_company_sku"),)
 
@@ -157,10 +167,23 @@ class Supplier(Base):
     __tablename__ = "suppliers"
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
-    name = Column(String(180))
-    cpf_cnpj = Column(String(30), default="")
+    name = Column(String(180), default="")
+    trade_name = Column(String(180), default="")
+    cpf_cnpj = Column(String(30), default="", index=True)
+    rg_ie = Column(String(50), default="")
+    mobile = Column(String(40), default="")
     phone = Column(String(40), default="")
+    cep = Column(String(20), default="")
+    city = Column(String(120), default="")
+    state = Column(String(10), default="")
+    number = Column(String(40), default="")
+    address = Column(String(220), default="")
+    neighborhood = Column(String(120), default="")
+    complement = Column(String(160), default="")
+    ibge = Column(String(30), default="")
     email = Column(String(180), default="")
+    active = Column(Boolean, default=True)
+
 
 
 class Carrier(Base):
@@ -196,12 +219,25 @@ class TaxConfig(Base):
     __tablename__ = "tax_configs"
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), unique=True, index=True, nullable=False)
+    state = Column(String(10), default="RJ")
+    tax_profile = Column(String(80), default="Simples Nacional")
+    operation_nature = Column(String(180), default="Venda de mercadoria")
     regime = Column(String(80), default="Simples Nacional")
     crt = Column(String(20), default="1")
     cfop_default = Column(String(20), default="5102")
     ncm_default = Column(String(20), default="")
     csosn_default = Column(String(20), default="102")
+    icms_cst = Column(String(20), default="")
+    icms_rate = Column(Float, default=0)
+    pis_cst = Column(String(20), default="49")
+    pis_rate = Column(Float, default=0)
+    cofins_cst = Column(String(20), default="49")
+    cofins_rate = Column(Float, default=0)
+    ipi_cst = Column(String(20), default="53")
+    ipi_rate = Column(Float, default=0)
+    ibs_cbs_notes = Column(Text, default="")
     notes = Column(Text, default="")
+
 
 
 class Sale(Base):
@@ -305,3 +341,84 @@ class AuditLog(Base):
     entity_id = Column(String(100), default="")
     details_json = Column(Text, default="{}")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    kind = Column(String(40), default="info")
+    title = Column(String(180), default="")
+    message = Column(Text, default="")
+    source = Column(String(40), default="system")
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=True, index=True)
+    amount = Column(Float, default=0)
+    is_read = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class FiscalDocument(Base):
+    __tablename__ = "fiscal_documents"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    series = Column(String(20), default="1")
+    number = Column(String(30), default="")
+    operation_type = Column(String(40), default="saida")
+    purpose = Column(String(60), default="normal")
+    operation_nature = Column(String(180), default="Venda de mercadoria")
+    referenced_key = Column(String(60), default="")
+    order_number = Column(String(80), default="")
+    intermediary_indicator = Column(String(80), default="sem_intermediador")
+    recipient = Column(String(220), default="")
+    recipient_ie = Column(String(60), default="")
+    sections_json = Column(Text, default="{}")
+    status = Column(String(40), default="rascunho")
+    provider_response = Column(Text, default="")
+    access_key = Column(String(60), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AssistantMessage(Base):
+    __tablename__ = "assistant_messages"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    role = Column(String(20), default="user")
+    content = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class SaleEvidence(Base):
+    __tablename__ = "sale_evidences"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    sale_id = Column(Integer, ForeignKey("sales.id"), index=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True, index=True)
+    serial_number = Column(String(120), default="")
+    condition_notes = Column(Text, default="")
+    photo_urls_json = Column(Text, default="[]")
+    packed_by = Column(String(120), default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ShippingCheck(Base):
+    __tablename__ = "shipping_checks"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    sale_id = Column(Integer, ForeignKey("sales.id"), index=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True, index=True)
+    sku_scanned = Column(String(120), default="")
+    result = Column(String(30), default="ok")
+    checked_by = Column(String(120), default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class SearchEvent(Base):
+    __tablename__ = "search_events"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    query = Column(String(220), default="", index=True)
+    results_count = Column(Integer, default=0)
+    source = Column(String(40), default="estoque")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

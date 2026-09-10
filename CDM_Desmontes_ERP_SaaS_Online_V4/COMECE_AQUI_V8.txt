@@ -1,0 +1,20 @@
+CDM DESMONTES V8 — COMECE AQUI
+================================
+
+1. Extraia o ZIP.
+2. Abra a pasta CDM_Desmontes_ERP_SaaS_Online_V4 no VS Code.
+3. Abra Terminal > New Terminal.
+4. Para instalar pela primeira vez, execute no terminal do Windows:
+   .\INSTALAR_CDM.bat
+5. Depois execute:
+   .\INICIAR_CDM.bat
+
+O navegador abrirá em http://localhost:5173
+
+IMPORTANTE
+- Não cole no terminal as linhas que começam com "PS C:\...>". Elas são apenas o endereço mostrado pelo PowerShell.
+- Não cole mensagens de erro como se fossem comandos.
+- Não compartilhe tokens, senhas ou chaves secretas no chat.
+- A V8 usa a mesma estrutura de pasta interna da V7 para não quebrar o Render.
+
+Versão: 8.0.0

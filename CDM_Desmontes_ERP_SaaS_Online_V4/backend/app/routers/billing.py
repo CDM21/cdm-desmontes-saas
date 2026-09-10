@@ -88,7 +88,7 @@ def status(db:Session=Depends(get_db),user=Depends(current_user)):
 @router.post("/checkout")
 def checkout(db:Session=Depends(get_db),user=Depends(current_user)):
     token=_mp_token()
-    if not token: raise HTTPException(400,"Configure MP_ACCESS_TOKEN no Render para ativar a mensalidade")
+    if not token: raise HTTPException(400,"A cobrança recorrente do Mercado Pago ainda não foi configurada no servidor")
     company=db.get(Company,user.company_id)
     payer_email=(company.email if company and company.email else user.email).strip()
     if not payer_email: raise HTTPException(400,"Cadastre um e-mail na empresa antes de assinar")

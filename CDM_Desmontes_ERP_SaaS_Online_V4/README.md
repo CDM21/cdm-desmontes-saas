@@ -1,128 +1,78 @@
-# CDM Desmontes SaaS — V6
+# CDM Desmontes — V8.1.0
 
-Versão atual com edição de produtos, impressão de etiquetas, upload/tratamento de imagens e ativação individual por marketplace.
+ERP SaaS para desmanches e autopeças, com estoque, sucatas, vendas, financeiro, etiquetas, cadastros, área fiscal, assinatura e integração com canais de venda.
 
-Consulte `ALTERACOES_CDM_V6.md` para os detalhes.
+## Começar no Windows / VS Code
 
-# CDM Desmontes ERP — SaaS / Multiempresa V5
+1. Extraia o ZIP completo.
+2. Abra no VS Code a pasta `CDM_Desmontes_ERP_SaaS_Online_V4`.
+3. Abra **Terminal > New Terminal**.
+4. Execute `./INSTALAR_CDM.bat` (no PowerShell, também pode usar `.\INSTALAR_CDM.bat`).
+5. Depois execute `./INICIAR_CDM.bat`.
+6. O sistema abre em `http://localhost:5173`.
 
-Versão atualizada do CDM Desmontes com visual de ERP profissional, cadastro multiempresa, assinatura e integração self-service com Mercado Livre, Shopee e OLX.
+> Não cole no terminal o texto `PS C:\...>` nem mensagens de erro; cole somente os comandos.
 
-## Novidades da V5
+## V8
 
-- Marca -> modelo no cadastro de veículos e peças (Toyota -> Corolla, RAV4, SW4 etc.).
-- Vínculo da peça ao veículo/sucata de origem.
-- Preditor de categoria do Mercado Livre dentro do cadastro da peça.
-- Diagnóstico OAuth do Mercado Livre com último erro e Redirect URI real.
-- Plano padrão **R$ 350/mês** com checkout recorrente do Mercado Pago.
-- Bloqueio dos módulos operacionais quando a assinatura vence.
-- Login de produção sem criação automática de usuário/senha padrão.
+A V8 preserva a base funcional da V7 e adiciona interface revisada em português, cartões de estoque aprimorados, tratamento de fotos com fundo branco/centralização, visualizador com zoom, Localizações, Fornecedores, Configuração Tributária ampliada, NF-e estruturada, central de notificações persistentes e melhorias nos canais Mercado Livre, Shopee e OLX.
 
-Veja `ALTERACOES_CDM_V5.md` para detalhes.
+Consulte `ALTERACOES_CDM_V8.md` para a lista completa.
 
+## Notificações de venda
 
-## O que mudou
+As vendas registradas no CDM recebem notificação persistente. Venda local e pedido recebido pelo webhook do Mercado Livre criam a notificação junto com a venda. O painel também garante uma notificação para vendas existentes/importadas que já estejam salvas no banco, mantendo canal, valor, situação e pedido externo quando disponível.
 
-- Menu lateral completo no estilo ERP de desmanche/autopeças.
-- Barra superior vermelha com busca, atalhos e menu do usuário.
-- Tema claro/escuro.
-- Tela **Informações da Empresa** com CNPJ, IE, regime tributário, responsável, endereço, telefone e demais dados.
-- Cadastros de sucatas, peças, grupos, clientes, localizações, transportadoras, vendedores, fornecedores e configuração tributária.
-- Estoque em cards com dados/compatibilidade, imagens, busca, filtros, exportação CSV e impressão/PDF pelo navegador.
-- Vendas, financeiro, fluxo de caixa, etiquetas, relatórios, expedição e área fiscal.
-- Multiempresa: cada assinante possui dados, estoque, vendas e integrações separados.
-- Cadastro de nova empresa pelo próprio usuário.
-- Status de assinatura por empresa.
-- Marketplace self-service: cada cliente autoriza a **própria** conta sem passar senha/token para você.
+## Fotos de produtos
 
-## Como abrir no Windows / VS Code
+O cadastro permite enviar imagens, manter a peça inteira sem deformação e gerar uma versão quadrada com fundo branco e margem. A remoção de fundo incluída é local, sem serviço pago, e funciona melhor quando o fundo original é relativamente uniforme. Fundos complexos podem exigir tratamento manual posterior.
 
-### 1. Backend
+## NF-e
 
-Abra um terminal na pasta principal e execute:
+A tela fiscal possui Identificação, Itens, Transporte, Financeiro e Tributação, além de rascunhos persistentes. A autorização fiscal real não é simulada: para emitir uma NF-e válida é necessário contratar/configurar um provedor fiscal compatível, certificado e credenciais da empresa. As variáveis preparadas são `FISCAL_PROVIDER_URL` e `FISCAL_PROVIDER_TOKEN`.
 
-```powershell
-cd backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-uvicorn app.main:app --reload
-```
+## Canais de venda
 
-Backend: http://localhost:8000
-Documentação: http://localhost:8000/docs
+Mercado Livre usa autorização OAuth e possui publicação, atualização, estoque, descrição, atributos e processamento de pedidos recebido pelo webhook. Shopee e OLX possuem a base de autorização/publicação/sincronização, mas o funcionamento real depende de aplicação aprovada, credenciais válidas e, quando exigido, homologação do provedor.
 
-### 2. Frontend
+Cada empresa cliente autoriza a própria conta. O operador do CDM não precisa receber a senha da conta do cliente.
 
-Abra outro terminal na pasta principal:
+## Assinatura
 
-```powershell
-cd frontend
-npm install
-npm run dev
-```
+O plano padrão permanece em R$ 350/mês. A integração recorrente com Mercado Pago da V7 foi preservada.
 
-Frontend: http://localhost:5173
+## Produção
 
-### Primeiro acesso
+Antes de liberar clientes reais, use banco PostgreSQL persistente, serviço de aplicação adequado à produção, backups, domínio/HTTPS, monitoramento e armazenamento persistente para crescimento de imagens. SQLite é apropriado apenas para desenvolvimento e testes simples.
 
-Em produção, use **Criar conta** na tela inicial. O bootstrap automático com senha padrão foi desativado por segurança.
-
-Para um ambiente local de desenvolvimento antigo, `ALLOW_BOOTSTRAP=true` reativa explicitamente a rota de bootstrap. Não use isso no Render de produção.
-
-## Integrações: como funciona no SaaS
-
-Você configura **uma vez** no servidor as credenciais da aplicação CDM:
-
-- Mercado Livre: `ML_CLIENT_ID`, `ML_CLIENT_SECRET`, `ML_REDIRECT_URI`
-- Shopee: `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY`, `SHOPEE_REDIRECT_URI`
-- OLX: `OLX_CLIENT_ID`, `OLX_CLIENT_SECRET`, `OLX_REDIRECT_URI`
-
-Depois disso, cada cliente assinante entra em **Integrações → Central de integrações** e clica em **Conectar**. O marketplace abre sua tela oficial de autorização e o backend salva o token criptografado vinculado somente à empresa daquele cliente.
-
-### Mercado Livre
-
-O cliente autoriza a conta via OAuth. No cadastro da peça, ele informa os dados obrigatórios de publicação, como categoria do Mercado Livre, preço, estoque e imagens quando aplicável.
-
-### Shopee
-
-O cliente autoriza a loja. No cadastro da peça, ele pode informar categoria, logística e IDs de imagem da Shopee, além de peso/dimensões.
-
-### OLX
-
-O cliente autoriza a conta via OAuth. O sistema envia os anúncios pela API de importação. Para publicação real, a aplicação CDM precisa estar homologada como integrador OLX e a conta do anunciante precisa ter plano compatível com integração.
-
-## Assinatura mensal
-
-A estrutura multiempresa já possui `Subscription` por empresa e bloqueia integrações/automações quando a assinatura não está ativa.
-
-Foi incluído um webhook genérico:
-
-`POST /api/billing/webhook`
-
-Ele permite que o gateway de cobrança escolhido altere a assinatura para `active`, `past_due`, `canceled` etc. O segredo fica em `BILLING_WEBHOOK_SECRET`.
-
-A etapa que ainda depende da sua escolha comercial é **qual gateway de pagamento** vai vender/renovar o acesso mensal (Mercado Pago, Pagar.me, Stripe, Asaas etc.). Depois de escolhido, o checkout/webhook específico pode ser ligado nesse ponto sem mudar a arquitetura do sistema.
-
-## Banco de dados
-
-Por padrão usa SQLite:
-
-`backend/cdm_desmontes.db`
-
-Para produção, recomenda-se migrar para PostgreSQL e usar HTTPS.
-
-## Segurança
-
-- Tokens de marketplaces são armazenados criptografados.
-- Cada endpoint operacional filtra por `company_id`.
-- O cliente final não precisa informar credenciais de aplicativo; apenas autoriza a própria conta no marketplace.
-- Defina `SECRET_KEY` forte e `APP_ENCRYPTION_KEY` em produção.
+Consulte `CONFIGURAR_V8_PRODUCAO.md` antes de publicar a V8 no ambiente principal.
 
 
-## CDM Desmontes V7
+## Inteligência CDM
 
-A V7 amplia o sistema para operação comercial SaaS: interface com tipografia maior, fotos de peças centralizadas e completas, administração de empresas, cobrança recorrente de R$ 350/mês via Mercado Pago, PDV com baixa automática de estoque, backup lógico e sincronização com marketplaces conectados.
+A V8.1 adiciona um núcleo de inovação com:
 
-Veja `ALTERACOES_CDM_V7.md` e `CONFIGURAR_V7_RENDER.md` antes de ativar cobrança e publicação real em produção.
+- Assistente CDM por empresa, liberado automaticamente durante o teste e enquanto a assinatura estiver ativa.
+- Painel do Dono.
+- Radar de Oportunidades.
+- Desmonte Inteligente.
+- Preço Inteligente.
+- Proteção de Venda com conferência de SKU e prova de envio.
+- Qualidade da peça e prazo de garantia no cadastro.
+- Garantia digital por QR Code.
+- Catálogo público de peças com busca e botão de WhatsApp.
+
+### Assistente automático por empresa
+
+Não é necessário criar um assistente manualmente para cada cliente. O sistema identifica a empresa pelo login e usa somente os dados associados ao `company_id` daquela conta.
+
+Fluxo:
+1. A empresa cria a conta e recebe o período de teste.
+2. O Assistente CDM já fica disponível no teste.
+3. Se o teste vencer sem pagamento, o acesso é bloqueado junto com os módulos operacionais.
+4. Quando o Mercado Pago confirmar a assinatura, o status vira ativo e o Assistente CDM é liberado novamente automaticamente.
+5. Se a assinatura for cancelada/inativada, o acesso volta a ser bloqueado.
+
+O limite mensal padrão é configurável por `ASSISTANT_MONTHLY_MESSAGES` e começa em 1000 mensagens por empresa. Sem `OPENAI_API_KEY`/`OPENAI_MODEL`, o sistema mantém um modo local para consultas operacionais básicas. Com as duas variáveis configuradas, o Assistente CDM pode usar IA externa.
+
+A integração de IA usa uma única credencial no servidor; o cliente não precisa informar senha ou conta de IA.

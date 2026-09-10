@@ -5,45 +5,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .db import Base, engine
 from sqlalchemy import inspect, text
-from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin
+from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence
 
 Base.metadata.create_all(bind=engine)
 
 
-def ensure_v7_schema():
-    """Migração leve para instalações V4/V5/V6 já existentes no Render."""
-    product_additions={
-        "publish_mercadolivre":"BOOLEAN DEFAULT TRUE",
-        "publish_shopee":"BOOLEAN DEFAULT TRUE",
-        "publish_olx":"BOOLEAN DEFAULT TRUE",
-        "ml_has_warranty":"BOOLEAN DEFAULT FALSE",
-        "ml_warranty_text":"VARCHAR(180) DEFAULT ''",
-        "ml_shipping_mode":"VARCHAR(60) DEFAULT ''",
-        "ml_free_shipping":"BOOLEAN DEFAULT FALSE",
-        "ml_local_pickup":"BOOLEAN DEFAULT TRUE",
-        "ml_attributes_json":"TEXT DEFAULT '{}'",
-        "ml_store_id":"VARCHAR(80) DEFAULT ''",
-        "ml_network_node_id":"VARCHAR(120) DEFAULT ''",
-    }
-    sale_additions={
-        "source":"VARCHAR(40) DEFAULT 'manual'",
-        "external_order_id":"VARCHAR(180) DEFAULT ''",
+def ensure_v8_schema():
+    """Migração leve para instalações V4/V5/V6/V7 já existentes no Render."""
+    additions={
+        "products":{"publish_mercadolivre":"BOOLEAN DEFAULT TRUE","publish_shopee":"BOOLEAN DEFAULT TRUE","publish_olx":"BOOLEAN DEFAULT TRUE","ml_has_warranty":"BOOLEAN DEFAULT FALSE","ml_warranty_text":"VARCHAR(180) DEFAULT ''","ml_shipping_mode":"VARCHAR(60) DEFAULT ''","ml_free_shipping":"BOOLEAN DEFAULT FALSE","ml_local_pickup":"BOOLEAN DEFAULT TRUE","ml_attributes_json":"TEXT DEFAULT '{}'","ml_store_id":"VARCHAR(80) DEFAULT ''","ml_network_node_id":"VARCHAR(120) DEFAULT ''","quality_grade":"VARCHAR(10) DEFAULT 'B'","quality_notes":"TEXT DEFAULT ''","warranty_days":"INTEGER DEFAULT 90","public_catalog":"BOOLEAN DEFAULT TRUE"},
+        "sales":{"source":"VARCHAR(40) DEFAULT 'manual'","external_order_id":"VARCHAR(180) DEFAULT ''"},
+        "locations":{"code":"VARCHAR(40) DEFAULT ''","description":"VARCHAR(180) DEFAULT ''","max_quantity":"INTEGER DEFAULT 0","auto_generate":"BOOLEAN DEFAULT FALSE","active":"BOOLEAN DEFAULT TRUE"},
+        "suppliers":{"trade_name":"VARCHAR(180) DEFAULT ''","rg_ie":"VARCHAR(50) DEFAULT ''","mobile":"VARCHAR(40) DEFAULT ''","cep":"VARCHAR(20) DEFAULT ''","city":"VARCHAR(120) DEFAULT ''","state":"VARCHAR(10) DEFAULT ''","number":"VARCHAR(40) DEFAULT ''","address":"VARCHAR(220) DEFAULT ''","neighborhood":"VARCHAR(120) DEFAULT ''","complement":"VARCHAR(160) DEFAULT ''","ibge":"VARCHAR(30) DEFAULT ''","active":"BOOLEAN DEFAULT TRUE"},
+        "tax_configs":{"state":"VARCHAR(10) DEFAULT 'RJ'","tax_profile":"VARCHAR(80) DEFAULT 'Simples Nacional'","operation_nature":"VARCHAR(180) DEFAULT 'Venda de mercadoria'","icms_cst":"VARCHAR(20) DEFAULT ''","icms_rate":"FLOAT DEFAULT 0","pis_cst":"VARCHAR(20) DEFAULT '49'","pis_rate":"FLOAT DEFAULT 0","cofins_cst":"VARCHAR(20) DEFAULT '49'","cofins_rate":"FLOAT DEFAULT 0","ipi_cst":"VARCHAR(20) DEFAULT '53'","ipi_rate":"FLOAT DEFAULT 0","ibs_cbs_notes":"TEXT DEFAULT ''"}
     }
     try:
-        inspector=inspect(engine)
+        inspector=inspect(engine);tables=set(inspector.get_table_names())
         with engine.begin() as conn:
-            current={c["name"] for c in inspector.get_columns("products")}
-            for name,ddl in product_additions.items():
-                if name not in current: conn.execute(text(f"ALTER TABLE products ADD COLUMN {name} {ddl}"))
-            current_sales={c["name"] for c in inspector.get_columns("sales")}
-            for name,ddl in sale_additions.items():
-                if name not in current_sales: conn.execute(text(f"ALTER TABLE sales ADD COLUMN {name} {ddl}"))
-    except Exception as exc:
-        print("V7 schema warning:",exc)
+            for table,cols in additions.items():
+                if table not in tables: continue
+                current={c["name"] for c in inspector.get_columns(table)}
+                for name,ddl in cols.items():
+                    if name not in current: conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+    except Exception as exc: print("V8 schema warning:",exc)
 
-ensure_v7_schema()
+ensure_v8_schema()
 
-app = FastAPI(title="CDM Desmontes ERP API", version="7.0.0")
+app = FastAPI(title="CDM Desmontes ERP API", version="8.3.0")
 
 frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
 origins = {"http://localhost:5173", "http://127.0.0.1:5173", frontend_url}
@@ -81,12 +69,15 @@ app.include_router(products.router, prefix="/api/products", tags=["Peças"])
 app.include_router(stock.router, prefix="/api/stock", tags=["Estoque"])
 app.include_router(sales.router, prefix="/api/sales", tags=["Vendas"])
 app.include_router(finance.router, prefix="/api/finance", tags=["Financeiro"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["Notificações"])
+app.include_router(fiscal.router, prefix="/api/fiscal", tags=["Fiscal"])
+app.include_router(intelligence.router, prefix="/api/intelligence", tags=["Inteligência CDM"])
 app.include_router(marketplaces.router, prefix="/api/marketplaces", tags=["Marketplaces"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin SaaS"])
 
 @app.get("/api/health")
 def health():
-    return {"status":"ok","service":"cdm-desmontes-erp","version":"7.0.0"}
+    return {"status":"ok","service":"cdm-desmontes-erp","version":"8.3.0"}
 
 frontend_dist = Path(os.getenv("FRONTEND_DIST", "/app/frontend_dist"))
 if frontend_dist.exists() and (frontend_dist / "index.html").exists():

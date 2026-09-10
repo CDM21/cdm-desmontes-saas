@@ -52,6 +52,10 @@ class ProductIn(BaseModel):
     ml_attributes_json:str="{}"
     ml_store_id:str=""
     ml_network_node_id:str=""
+    quality_grade:str="B"
+    quality_notes:str=""
+    warranty_days:int=90
+    public_catalog:bool=True
     auto_publish:bool=False
 
 @router.get("")

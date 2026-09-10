@@ -1,0 +1,9 @@
+CDM DESMONTES V8.2
+
+1. Abra esta pasta no VS Code.
+2. No terminal desta pasta, execute INSTALAR_CDM.bat na primeira vez.
+3. Depois execute INICIAR_CDM.bat.
+4. Acesse http://localhost:5173
+
+Versão V8.2: interface em português e tipografia ampliada.
+As funções de Inteligência CDM da V8.1 foram preservadas.

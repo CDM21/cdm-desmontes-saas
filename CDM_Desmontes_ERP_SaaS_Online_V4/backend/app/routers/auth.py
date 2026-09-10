@@ -88,7 +88,7 @@ def me(user=Depends(current_user), db:Session=Depends(get_db)):
 
 @router.post("/bootstrap")
 def bootstrap(db:Session=Depends(get_db)):
-    if os.getenv("ALLOW_BOOTSTRAP","").lower() not in {"1","true","yes"}: raise HTTPException(403,"Bootstrap desativado em produção")
+    if os.getenv("ALLOW_BOOTSTRAP","").lower() not in {"1","true","yes"}: raise HTTPException(403,"Inicialização administrativa desativada em produção")
     if db.query(User).count(): return {"message":"Já inicializado"}
     company=Company(trade_name="CDM Desmontes",legal_name="CDM Desmontes",email="admin@autodesmonte.local",responsible_name="Administrador",state="RJ")
     db.add(company); db.flush()

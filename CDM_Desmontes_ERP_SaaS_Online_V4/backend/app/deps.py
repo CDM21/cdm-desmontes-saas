@@ -13,7 +13,7 @@ def current_user(credentials=Depends(bearer), db:Session=Depends(get_db)):
         payload=jwt.decode(credentials.credentials,SECRET_KEY,algorithms=[ALGORITHM])
         uid=int(payload["sub"])
     except (JWTError,KeyError,ValueError):
-        raise HTTPException(401,"Token inválido")
+        raise HTTPException(401,"Credencial de acesso inválida")
     user=db.get(User,uid)
     if not user or not user.active: raise HTTPException(401,"Usuário inválido")
     company=db.get(Company,user.company_id)

@@ -128,7 +128,7 @@ def record_connection_error(db: Session, company_id: int, marketplace: str, erro
 
 
 def authorization_url(company_id:int, marketplace:str):
-    if marketplace not in MARKETPLACES: raise ValueError("Marketplace inválido")
+    if marketplace not in MARKETPLACES: raise ValueError("Canal de venda inválido")
     if not app_ready(marketplace):
         raise RuntimeError("APP_CONFIG: As credenciais da aplicação deste marketplace ainda não foram configuradas no servidor.")
     state=create_oauth_state(company_id,marketplace)
@@ -174,7 +174,7 @@ def exchange_callback(db:Session, marketplace:str, code:str, state:str, shop_id:
     if marketplace=="shopee":
         if not shop_id: raise RuntimeError("Shopee não retornou shop_id")
         return _exchange_shopee(db,company_id,code,shop_id)
-    raise RuntimeError("Marketplace inválido")
+    raise RuntimeError("Canal de venda inválido")
 
 
 def _ml_oauth_error(response):
@@ -340,7 +340,7 @@ def publish_product(db:Session, product:Product, marketplace:str, company_id:int
         if marketplace=="mercadolivre": result=_publish_ml(db,conn,product,row)
         elif marketplace=="shopee": result=_publish_shopee(db,conn,product,row)
         elif marketplace=="olx": result=_publish_olx(conn,product,company,row)
-        else: raise ValueError("Marketplace inválido")
+        else: raise ValueError("Canal de venda inválido")
         row.external_id=str(result.get("external_id") or row.external_id or "")
         row.status=result.get("status","published")
         row.error_message=""
@@ -679,6 +679,7 @@ def refresh_listing(db:Session, listing:MarketplaceListing):
 def process_ml_notification(db:Session, body:dict):
     """Processa pedido do Mercado Livre de forma idempotente e baixa o estoque local."""
     from ..models import MarketplaceOrderEvent, Sale, SaleItem, StockMovement, FinancialEntry
+    from ..routers.notifications import add_sale_notification
     resource=str((body or {}).get("resource") or "")
     topic=str((body or {}).get("topic") or "")
     user_id=str((body or {}).get("user_id") or "")
@@ -711,6 +712,10 @@ def process_ml_notification(db:Session, body:dict):
     event=MarketplaceOrderEvent(company_id=conn.company_id,marketplace="mercadolivre",external_order_id=order_id,sale_id=sale.id,payload_json=json.dumps(order,ensure_ascii=False)[:20000])
     db.add(event)
     if paid>0: db.add(FinancialEntry(company_id=conn.company_id,kind="income",description=f"Mercado Livre pedido {order_id}",amount=paid,status="paid",due_date=datetime.utcnow().strftime("%Y-%m-%d")))
+    nomes=[]
+    for item_row in db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all():
+        prod=db.get(Product,item_row.product_id);nomes.append(f"{item_row.quantity}x {prod.name if prod else 'Peça'}")
+    add_sale_notification(db,conn.company_id,sale.id,"mercadolivre",paid,", ".join(nomes)[:360] or f"Pedido {order_id}")
     db.commit()
     for p in touched:
         try: sync_marketplace_stock_for_product(db,p,conn.company_id)

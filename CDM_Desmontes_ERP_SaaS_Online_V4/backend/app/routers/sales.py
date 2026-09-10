@@ -7,6 +7,7 @@ from ..models import Sale, SaleItem, Product, FinancialEntry, StockMovement, Cus
 from ..deps import active_user
 from ..admin import audit
 from ..services.marketplaces import sync_marketplace_stock_for_product
+from .notifications import add_sale_notification
 
 router=APIRouter()
 
@@ -73,6 +74,8 @@ def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(active_user)
         db.add(StockMovement(company_id=user.company_id,product_id=p.id,kind="sale",quantity_delta=-qty,balance_after=p.stock,reference=f"sale:{sale.id}"))
     sale.total=round(total,2)
     db.add(FinancialEntry(company_id=user.company_id,kind="income",description=f"Venda #{sale.id}",amount=sale.total,status="paid",due_date=datetime.utcnow().strftime("%Y-%m-%d")))
+    resumo=", ".join([f"{qty}x {p.name}" for p,qty in products])[:360]
+    add_sale_notification(db,user.company_id,sale.id,"manual",sale.total,resumo)
     audit(db,user,"sale.create","sale",str(sale.id),{"total":sale.total,"items":len(products)})
     db.commit(); db.refresh(sale)
     # A venda nunca falha por causa de marketplace. Sincronização é best-effort e registra a pendência no anúncio.

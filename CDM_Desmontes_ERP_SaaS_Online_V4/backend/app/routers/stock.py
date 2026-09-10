@@ -38,14 +38,10 @@ def create_location(data: LocationIn, db: Session = Depends(get_db), user=Depend
 
 
 @router.get("/movements")
-def movements(limit: int = 200, db: Session = Depends(get_db), user=Depends(active_user)):
-    return (
-        db.query(StockMovement)
-        .filter(StockMovement.company_id == user.company_id)
-        .order_by(StockMovement.id.desc())
-        .limit(max(1, min(limit, 1000)))
-        .all()
-    )
+def movements(limit: int = 200, product_id: int | None = None, db: Session = Depends(get_db), user=Depends(active_user)):
+    query=db.query(StockMovement).filter(StockMovement.company_id == user.company_id)
+    if product_id is not None: query=query.filter(StockMovement.product_id==product_id)
+    return query.order_by(StockMovement.id.desc()).limit(max(1,min(limit,1000))).all()
 
 
 @router.post("/move")
