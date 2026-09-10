@@ -9,14 +9,14 @@ def subscription_for(db: Session, company_id: int):
 
 
 def subscription_is_active(sub: Subscription | None) -> bool:
-    if not sub or sub.status not in {"active", "trial"}:
+    if not sub:
         return False
-    if sub.expires_at:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        if sub.expires_at < now:
-            return False
-    return True
-
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if sub.status in {"active", "trial"}:
+        return not sub.expires_at or sub.expires_at >= now
+    if sub.status == "pending" and sub.expires_at:
+        return sub.expires_at >= now
+    return False
 
 def require_active_subscription(user: User, db: Session):
     sub = subscription_for(db, user.company_id)
