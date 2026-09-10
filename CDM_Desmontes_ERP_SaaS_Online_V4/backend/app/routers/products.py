@@ -13,12 +13,15 @@ router=APIRouter()
 
 def next_sequential_sku(db:Session, company_id:int)->str:
     rows=db.query(Product.sku).filter(Product.company_id==company_id).all()
-    numbers=[]
+    numbers=set()
     for row in rows:
         value=str(row[0] or "").strip()
         if value.isdigit():
-            numbers.append(int(value))
-    return str((max(numbers) if numbers else 0)+1)
+            numbers.add(int(value))
+    next_number=1
+    while next_number in numbers:
+        next_number+=1
+    return str(next_number)
 
 class ProductIn(BaseModel):
     sku:str
