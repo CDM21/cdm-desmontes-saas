@@ -102,24 +102,50 @@ def add_supplier(data:SupplierIn,db:Session=Depends(get_db),user=Depends(active_
     if not data.cpf_cnpj.strip(): raise HTTPException(400,"CPF / CNPJ é obrigatório")
     if not data.name.strip(): raise HTTPException(400,"Razão Social / Nome é obrigatório")
     row=Supplier(company_id=user.company_id,**data.model_dump());db.add(row);db.commit();db.refresh(row);return row
+@router.put("/suppliers/{supplier_id}")
+def update_supplier(supplier_id:int,data:SupplierIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(Supplier).filter(Supplier.id==supplier_id,Supplier.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Fornecedor não encontrado")
+    if not data.cpf_cnpj.strip(): raise HTTPException(400,"CPF / CNPJ é obrigatório")
+    if not data.name.strip(): raise HTTPException(400,"Razão Social / Nome é obrigatório")
+    for k,v in data.model_dump().items(): setattr(row,k,v)
+    db.commit();db.refresh(row);return row
 @router.get("/carriers")
 def carriers(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Carrier).filter(Carrier.company_id==user.company_id).order_by(Carrier.id.desc()).all()
 @router.post("/carriers")
 def add_carrier(data:CarrierIn,db:Session=Depends(get_db),user=Depends(active_user)):
     row=Carrier(company_id=user.company_id,**data.model_dump());db.add(row);db.commit();db.refresh(row);return row
+@router.put("/carriers/{carrier_id}")
+def update_carrier(carrier_id:int,data:CarrierIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(Carrier).filter(Carrier.id==carrier_id,Carrier.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Transportadora não encontrada")
+    for k,v in data.model_dump().items(): setattr(row,k,v)
+    db.commit();db.refresh(row);return row
 @router.get("/sellers")
 def sellers(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Seller).filter(Seller.company_id==user.company_id).order_by(Seller.id.desc()).all()
 @router.post("/sellers")
 def add_seller(data:SellerIn,db:Session=Depends(get_db),user=Depends(active_user)):
     row=Seller(company_id=user.company_id,**data.model_dump());db.add(row);db.commit();db.refresh(row);return row
+@router.put("/sellers/{seller_id}")
+def update_seller(seller_id:int,data:SellerIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(Seller).filter(Seller.id==seller_id,Seller.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Vendedor não encontrado")
+    for k,v in data.model_dump().items(): setattr(row,k,v)
+    db.commit();db.refresh(row);return row
 @router.get("/part-groups")
 def part_groups(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(PartGroup).filter(PartGroup.company_id==user.company_id).order_by(PartGroup.name).all()
 @router.post("/part-groups")
 def add_part_group(data:PartGroupIn,db:Session=Depends(get_db),user=Depends(active_user)):
     row=PartGroup(company_id=user.company_id,**data.model_dump());db.add(row);db.commit();db.refresh(row);return row
+@router.put("/part-groups/{group_id}")
+def update_part_group(group_id:int,data:PartGroupIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(PartGroup).filter(PartGroup.id==group_id,PartGroup.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Grupo de peças não encontrado")
+    for k,v in data.model_dump().items(): setattr(row,k,v)
+    db.commit();db.refresh(row);return row
 @router.get("/locations")
 def locations(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Location).filter(Location.company_id==user.company_id).order_by(Location.id.desc()).all()
@@ -134,6 +160,17 @@ def add_location(data:LocationIn,db:Session=Depends(get_db),user=Depends(active_
     if not payload["code"].strip(): raise HTTPException(400,"Sigla é obrigatória")
     if not payload["description"].strip(): raise HTTPException(400,"Descrição é obrigatória")
     row=Location(company_id=user.company_id,**payload);db.add(row);db.commit();db.refresh(row);return row
+@router.put("/locations/{location_id}")
+def update_location(location_id:int,data:LocationIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(Location).filter(Location.id==location_id,Location.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Localização não encontrada")
+    payload=data.model_dump()
+    if not payload["code"].strip(): payload["code"]=row.code or f"LOC-{row.id:04d}"
+    if not payload["description"].strip() and payload["warehouse"].strip(): payload["description"]=payload["warehouse"].strip()
+    if not payload["warehouse"].strip(): payload["warehouse"]=payload["description"].strip() or payload["code"].strip()
+    if not payload["description"].strip(): raise HTTPException(400,"Descrição é obrigatória")
+    for k,v in payload.items(): setattr(row,k,v)
+    db.commit();db.refresh(row);return row
 @router.get("/tax")
 def tax(db:Session=Depends(get_db),user=Depends(active_user)):
     row=db.query(TaxConfig).filter(TaxConfig.company_id==user.company_id).first()

@@ -680,3 +680,17 @@ table{font-size:12px}
 @media(max-width:650px){.vehicleExpenseForm{grid-template-columns:1fr}.vehicleExpenseRow{grid-template-columns:1fr auto}.vehicleExpenseRow button{grid-column:1/-1}.vehicleExpenseAdd{width:100%}}
 /* CDM VEHICLE EXPENSES V1 - END */
 
+
+/* CDM CATALOG EDIT V1 - START */
+.catalogManageList{display:grid;gap:8px}
+.catalogManageRow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.catalogManageRow>div:first-child{min-width:0;display:grid;gap:3px}
+.catalogManageRow b{font-size:12px}
+.catalogManageRow small{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.catalogManageRow>span:not(.pill){font-size:10px;color:var(--muted)}
+.catalogManageRow .editRegisterBtn{white-space:nowrap}
+.catalogEditableRow{grid-template-columns:auto minmax(0,1fr) auto auto !important}
+.locationRow.catalogEditableRow{grid-template-columns:auto minmax(0,1fr) auto auto auto !important}
+@media(max-width:760px){.catalogManageRow,.catalogEditableRow,.locationRow.catalogEditableRow{grid-template-columns:1fr !important}.catalogManageRow .editRegisterBtn,.catalogEditableRow .editRegisterBtn{width:100%}.partGroupIcon,.locationCode{justify-self:start}}
+/* CDM CATALOG EDIT V1 - END */
+
