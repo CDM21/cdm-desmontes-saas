@@ -133,8 +133,8 @@ function App(){
        {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session}/>} 
        {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>} 
        {tab==='qrcode'&&<QRCodeModule products={products}/>} 
-       {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands}/>}
-       {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands}/>} 
+       {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
+       {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>} 
        {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>} 
        {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company}/>} 
        {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} 
@@ -229,7 +229,7 @@ function CadastrosHome({setTab}){const cards=[['▰','Cadastro de Sucatas','vehi
 function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=useState([]),[customModel,setCustomModel]=useState(false);useEffect(()=>{let active=true;setModels([]);if(!form.brand){return}api.get('/vehicle-catalog/models',{params:{brand:form.brand}}).then(r=>{if(active){setModels(r.data.models||[]);if(form.model&&!(r.data.models||[]).includes(form.model))setCustomModel(true)}}).catch(()=>setModels([]));return()=>{active=false}},[form.brand]);return <><Field label="Marca"><select value={form.brand||''} onChange={e=>{setForm({...form,brand:e.target.value,model:''});setCustomModel(false)}}><option value="">Selecione a marca...</option>{brands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Modelo">{customModel?<div className="inlineInput"><input autoFocus value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Digite o modelo"/><button type="button" className="ghost mini" onClick={()=>{setCustomModel(false);setForm({...form,model:''})}}>Lista</button></div>:<select value={form.model||''} disabled={!form.brand} onChange={e=>{if(e.target.value==='__custom__'){setCustomModel(true);setForm({...form,model:''})}else setForm({...form,model:e.target.value})}}><option value="">{form.brand?'Selecione o modelo...':'Escolha a marca primeiro'}</option>{models.map(m=><option key={m} value={m}>{m}</option>)}<option value="__custom__">Outro / digitar manualmente...</option></select>}</Field></>}
 
 
-function Vehicle360({vehicle,onClose}){
+function Vehicle360({vehicle,listings=[],onClose}){
  const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('')
  useEffect(()=>{
    let active=true
@@ -240,6 +240,20 @@ function Vehicle360({vehicle,onClose}){
  const r=info?.result||{},p=info?.parts||{},i=info?.investment||{},v=info?.vehicle||vehicle
  const resultClass=Number(r.realized_result||0)>=0?'positive':'negative'
  const potentialClass=Number(r.potential_profit||0)>=0?'positive':'negative'
+ const productIds=new Set((info?.products||[]).map(x=>Number(x.id)))
+ const vehicleListings=(listings||[]).filter(x=>productIds.has(Number(x.product_id)))
+ const publishedCount=vehicleListings.filter(x=>String(x.status||'').toLowerCase()==='published').length
+ const hasListing=vehicleListings.length>0
+ const dismantlingStatus=String(info?.dismantling?.status||'pending').toLowerCase()
+ const flow=[
+  {key:'buy',icon:'1',title:'Compra',done:true,active:false,text:money(i.acquisition_value||0)},
+  {key:'dismantle',icon:'2',title:'Desmontagem',done:['completed','finished'].includes(dismantlingStatus),active:['in_progress','dismantling'].includes(dismantlingStatus),text:info?.dismantling?.status_label||'Pendente'},
+  {key:'parts',icon:'3',title:'Cadastro das peças',done:Number(p.registered_skus||0)>0,active:false,text:`${Number(p.registered_skus||0)} SKU(s)`},
+  {key:'stock',icon:'4',title:'Estoque',done:Number(p.registered_skus||0)>0,active:Number(p.stock_qty||0)>0,text:`${Number(p.stock_qty||0)} un.`},
+  {key:'ads',icon:'5',title:'Anúncios',done:publishedCount>0,active:publishedCount===0&&hasListing,text:publishedCount>0?`${publishedCount} publicado(s)`:hasListing?'Em preparação':'Nenhum'},
+  {key:'sales',icon:'6',title:'Venda',done:Number(p.sold_qty||0)>0,active:false,text:`${Number(p.sold_qty||0)} vendida(s)`},
+  {key:'result',icon:'7',title:'Resultado',done:Number(r.revenue||0)>0||Number(r.estimated_stock_value||0)>0,active:false,text:money(r.revenue||0)}
+ ]
  return <div className="modalBackdrop vehicle360Backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
   <div className="v8Modal vehicle360Modal">
    <div className="modalHead vehicle360Head"><div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
@@ -252,7 +266,23 @@ function Vehicle360({vehicle,onClose}){
      </div>
 
      <div className="vehicle360SectionTitle"><div><small>FINANCEIRO</small><h3>Investimento e retorno</h3></div><span>Valores calculados automaticamente</span></div>
-     <div className="vehicle360Metrics">
+     <section className="vehicleFlowSection">
+    <div className="vehicleFlowHead">
+     <div><small>CICLO DO VEÍCULO</small><h3>Compra → Resultado</h3></div>
+     <span>{flow.filter(x=>x.done).length} de {flow.length} etapas com movimentação</span>
+    </div>
+    <div className="vehicleFlow">
+     {flow.map((step,idx)=><React.Fragment key={step.key}>
+      <div className={'vehicleFlowStep '+(step.done?'done':step.active?'active':'pending')}>
+       <div className="vehicleFlowCircle">{step.done?'✓':step.icon}</div>
+       <div><b>{step.title}</b><small>{step.text}</small></div>
+      </div>
+      {idx<flow.length-1&&<div className={'vehicleFlowLine '+(step.done?'done':'')}></div>}
+     </React.Fragment>)}
+    </div>
+    <p className="vehicleFlowNote">O fluxo é atualizado automaticamente conforme peças, anúncios e vendas deste veículo são registrados no CDM.</p>
+   </section>
+   <div className="vehicle360Metrics">
       <div><small>Valor de compra</small><b>{money(i.acquisition_value)}</b></div>
       <div><small>Custos adicionais</small><b>{money(i.other_costs)}</b></div>
       <div className="featured"><small>Total investido</small><b>{money(i.total_invested)}</b></div>
@@ -306,7 +336,7 @@ function VehicleEditModal({vehicle,brands,onClose,refresh,notice}){
   </div></div>
 }
 
-function Vehicles({data,refresh,notice,brands=[],createOnly=false}){
+function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
  const empty={plate:'',brand:'',model:'',year:new Date().getFullYear(),vin:'',renavam:'',fuel:'Flex',transmission:'Automático',color:'',acquisition_value:'',other_costs:''}
  const [form,setForm]=useState(empty),[overview,setOverview]=useState(null),[search,setSearch]=useState(''),[editVehicle,setEditVehicle]=useState(null)
  const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return data;return data.filter(v=>[v.plate,v.brand,v.model,v.year,v.status].some(x=>String(x||'').toLowerCase().includes(q)))},[data,search])
@@ -323,7 +353,7 @@ function Vehicles({data,refresh,notice,brands=[],createOnly=false}){
     <div className="vehicleRowActions"><button className="ghost editRegisterBtn" onClick={()=>setEditVehicle(v)}>✎ Editar</button><button className="primary vehicle360Btn" onClick={()=>setOverview(v)}>◉ Visão 360</button></div>
    </div>)}</div>:<div className="emptyState">Nenhum veículo encontrado.</div>}
   </section>}
-  {overview&&<Vehicle360 vehicle={overview} onClose={()=>setOverview(null)}/>}
+  {overview&&<Vehicle360 vehicle={overview} listings={listings} onClose={()=>setOverview(null)}/>}
   {editVehicle&&<VehicleEditModal vehicle={editVehicle} brands={brands} onClose={()=>setEditVehicle(null)} refresh={refresh} notice={notice}/>}
  </>
 }
