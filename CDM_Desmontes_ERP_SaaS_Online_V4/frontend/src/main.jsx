@@ -231,12 +231,34 @@ function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=us
 
 function Vehicle360({vehicle,listings=[],onClose}){
  const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('')
+ const [expenseForm,setExpenseForm]=useState({category:'Guincho',description:'',amount:'',expense_date:''}),[expenseBusy,setExpenseBusy]=useState(false),[expenseError,setExpenseError]=useState('')
  useEffect(()=>{
    let active=true
    setBusy(true);setError('')
    api.get(`/vehicles/${vehicle.id}/overview`).then(r=>{if(active)setInfo(r.data)}).catch(e=>{if(active)setError(erroPt(e.response?.data?.detail)||'Não foi possível carregar a visão 360')}).finally(()=>{if(active)setBusy(false)})
    return()=>{active=false}
  },[vehicle.id])
+ async function reloadOverview(){
+  const r=await api.get(`/vehicles/${vehicle.id}/overview`);setInfo(r.data)
+ }
+ async function addVehicleExpense(){
+  const amount=Number(expenseForm.amount||0)
+  if(amount<=0){setExpenseError('Informe um valor maior que zero');return}
+  setExpenseBusy(true);setExpenseError('')
+  try{
+   await api.post(`/vehicles/${vehicle.id}/expenses`,{...expenseForm,amount})
+   await reloadOverview()
+   setExpenseForm({category:'Guincho',description:'',amount:'',expense_date:''})
+  }catch(e){setExpenseError(erroPt(e.response?.data?.detail)||'Não foi possível adicionar a despesa')}
+  finally{setExpenseBusy(false)}
+ }
+ async function removeVehicleExpense(id){
+  if(!confirm('Excluir esta despesa do veículo?'))return
+  setExpenseBusy(true);setExpenseError('')
+  try{await api.delete(`/vehicles/${vehicle.id}/expenses/${id}`);await reloadOverview()}
+  catch(e){setExpenseError(erroPt(e.response?.data?.detail)||'Não foi possível excluir a despesa')}
+  finally{setExpenseBusy(false)}
+ }
  const r=info?.result||{},p=info?.parts||{},i=info?.investment||{},v=info?.vehicle||vehicle
  const resultClass=Number(r.realized_result||0)>=0?'positive':'negative'
  const potentialClass=Number(r.potential_profit||0)>=0?'positive':'negative'
@@ -284,7 +306,7 @@ function Vehicle360({vehicle,listings=[],onClose}){
    </section>
    <div className="vehicle360Metrics">
       <div><small>Valor de compra</small><b>{money(i.acquisition_value)}</b></div>
-      <div><small>Custos adicionais</small><b>{money(i.other_costs)}</b></div>
+      <div><small>Outros custos do cadastro</small><b>{money(i.other_costs)}</b></div><div><small>Despesas lançadas</small><b>{money(i.vehicle_expenses)}</b></div>
       <div className="featured"><small>Total investido</small><b>{money(i.total_invested)}</b></div>
       <div><small>Faturamento gerado</small><b>{money(r.revenue)}</b></div>
       <div className={resultClass}><small>Resultado realizado</small><b>{money(r.realized_result)}</b><em>Faturamento - investimento</em></div>
@@ -292,6 +314,26 @@ function Vehicle360({vehicle,listings=[],onClose}){
       <div className="featured"><small>Retorno potencial total</small><b>{money(r.potential_total)}</b><em>Vendido + estoque atual</em></div>
       <div className={potentialClass}><small>Lucro potencial</small><b>{money(r.potential_profit)}</b><em>Potencial - investimento</em></div>
      </div>
+
+     <section className="vehicleExpenseSection">
+      <div className="vehicle360SectionTitle"><div><small>DESPESAS DO VEÍCULO</small><h3>Custos adicionais detalhados</h3></div><span>{info.expenses?.length||0} lançamento(s) · {money(i.vehicle_expenses||0)}</span></div>
+      <div className="vehicleExpenseForm">
+       <Field label="Categoria"><select value={expenseForm.category} onChange={e=>setExpenseForm({...expenseForm,category:e.target.value})}><option>Guincho</option><option>Combustível</option><option>Documentação</option><option>Mão de obra</option><option>Oficina</option><option>Transporte</option><option>Taxas</option><option>Limpeza</option><option>Outros</option></select></Field>
+       <Field label="Descrição"><input value={expenseForm.description} onChange={e=>setExpenseForm({...expenseForm,description:e.target.value})} placeholder="Ex.: Guincho para buscar o veículo"/></Field>
+       <Field label="Valor"><input type="number" min="0" step="0.01" value={expenseForm.amount} onChange={e=>setExpenseForm({...expenseForm,amount:e.target.value})} placeholder="0,00"/></Field>
+       <Field label="Data"><input type="date" value={expenseForm.expense_date} onChange={e=>setExpenseForm({...expenseForm,expense_date:e.target.value})}/></Field>
+       <button className="primary vehicleExpenseAdd" disabled={expenseBusy} onClick={addVehicleExpense}>{expenseBusy?'Salvando...':'+ Adicionar despesa'}</button>
+      </div>
+      {expenseError&&<div className="error vehicleExpenseError">{expenseError}</div>}
+      {info.expenses?.length?<div className="vehicleExpenseList">
+       {info.expenses.map(x=><div className="vehicleExpenseRow" key={x.id}>
+        <div><b>{x.category}</b><small>{x.description||'Sem descrição'}{x.expense_date?` · ${x.expense_date.split('-').reverse().join('/')}`:''}</small></div>
+        <strong>{money(x.amount)}</strong>
+        <button className="ghost dangerOutline" disabled={expenseBusy} onClick={()=>removeVehicleExpense(x.id)}>Excluir</button>
+       </div>)}
+      </div>:<div className="vehicleExpenseEmpty">Nenhuma despesa detalhada lançada para este veículo.</div>}
+      <p className="vehicleExpenseHelp">As despesas lançadas entram automaticamente no total investido, no resultado realizado e no lucro potencial da Visão 360.</p>
+     </section>
 
      <div className="vehicle360SectionTitle"><div><small>PEÇAS</small><h3>Ciclo das peças deste veículo</h3></div><span>{p.registered_skus||0} SKUs vinculados</span></div>
      <div className="vehicle360PartMetrics">

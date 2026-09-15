@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Vehicle,Dismantling,Product,SaleItem,Sale
+from ..models import Vehicle,Dismantling,Product,SaleItem,Sale,VehicleExpense
 from ..deps import current_user, active_user
 
 router=APIRouter()
@@ -19,6 +19,13 @@ class VehicleIn(BaseModel):
     color:str=""
     acquisition_value:float=0
     other_costs:float=0
+
+
+class VehicleExpenseIn(BaseModel):
+    category:str="Outros"
+    description:str=""
+    amount:float=0
+    expense_date:str=""
 
 @router.get("")
 def list_vehicles(db:Session=Depends(get_db), user=Depends(active_user)):
@@ -37,6 +44,50 @@ def update_vehicle(vehicle_id:int,data:VehicleIn,db:Session=Depends(get_db),user
     for k,v in data.model_dump().items():
         setattr(row,k,v)
     db.commit();db.refresh(row);return row
+
+
+
+@router.get("/{vehicle_id}/expenses")
+def vehicle_expenses(vehicle_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
+    v=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not v:
+        raise HTTPException(404,"Veículo não encontrado")
+    return db.query(VehicleExpense).filter(
+        VehicleExpense.company_id==user.company_id,
+        VehicleExpense.vehicle_id==vehicle_id
+    ).order_by(VehicleExpense.id.desc()).all()
+
+
+@router.post("/{vehicle_id}/expenses")
+def add_vehicle_expense(vehicle_id:int,data:VehicleExpenseIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    v=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not v:
+        raise HTTPException(404,"Veículo não encontrado")
+    amount=round(float(data.amount or 0),2)
+    if amount<=0:
+        raise HTTPException(400,"Informe um valor de despesa maior que zero")
+    row=VehicleExpense(
+        company_id=user.company_id,
+        vehicle_id=vehicle_id,
+        category=(data.category or "Outros").strip() or "Outros",
+        description=(data.description or "").strip(),
+        amount=amount,
+        expense_date=(data.expense_date or "").strip(),
+    )
+    db.add(row);db.commit();db.refresh(row);return row
+
+
+@router.delete("/{vehicle_id}/expenses/{expense_id}")
+def delete_vehicle_expense(vehicle_id:int,expense_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(VehicleExpense).filter(
+        VehicleExpense.id==expense_id,
+        VehicleExpense.vehicle_id==vehicle_id,
+        VehicleExpense.company_id==user.company_id
+    ).first()
+    if not row:
+        raise HTTPException(404,"Despesa não encontrada")
+    db.delete(row);db.commit()
+    return {"ok":True}
 
 
 @router.get("/{vehicle_id}/overview")
@@ -99,9 +150,15 @@ def vehicle_overview(vehicle_id:int,db:Session=Depends(get_db),user=Depends(acti
             "active":bool(p.active),
         })
 
+    expenses=db.query(VehicleExpense).filter(
+        VehicleExpense.company_id==user.company_id,
+        VehicleExpense.vehicle_id==vehicle_id
+    ).order_by(VehicleExpense.id.desc()).all()
+    expenses_total=round(sum(float(x.amount or 0) for x in expenses),2)
+
     acquisition=float(v.acquisition_value or 0)
     other=float(v.other_costs or 0)
-    invested=acquisition+other
+    invested=acquisition+other+expenses_total
     revenue=round(revenue,2)
     stock_value=round(stock_value,2)
     potential_total=round(revenue+stock_value,2)
@@ -140,6 +197,8 @@ def vehicle_overview(vehicle_id:int,db:Session=Depends(get_db),user=Depends(acti
         "investment":{
             "acquisition_value":round(acquisition,2),
             "other_costs":round(other,2),
+            "vehicle_expenses":expenses_total,
+            "total_additional_costs":round(other+expenses_total,2),
             "total_invested":round(invested,2),
         },
         "parts":{
@@ -161,6 +220,14 @@ def vehicle_overview(vehicle_id:int,db:Session=Depends(get_db),user=Depends(acti
             "status":dismantling.status if dismantling else "pending",
             "status_label":dismantling_labels.get(dismantling.status if dismantling else "pending",dismantling.status if dismantling else "Pendente"),
         },
+        "expenses":[{
+            "id":x.id,
+            "category":x.category or "Outros",
+            "description":x.description or "",
+            "amount":round(float(x.amount or 0),2),
+            "expense_date":x.expense_date or "",
+            "created_at":x.created_at.isoformat() if x.created_at else None,
+        } for x in expenses],
         "products":part_rows,
     }
 

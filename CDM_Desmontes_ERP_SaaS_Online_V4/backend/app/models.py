@@ -72,6 +72,18 @@ class Vehicle(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class VehicleExpense(Base):
+    __tablename__ = "vehicle_expenses"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), index=True, nullable=False)
+    category = Column(String(80), default="Outros")
+    description = Column(String(255), default="")
+    amount = Column(Float, default=0)
+    expense_date = Column(String(20), default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Dismantling(Base):
     __tablename__ = "dismantlings"
     id = Column(Integer, primary_key=True)

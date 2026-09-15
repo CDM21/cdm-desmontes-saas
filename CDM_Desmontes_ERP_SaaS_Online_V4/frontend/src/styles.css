@@ -659,3 +659,24 @@ table{font-size:12px}
 @media(max-width:850px){.vehicleFlowHead{align-items:flex-start;flex-direction:column}.vehicleFlowHead>span{white-space:normal}.vehicleFlow{padding-bottom:12px}}
 /* CDM VEHICLE FLOW V1 - END */
 
+
+/* CDM VEHICLE EXPENSES V1 - START */
+.vehicleExpenseSection{margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.vehicleExpenseSection .vehicle360SectionTitle{margin-top:0}
+.vehicleExpenseForm{display:grid;grid-template-columns:1fr 2fr 1fr 1fr auto;gap:10px;align-items:end;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.vehicleExpenseForm .field{margin:0}
+.vehicleExpenseAdd{height:40px;white-space:nowrap}
+.vehicleExpenseError{margin-top:10px}
+.vehicleExpenseList{display:grid;gap:8px;margin-top:12px}
+.vehicleExpenseRow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.vehicleExpenseRow>div{min-width:0;display:grid;gap:2px}
+.vehicleExpenseRow b{font-size:12px}
+.vehicleExpenseRow small{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vehicleExpenseRow strong{font-size:12px}
+.vehicleExpenseRow button{padding:7px 10px}
+.vehicleExpenseEmpty{margin-top:12px;padding:14px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--muted);font-size:11px}
+.vehicleExpenseHelp{margin:10px 0 0;font-size:10px;color:var(--muted)}
+@media(max-width:1000px){.vehicleExpenseForm{grid-template-columns:1fr 1fr}.vehicleExpenseAdd{width:100%}}
+@media(max-width:650px){.vehicleExpenseForm{grid-template-columns:1fr}.vehicleExpenseRow{grid-template-columns:1fr auto}.vehicleExpenseRow button{grid-column:1/-1}.vehicleExpenseAdd{width:100%}}
+/* CDM VEHICLE EXPENSES V1 - END */
+
