@@ -349,3 +349,21 @@ table{font-size:12px}
 .customerModal .field input[placeholder*="Preenchida"]{background:var(--soft)}
 /* CDM CUSTOMERS CEP V1 - END */
 
+
+/* CDM CARRIERS V1 - START */
+.carriersPanel{padding:0;overflow:hidden}
+.carrierToolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.carrierToolbar>div{display:grid;gap:3px}
+.carrierToolbar b{font-size:14px}
+.carrierToolbar small{font-size:11px;color:var(--muted)}
+.carrierToolbar input{width:min(440px,48vw);font-size:13px}
+.carrierModal .modalHead h2{font-size:22px}
+.carrierModal .modalHead p{font-size:13px;line-height:1.45}
+.carrierModal .formGrid.two{gap:15px}
+.carrierModal input{font-size:14px;padding:12px 13px}
+.carrierHelp{display:grid;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:16px}
+.carrierHelp b{font-size:13px}
+.carrierHelp span{font-size:12px;color:var(--muted)}
+@media(max-width:700px){.carrierToolbar{align-items:stretch;flex-direction:column}.carrierToolbar input{width:100%}}
+/* CDM CARRIERS V1 - END */
+

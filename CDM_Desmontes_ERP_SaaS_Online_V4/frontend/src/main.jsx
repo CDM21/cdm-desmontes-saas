@@ -362,7 +362,7 @@ function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,hi
 function ListingBadges({product,listings}){const rows=listings.filter(x=>x.product_id===product.id),enabled={mercadolivre:product.publish_mercadolivre,shopee:product.publish_shopee,olx:product.publish_olx};return <div className="badges">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m),off=!enabled[m],ok=r?.status==='published',label=off?'Desativado':r?statusPt(r.status):'Não publicado';return <span key={m} title={off?'Canal desativado para esta peça':erroPt(r?.error_message)||label} className={'mini '+(off?'off':ok?'ok':r?'warn':'')}>{m==='mercadolivre'?'ML':m==='shopee'?'SH':'OLX'} · {label}</span>})}</div>}
 
 
-function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
+function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='carriers')return <CarriersModule rows={data.carriers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
 
 function CustomersModule({rows,refresh,notice}){
  const empty={name:'',cpf_cnpj:'',phone:'',email:'',cep:'',address:'',neighborhood:'',city:'',state:'RJ',number:'',complement:''}
@@ -432,6 +432,32 @@ function CustomersModule({rows,refresh,notice}){
     </div>
    </div>
    <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar cliente</button></div>
+  </div></div>}
+ </>
+}
+
+function CarriersModule({rows,refresh,notice}){
+ const empty={name:'',cnpj:'',phone:'',email:''}
+ const [open,setOpen]=useState(false),[form,setForm]=useState(empty),[search,setSearch]=useState('')
+ const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return rows;return rows.filter(x=>[x.name,x.cnpj,x.phone,x.email].some(v=>String(v||'').toLowerCase().includes(q)))},[rows,search])
+ const maskCnpj=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,14);return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2')}
+ const maskPhone=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,11);return d.length<=10?d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d)/,'$1-$2'):d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d)/,'$1-$2')}
+ async function save(){try{if(!form.name.trim())return notice('Informe o nome da transportadora');await api.post('/catalog/carriers',form);setForm(empty);setOpen(false);await refresh();notice('Transportadora cadastrada com sucesso')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar transportadora')}}
+ return <>
+  <div className="pageTitle"><div><span>CADASTROS</span><h2>Transportadoras</h2><p>Organize as transportadoras usadas nas entregas e expedições da empresa.</p></div><button className="primary" onClick={()=>{setForm(empty);setOpen(true)}}>＋ Cadastrar transportadora</button></div>
+  <section className="panel carriersPanel">
+   <div className="carrierToolbar"><div><b>Transportadoras cadastradas</b><small>{rows.length} {rows.length===1?'transportadora':'transportadoras'}</small></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, CNPJ, telefone ou e-mail..."/></div>
+   {filtered.length?<Table rows={filtered} cols={['id','name','cnpj','phone','email']}/>:<div className="emptyState">{search?'Nenhuma transportadora encontrada para essa busca.':'Nenhuma transportadora cadastrada ainda. Clique em “Cadastrar transportadora” para começar.'}</div>}
+  </section>
+  {open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal medium carrierModal">
+   <div className="modalHead"><div><small>TRANSPORTADORAS</small><h2>Cadastrar transportadora</h2><p>Informe os dados principais para usar a transportadora nas operações do CDM.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div>
+   <div className="modalBody"><div className="carrierHelp"><b>Cadastro rápido</b><span>O nome é obrigatório. CNPJ, telefone e e-mail podem ser preenchidos conforme você tiver os dados.</span></div><div className="formGrid two">
+    <Field label="Nome da transportadora *"><input autoFocus className={!form.name?'requiredInput':''} placeholder="Ex.: Transportes Silva" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
+    <Field label="CNPJ"><input inputMode="numeric" placeholder="Ex.: 12.345.678/0001-90" value={form.cnpj} onChange={e=>setForm({...form,cnpj:maskCnpj(e.target.value)})}/></Field>
+    <Field label="Telefone / WhatsApp"><input inputMode="tel" placeholder="Ex.: (21) 3333-4444" value={form.phone} onChange={e=>setForm({...form,phone:maskPhone(e.target.value)})}/></Field>
+    <Field label="E-mail"><input type="email" placeholder="Ex.: contato@transportadora.com.br" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field>
+   </div></div>
+   <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar transportadora</button></div>
   </div></div>}
  </>
 }
