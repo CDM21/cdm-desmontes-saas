@@ -85,6 +85,15 @@ def customers(db:Session=Depends(get_db),user=Depends(active_user)):
 @router.post("/customers")
 def add_customer(data:PartyIn,db:Session=Depends(get_db),user=Depends(active_user)):
     row=Customer(company_id=user.company_id,**data.model_dump());db.add(row);db.commit();db.refresh(row);return row
+@router.put("/customers/{customer_id}")
+def update_customer(customer_id:int,data:PartyIn,db:Session=Depends(get_db),user=Depends(active_user)):
+    row=db.query(Customer).filter(Customer.id==customer_id,Customer.company_id==user.company_id).first()
+    if not row:
+        raise HTTPException(404,"Cliente não encontrado")
+    for k,v in data.model_dump().items():
+        setattr(row,k,v)
+    db.commit();db.refresh(row);return row
+
 @router.get("/suppliers")
 def suppliers(db:Session=Depends(get_db),user=Depends(active_user)):
     return db.query(Supplier).filter(Supplier.company_id==user.company_id).order_by(Supplier.id.desc()).all()

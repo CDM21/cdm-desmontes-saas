@@ -414,3 +414,227 @@ table{font-size:12px}
 @media(max-width:700px){.partGroupToolbar{align-items:stretch;flex-direction:column}.partGroupToolbar input{width:100%}.partGroupRow{grid-template-columns:40px minmax(0,1fr)}.partGroupRow>span{display:none}}
 /* CDM PART GROUPS V1 - END */
 
+
+/* CDM VEHICLE 360 V1 - START */
+.vehicleManagementPanel{padding:0;overflow:hidden}
+.vehicleManagementHead{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px;border-bottom:1px solid var(--line)}
+.vehicleManagementHead>div:first-child{display:grid;gap:3px}
+.vehicleManagementHead small{font-size:11px;color:var(--muted)}
+.vehicleManagementHead h2{margin:0;font-size:21px}
+.vehicleManagementHead p{margin:0;color:var(--muted);font-size:12px}
+.vehicleManagementHead>div:last-child{display:flex;align-items:center;gap:10px}
+.vehicleManagementHead input{width:320px;max-width:40vw}
+.vehicleManagementHead>div:last-child span{font-size:11px;color:var(--muted);white-space:nowrap}
+.vehicleRows{display:grid}
+.vehicleRow360{display:grid;grid-template-columns:minmax(250px,1fr) 120px 120px 125px auto;gap:14px;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
+.vehicleRow360:last-child{border-bottom:0}
+.vehicleIdentity{display:flex;align-items:center;gap:12px;min-width:0}
+.vehicleIdentity>div:last-child{display:grid;gap:4px;min-width:0}
+.vehicleIdentity b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vehicleIdentity small{font-size:11px;color:var(--muted)}
+.vehicleBadge{width:40px;height:40px;border-radius:10px;background:var(--soft);display:grid;place-items:center;font-size:11px;font-weight:800;flex:0 0 auto}
+.vehicleQuick{display:grid;gap:3px}
+.vehicleQuick small{font-size:10px;color:var(--muted);text-transform:uppercase}
+.vehicleQuick b{font-size:12px}
+.vehicle360Btn{white-space:nowrap}
+.vehicle360Backdrop{z-index:150}
+.vehicle360Modal{width:min(1180px,96vw);max-height:94vh}
+.vehicle360Head{position:sticky;top:0;z-index:2;background:var(--panel)}
+.vehicle360Body{display:grid;gap:18px}
+.vehicle360Loading{padding:50px;text-align:center;color:var(--muted)}
+.vehicle360Status{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.vehicle360Status>div{display:grid;gap:5px;padding:13px 15px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.vehicle360Status small,.vehicle360Metrics small,.vehicle360PartMetrics small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.vehicle360Status b{font-size:14px}
+.vehicle360SectionTitle{display:flex;align-items:end;justify-content:space-between;gap:15px;padding-top:3px}
+.vehicle360SectionTitle>div{display:grid;gap:2px}
+.vehicle360SectionTitle small{font-size:10px;color:var(--muted)}
+.vehicle360SectionTitle h3{margin:0;font-size:17px}
+.vehicle360SectionTitle>span{font-size:11px;color:var(--muted)}
+.vehicle360Metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.vehicle360Metrics>div{display:grid;gap:5px;padding:14px;border:1px solid var(--line);border-radius:10px}
+.vehicle360Metrics>div.featured{background:var(--soft)}
+.vehicle360Metrics b{font-size:18px}
+.vehicle360Metrics em{font-size:10px;color:var(--muted);font-style:normal}
+.vehicle360Metrics .positive b{color:var(--success)}
+.vehicle360Metrics .negative b{color:var(--danger)}
+.vehicle360PartMetrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.vehicle360PartMetrics>div{display:grid;grid-template-columns:32px 1fr;grid-template-rows:auto auto;column-gap:8px;padding:13px;border:1px solid var(--line);border-radius:10px}
+.vehicle360PartMetrics>div>span{grid-row:1/3;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:var(--soft)}
+.vehicle360PartMetrics b{font-size:18px}
+.vehicle360Parts{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.vehicle360PartsHead,.vehicle360PartRow{display:grid;grid-template-columns:minmax(220px,1.7fr) 90px 90px 130px 140px;gap:10px;align-items:center;padding:11px 14px}
+.vehicle360PartsHead{background:var(--soft);font-size:10px;color:var(--muted);text-transform:uppercase}
+.vehicle360PartRow{border-top:1px solid var(--line);font-size:12px}
+.vehicle360PartRow>div{display:grid;gap:3px;min-width:0}
+.vehicle360PartRow>div b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vehicle360PartRow>div small{color:var(--muted)}
+.vehicle360Note{font-size:11px;line-height:1.5;color:var(--muted);padding:12px 14px;border:1px dashed var(--line);border-radius:9px}
+@media(max-width:900px){
+ .vehicleManagementHead{align-items:stretch;flex-direction:column}
+ .vehicleManagementHead>div:last-child{align-items:stretch}
+ .vehicleManagementHead input{width:100%;max-width:none}
+ .vehicleRow360{grid-template-columns:1fr 1fr}
+ .vehicleIdentity{grid-column:1/-1}
+ .vehicle360Btn{grid-column:1/-1}
+ .vehicle360Metrics{grid-template-columns:repeat(2,1fr)}
+ .vehicle360PartMetrics{grid-template-columns:repeat(2,1fr)}
+ .vehicle360Parts{overflow:auto}
+ .vehicle360PartsHead,.vehicle360PartRow{min-width:760px}
+}
+@media(max-width:600px){
+ .vehicle360Status{grid-template-columns:1fr}
+ .vehicle360Metrics,.vehicle360PartMetrics{grid-template-columns:1fr}
+}
+/* CDM VEHICLE 360 V1 - END */
+
+
+/* CDM EDIT REGISTERS V1 - START */
+.customerEditRows{display:grid}
+.customerEditHead,.customerEditRow{display:grid;grid-template-columns:minmax(180px,1.25fr) 150px 150px minmax(220px,1.4fr) 92px;gap:12px;align-items:center;padding:12px 16px}
+.customerEditHead{background:var(--soft);font-size:10px;color:var(--muted);text-transform:uppercase;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.customerEditRow{border-bottom:1px solid var(--line);font-size:12px}
+.customerEditRow:last-child{border-bottom:0}
+.customerEditRow>div:first-child{display:grid;gap:3px;min-width:0}
+.customerEditRow>div:first-child b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.customerEditRow>div:first-child small{color:var(--muted)}
+.customerAddressCell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.editRegisterBtn{white-space:nowrap}
+.vehicleRow360{grid-template-columns:minmax(250px,1fr) 120px 120px 125px auto}
+.vehicleRowActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap}
+.vehicleEditBackdrop{z-index:155}
+@media(max-width:1000px){.customerEditRows{overflow:auto}.customerEditHead,.customerEditRow{min-width:900px}}
+@media(max-width:900px){.vehicleRowActions{grid-column:1/-1;justify-content:stretch}.vehicleRowActions button{flex:1}}
+/* CDM EDIT REGISTERS V1 - END */
+
+
+/* CDM STOCK CARD LAYOUT FIX V1 - START */
+.v8ProductCard{
+  position:relative;
+  overflow:visible;
+  display:flex;
+  flex-direction:column;
+}
+
+.v8ProductCard .cardControlRow{
+  position:relative;
+  min-height:38px;
+  padding:6px 9px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:7px;
+  border-bottom:1px solid var(--line);
+  background:var(--panel);
+  z-index:6;
+}
+
+.v8ProductCard .cardControlRow .productSelect{
+  position:static !important;
+  inset:auto !important;
+  transform:none !important;
+  width:auto !important;
+  height:28px !important;
+  min-width:28px;
+  margin:0 !important;
+  padding:0 7px !important;
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  border:1px solid var(--line) !important;
+  border-radius:7px;
+  background:var(--soft) !important;
+  box-shadow:none !important;
+  cursor:pointer;
+}
+
+.v8ProductCard .cardControlRow .productSelect span{
+  font-size:10px;
+  color:var(--muted);
+  line-height:1;
+}
+
+.v8ProductCard .cardControlRow .productSelect input{
+  margin:0;
+}
+
+.v8ProductCard .cardControlRow .cardMenuBtn{
+  position:static !important;
+  inset:auto !important;
+  transform:none !important;
+  width:30px !important;
+  min-width:30px !important;
+  height:28px !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:grid !important;
+  place-items:center;
+  border:1px solid var(--line) !important;
+  border-radius:7px;
+  background:var(--soft) !important;
+  color:var(--text) !important;
+  box-shadow:none !important;
+}
+
+.v8ProductCard .cardControlRow .cardMenu{
+  position:absolute !important;
+  top:36px !important;
+  right:8px !important;
+  left:auto !important;
+  z-index:60 !important;
+}
+
+.v8ProductCard .cardTabs{
+  position:relative;
+  z-index:2;
+  width:100%;
+  margin:0 !important;
+}
+
+.v8ProductCard .cardTabs button{
+  min-width:0;
+}
+
+.v8ProductCard .productName,
+.v8ProductCard .productImage,
+.v8ProductCard .productMeta,
+.v8ProductCard .badges,
+.v8ProductCard .compatibilityBody{
+  position:relative;
+  z-index:1;
+}
+
+.v8ProductCard .productActions{
+  position:static !important;
+  inset:auto !important;
+  margin-top:auto !important;
+  width:100%;
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:stretch;
+  z-index:2;
+}
+
+.v8ProductCard .productActions button{
+  min-width:0 !important;
+  width:100%;
+  padding:10px 5px !important;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  white-space:nowrap;
+  overflow:hidden;
+}
+
+.v8ProductCard .productActions button span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+@media(max-width:700px){
+  .v8ProductCard .cardControlRow .productSelect span{display:none}
+}
+/* CDM STOCK CARD LAYOUT FIX V1 - END */
+

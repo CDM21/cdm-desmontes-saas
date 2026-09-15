@@ -133,7 +133,7 @@ function App(){
        {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session}/>} 
        {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>} 
        {tab==='qrcode'&&<QRCodeModule products={products}/>} 
-       {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} createOnly/>}
+       {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands}/>}
        {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands}/>} 
        {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>} 
        {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company}/>} 
@@ -228,7 +228,105 @@ function CadastrosHome({setTab}){const cards=[['▰','Cadastro de Sucatas','vehi
 
 function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=useState([]),[customModel,setCustomModel]=useState(false);useEffect(()=>{let active=true;setModels([]);if(!form.brand){return}api.get('/vehicle-catalog/models',{params:{brand:form.brand}}).then(r=>{if(active){setModels(r.data.models||[]);if(form.model&&!(r.data.models||[]).includes(form.model))setCustomModel(true)}}).catch(()=>setModels([]));return()=>{active=false}},[form.brand]);return <><Field label="Marca"><select value={form.brand||''} onChange={e=>{setForm({...form,brand:e.target.value,model:''});setCustomModel(false)}}><option value="">Selecione a marca...</option>{brands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Modelo">{customModel?<div className="inlineInput"><input autoFocus value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Digite o modelo"/><button type="button" className="ghost mini" onClick={()=>{setCustomModel(false);setForm({...form,model:''})}}>Lista</button></div>:<select value={form.model||''} disabled={!form.brand} onChange={e=>{if(e.target.value==='__custom__'){setCustomModel(true);setForm({...form,model:''})}else setForm({...form,model:e.target.value})}}><option value="">{form.brand?'Selecione o modelo...':'Escolha a marca primeiro'}</option>{models.map(m=><option key={m} value={m}>{m}</option>)}<option value="__custom__">Outro / digitar manualmente...</option></select>}</Field></>}
 
-function Vehicles({data,refresh,notice,brands=[],createOnly=false}){const [form,setForm]=useState({plate:'',brand:'',model:'',year:new Date().getFullYear(),vin:'',renavam:'',fuel:'Flex',transmission:'Automático',color:'',acquisition_value:'',other_costs:''});async function add(){try{await api.post('/vehicles',{...form,acquisition_value:Number(form.acquisition_value||0),other_costs:Number(form.other_costs||0)});setForm({plate:'',brand:'',model:'',year:new Date().getFullYear(),vin:'',renavam:'',fuel:'Flex',transmission:'Automático',color:'',acquisition_value:'',other_costs:''});await refresh();notice('Sucata cadastrada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao cadastrar')}}return <><section className="panel"><PanelHead eyebrow="DESMONTAGEM" title="Cadastro de Sucata / Veículo" text="Registre o veículo de origem. Marca e modelo já vêm organizados para acelerar o cadastro."/><div className="formGrid"><Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/><Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:+e.target.value})}/></Field><Field label="Chassi/VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field><Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field><Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field><Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field></div><button className="primary" onClick={add}>+ Cadastrar veículo</button></section>{!createOnly&&<section className="panel"><PanelHead eyebrow="SUCATAS" title="Veículos cadastrados" text={`${data.length} registros`}/><Table rows={data} cols={['id','plate','brand','model','year','fuel','transmission','status','acquisition_value']} format={{acquisition_value:money}}/></section>}</>}
+
+function Vehicle360({vehicle,onClose}){
+ const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('')
+ useEffect(()=>{
+   let active=true
+   setBusy(true);setError('')
+   api.get(`/vehicles/${vehicle.id}/overview`).then(r=>{if(active)setInfo(r.data)}).catch(e=>{if(active)setError(erroPt(e.response?.data?.detail)||'Não foi possível carregar a visão 360')}).finally(()=>{if(active)setBusy(false)})
+   return()=>{active=false}
+ },[vehicle.id])
+ const r=info?.result||{},p=info?.parts||{},i=info?.investment||{},v=info?.vehicle||vehicle
+ const resultClass=Number(r.realized_result||0)>=0?'positive':'negative'
+ const potentialClass=Number(r.potential_profit||0)>=0?'positive':'negative'
+ return <div className="modalBackdrop vehicle360Backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
+  <div className="v8Modal vehicle360Modal">
+   <div className="modalHead vehicle360Head"><div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
+   <div className="modalBody vehicle360Body">
+    {busy?<div className="vehicle360Loading">Calculando investimento, vendas e estoque...</div>:error?<div className="error">{error}</div>:<>
+     <div className="vehicle360Status">
+      <div><small>SITUAÇÃO DO VEÍCULO</small><b>{info.vehicle.status_label}</b></div>
+      <div><small>DESMONTAGEM</small><b>{info.dismantling.status_label}</b></div>
+      <div><small>RECUPERADO DO INVESTIMENTO</small><b>{Number(r.recovery_percent||0).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></div>
+     </div>
+
+     <div className="vehicle360SectionTitle"><div><small>FINANCEIRO</small><h3>Investimento e retorno</h3></div><span>Valores calculados automaticamente</span></div>
+     <div className="vehicle360Metrics">
+      <div><small>Valor de compra</small><b>{money(i.acquisition_value)}</b></div>
+      <div><small>Custos adicionais</small><b>{money(i.other_costs)}</b></div>
+      <div className="featured"><small>Total investido</small><b>{money(i.total_invested)}</b></div>
+      <div><small>Faturamento gerado</small><b>{money(r.revenue)}</b></div>
+      <div className={resultClass}><small>Resultado realizado</small><b>{money(r.realized_result)}</b><em>Faturamento - investimento</em></div>
+      <div><small>Valor estimado do estoque</small><b>{money(r.estimated_stock_value)}</b></div>
+      <div className="featured"><small>Retorno potencial total</small><b>{money(r.potential_total)}</b><em>Vendido + estoque atual</em></div>
+      <div className={potentialClass}><small>Lucro potencial</small><b>{money(r.potential_profit)}</b><em>Potencial - investimento</em></div>
+     </div>
+
+     <div className="vehicle360SectionTitle"><div><small>PEÇAS</small><h3>Ciclo das peças deste veículo</h3></div><span>{p.registered_skus||0} SKUs vinculados</span></div>
+     <div className="vehicle360PartMetrics">
+      <div><span>▦</span><small>Peças cadastradas</small><b>{p.registered_units||0}</b></div>
+      <div><span>✓</span><small>Peças vendidas</small><b>{p.sold_qty||0}</b></div>
+      <div><span>●</span><small>Peças em estoque</small><b>{p.stock_qty||0}</b></div>
+      <div><span>▤</span><small>SKUs com estoque</small><b>{p.skus_in_stock||0}</b></div>
+     </div>
+
+     <div className="vehicle360SectionTitle"><div><small>DETALHAMENTO</small><h3>Peças vinculadas ao veículo</h3></div><span>Preço atual usado na estimativa do estoque</span></div>
+     {info.products?.length?<div className="vehicle360Parts">
+      <div className="vehicle360PartsHead"><span>Peça</span><span>Vendidas</span><span>Estoque</span><span>Faturamento</span><span>Potencial estoque</span></div>
+      {info.products.map(x=><div className="vehicle360PartRow" key={x.id}><div><b>{x.name}</b><small>SKU {x.sku||'—'} · {money(x.price)}</small></div><span>{x.sold_qty}</span><span>{x.stock}</span><strong>{money(x.revenue)}</strong><strong>{money(x.estimated_stock_value)}</strong></div>)}
+     </div>:<div className="emptyState">Ainda não existem peças vinculadas a este veículo.</div>}
+
+     <div className="vehicle360Note">O valor do estoque restante é uma estimativa baseada no preço de venda atual das peças. O resultado realizado considera o faturamento já gerado menos todo o investimento do veículo.</div>
+    </>}
+   </div>
+   <div className="modalFoot"><button className="primary" onClick={onClose}>Fechar visão 360</button></div>
+  </div>
+ </div>
+}
+
+function VehicleEditModal({vehicle,brands,onClose,refresh,notice}){
+ const [form,setForm]=useState({plate:vehicle.plate||'',brand:vehicle.brand||'',model:vehicle.model||'',year:vehicle.year||new Date().getFullYear(),vin:vehicle.vin||'',renavam:vehicle.renavam||'',fuel:vehicle.fuel||'Flex',transmission:vehicle.transmission||'Automático',color:vehicle.color||'',acquisition_value:vehicle.acquisition_value??'',other_costs:vehicle.other_costs??''})
+ async function save(){
+  try{
+   const payload={plate:form.plate||'',vin:form.vin||'',renavam:form.renavam||'',brand:form.brand||'',model:form.model||'',year:form.year?Number(form.year):null,fuel:form.fuel||'',transmission:form.transmission||'',color:form.color||'',acquisition_value:Number(form.acquisition_value||0),other_costs:Number(form.other_costs||0)}
+   await api.put(`/vehicles/${vehicle.id}`,payload);await refresh();notice('Sucata atualizada com sucesso');onClose()
+  }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao atualizar sucata')}
+ }
+ return <div className="modalBackdrop vehicleEditBackdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="v8Modal large">
+   <div className="modalHead"><div><small>EDIÇÃO DE SUCATA</small><h2>Editar veículo #{vehicle.id}</h2><p>Corrija os dados cadastrados e salve as alterações.</p></div><button className="iconClose" onClick={onClose}>×</button></div>
+   <div className="modalBody"><div className="formGrid three">
+    <Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/>
+    <Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:e.target.value})}/></Field>
+    <Field label="Chassi / VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field>
+    <Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field>
+    <Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field>
+    <Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field>
+   </div></div><div className="modalFoot"><button className="ghost" onClick={onClose}>Cancelar</button><button className="primary" onClick={save}>Salvar alterações</button></div>
+  </div></div>
+}
+
+function Vehicles({data,refresh,notice,brands=[],createOnly=false}){
+ const empty={plate:'',brand:'',model:'',year:new Date().getFullYear(),vin:'',renavam:'',fuel:'Flex',transmission:'Automático',color:'',acquisition_value:'',other_costs:''}
+ const [form,setForm]=useState(empty),[overview,setOverview]=useState(null),[search,setSearch]=useState(''),[editVehicle,setEditVehicle]=useState(null)
+ const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return data;return data.filter(v=>[v.plate,v.brand,v.model,v.year,v.status].some(x=>String(x||'').toLowerCase().includes(q)))},[data,search])
+ async function add(){try{await api.post('/vehicles',{...form,acquisition_value:Number(form.acquisition_value||0),other_costs:Number(form.other_costs||0)});setForm({...empty,year:new Date().getFullYear()});await refresh();notice('Sucata cadastrada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao cadastrar')}}
+ return <>
+  <section className="panel"><PanelHead eyebrow="DESMONTAGEM" title="Cadastro de Sucata / Veículo" text="Registre o veículo de origem. Marca e modelo já vêm organizados para acelerar o cadastro."/><div className="formGrid"><Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/><Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:+e.target.value})}/></Field><Field label="Chassi/VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field><Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field><Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field><Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field></div><button className="primary" onClick={add}>+ Cadastrar veículo</button></section>
+  {!createOnly&&<section className="panel vehicleManagementPanel">
+   <div className="vehicleManagementHead"><div><small>SUCATAS</small><h2>Veículos cadastrados</h2><p>Acompanhe cada veículo desde a compra até o retorno das peças.</p></div><div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar placa, marca ou modelo..."/><span>{filtered.length} de {data.length}</span></div></div>
+   {filtered.length?<div className="vehicleRows">{filtered.map(v=><div className="vehicleRow360" key={v.id}>
+    <div className="vehicleIdentity"><div className="vehicleBadge">#{v.id}</div><div><b>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||'Veículo sem identificação'}</b><small>{v.plate||'Sem placa'} · {v.fuel||'Combustível não informado'} · {v.transmission||'Câmbio não informado'}</small></div></div>
+    <div className="vehicleQuick"><small>Compra</small><b>{money(v.acquisition_value)}</b></div>
+    <div className="vehicleQuick"><small>Custos</small><b>{money(v.other_costs)}</b></div>
+    <div className="vehicleQuick"><small>Status</small><b>{statusPt(v.status)}</b></div>
+    <div className="vehicleRowActions"><button className="ghost editRegisterBtn" onClick={()=>setEditVehicle(v)}>✎ Editar</button><button className="primary vehicle360Btn" onClick={()=>setOverview(v)}>◉ Visão 360</button></div>
+   </div>)}</div>:<div className="emptyState">Nenhum veículo encontrado.</div>}
+  </section>}
+  {overview&&<Vehicle360 vehicle={overview} onClose={()=>setOverview(null)}/>}
+  {editVehicle&&<VehicleEditModal vehicle={editVehicle} brands={brands} onClose={()=>setEditVehicle(null)} refresh={refresh} notice={notice}/>}
+ </>
+}
 
 const productEmpty={sku:'',name:'',category:'',part_group:'',brand:'',model:'',year:'',oem:'',condition:'used',side:'',position:'',cost:'',price:'',stock:1,location_id:null,vehicle_id:null,description:'',compatibility:'',image_urls:'',weight:1,package_length:20,package_width:20,package_height:20,ml_category_id:'',ml_listing_type:'gold_special',shopee_category_id:'',shopee_logistic_id:'',shopee_image_ids:'',olx_category_id:'',publish_mercadolivre:true,publish_shopee:true,publish_olx:true,ml_has_warranty:false,ml_warranty_text:'',ml_shipping_mode:'',ml_free_shipping:false,ml_local_pickup:true,ml_attributes_json:'{}',ml_store_id:'',ml_network_node_id:'',quality_grade:'B',quality_notes:'',warranty_days:90,public_catalog:true,auto_publish:false}
 
@@ -358,7 +456,38 @@ function Inventory({data,listings,refresh,notice,groups=[],brands=[],vehicles=[]
  return <><div className="inventoryActions"><div><button className="labelBtn" disabled={!selected.length} onClick={()=>printLabels(data.filter(p=>selected.includes(p.id)))}>▣ Gerar etiquetas ({selected.length})</button><button className="ghost" disabled={!selected.length} onClick={removeSelected}>🗑 Excluir selecionados</button><button className="ghost" onClick={()=>setSelected(selected.length===rows.length?[]:rows.map(p=>p.id))}>{selected.length===rows.length&&rows.length?'Limpar seleção':'Selecionar visíveis'}</button></div><div><button className="ghost" onClick={()=>window.print()}>▤ Exportar PDF</button><button className="excelBtn" onClick={exportCsv}>↓ Exportar planilha</button></div></div><div className="inventoryViewBar"><span>Visualização:</span><label><input type="radio" checked={view==='card'} onChange={()=>setView('card')}/> Cartões</label><label><input type="radio" checked={view==='list'} onChange={()=>setView('list')}/> Lista</label><span className="stockMode">◉ Estoque atual</span></div><section className="panel inventoryPanel"><div className="inventoryToolbar"><label>Mostrando: <select value={limit} onChange={e=>setLimit(+e.target.value)}><option>12</option><option>24</option><option>48</option></select></label><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Pesquise pela descrição, marca, modelo ou SKU"/><button className="filterBtn" onClick={()=>setShowFilters(!showFilters)}>⌁ Mais filtros</button></div>{showFilters&&<div className="filterStrip"><span>Use a pesquisa para descrição, SKU, marca e modelo. Filtros por preço, local e quantidade entram nesta mesma tela.</span></div>}{view==='card'?<div className="productCards">{rows.map(p=><ProductCard key={p.id} p={p} listings={listings} publish={publish} selected={selected.includes(p.id)} toggle={()=>toggle(p.id)} edit={()=>setEditing(p)} print={()=>printLabels([p])} openPhoto={()=>setViewer({product:p,index:0})} history={()=>setHistory(p)} publication={()=>setPublication(p)} share={()=>share(p)} remove={()=>removeOne(p)} locationName={locationName(p)}/>)}</div>:<div className="inventoryList">{rows.map(p=><div className={'inventoryRow '+(selected.includes(p.id)?'selected':'')} key={p.id}><input type="checkbox" checked={selected.includes(p.id)} onChange={()=>toggle(p.id)}/><button className="rowImage" onClick={()=>setViewer({product:p,index:0})}>{imageList(p.image_urls)[0]?<img src={imageList(p.image_urls)[0]} alt={p.name}/>:<span>Sem foto</span>}</button><div className="rowGrow"><b>#{p.id} · {p.name}</b><small>{p.brand} {p.model} {p.year||''} · {p.sku} · {locationName(p)}</small></div><strong>{money(p.price)}</strong><span>{p.stock} un.</span><button className="ghost" onClick={()=>setEditing(p)}>Editar</button><button className="ghost" onClick={()=>printLabels([p])}>Etiqueta</button></div>)}</div>}{!rows.length&&<div className="emptyState">Nenhuma peça encontrada.</div>}</section>{editing&&<div className="modalBackdrop editorBackdrop"><div className="productEditModal"><button className="iconClose floating" onClick={()=>setEditing(null)}>×</button><ProductForm initialProduct={editing} refresh={refresh} notice={notice} groups={groups} brands={brands} vehicles={vehicles} locations={locations} onClose={()=>setEditing(null)}/></div></div>}{viewer&&<PhotoViewer product={viewer.product} index={viewer.index} onClose={()=>setViewer(null)} onEdit={()=>setEditing(viewer.product)}/>} {history&&<ProductHistory product={history} onClose={()=>setHistory(null)}/>} {publication&&<PublicationInfo product={publication} listings={listings} onClose={()=>setPublication(null)}/>}<LabelPrintOverlay products={printItems} company={company}/></>
 }
 
-function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,history,publication,share,remove,locationName}){const [tab,setTab]=useState('data'),[menu,setMenu]=useState(false),img=imageList(p.image_urls)[0];return <article className={'productCard v8ProductCard '+(selected?'selected':'')}><label className="productSelect"><input type="checkbox" checked={selected} onChange={toggle}/></label><button className="cardMenuBtn" onClick={()=>setMenu(!menu)}>⋮</button>{menu&&<div className="cardMenu"><button onClick={()=>{edit();setMenu(false)}}>✎ Editar</button><button onClick={()=>{publish(p.id);setMenu(false)}}>↻ Anunciar novamente</button><button onClick={()=>{publication();setMenu(false)}}>◉ Ver publicação</button><button onClick={()=>{edit();setMenu(false)}}>↗ Vincular peça</button><button onClick={()=>{share();setMenu(false)}}>⌁ Compartilhar</button><button onClick={()=>{history();setMenu(false)}}>↺ Histórico</button><button onClick={()=>{print();setMenu(false)}}>▣ Imprimir etiqueta</button><button onClick={()=>{publish(p.id);setMenu(false)}}>⟳ Publicar / sincronizar</button><button className="dangerText" onClick={()=>{remove();setMenu(false)}}>🗑 Excluir</button></div>}<div className="cardTabs"><button className={tab==='data'?'active':''} onClick={()=>setTab('data')}>Dados</button><button className={tab==='compat'?'active':''} onClick={()=>setTab('compat')}>Compatibilidade</button></div>{tab==='data'?<><div className="productName"><strong>{p.id} - {p.name}</strong><small>{p.brand} {p.model} {p.year||''}</small></div><button className="productImage" onClick={openPhoto}>{img?<img src={img} alt={p.name}/>:<div className="noImage">PRODUTO<br/><b>SEM IMAGEM</b></div>}{img&&<span className="photoEye">◉ Ver foto</span>}</button><div className="productMeta three"><div><small>Preço</small><b>{money(p.price)}</b></div><div><small>Estoque</small><b>{p.stock} un.</b></div><div><small>Local</small><b>{locationName}</b></div></div><ListingBadges product={p} listings={listings}/></>:<div className="compatibilityBody"><b>Veículos compatíveis</b><p>{p.compatibility||'Nenhuma compatibilidade cadastrada para esta peça.'}</p><small>OEM: {p.oem||'não informado'}</small></div>}<div className="productActions"><button title="Editar produto" onClick={edit}>✎ <span>Editar</span></button><button title="Imprimir etiqueta" onClick={print}>▣ <span>Etiqueta</span></button><button title="Publicar e sincronizar" onClick={()=>publish(p.id)}>↻ <span>Sincronizar</span></button></div></article>}
+function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,history,publication,share,remove,locationName}){
+ const [tab,setTab]=useState('data'),[menu,setMenu]=useState(false),img=imageList(p.image_urls)[0]
+ return <article className={'productCard v8ProductCard '+(selected?'selected':'')}>
+  <div className="cardControlRow">
+   <label className="productSelect"><input type="checkbox" checked={selected} onChange={toggle}/><span>Selecionar</span></label>
+   <button className="cardMenuBtn" title="Mais ações" onClick={()=>setMenu(!menu)}>⋮</button>
+   {menu&&<div className="cardMenu">
+    <button onClick={()=>{edit();setMenu(false)}}>✎ Editar</button>
+    <button onClick={()=>{publish(p.id);setMenu(false)}}>↻ Anunciar novamente</button>
+    <button onClick={()=>{publication();setMenu(false)}}>◉ Ver publicação</button>
+    <button onClick={()=>{edit();setMenu(false)}}>↗ Vincular peça</button>
+    <button onClick={()=>{share();setMenu(false)}}>⌁ Compartilhar</button>
+    <button onClick={()=>{history();setMenu(false)}}>↺ Histórico</button>
+    <button onClick={()=>{print();setMenu(false)}}>▣ Imprimir etiqueta</button>
+    <button onClick={()=>{publish(p.id);setMenu(false)}}>⟳ Publicar / sincronizar</button>
+    <button className="dangerText" onClick={()=>{remove();setMenu(false)}}>🗑 Excluir</button>
+   </div>}
+  </div>
+  <div className="cardTabs"><button className={tab==='data'?'active':''} onClick={()=>setTab('data')}>Dados</button><button className={tab==='compat'?'active':''} onClick={()=>setTab('compat')}>Compatibilidade</button></div>
+  {tab==='data'?<>
+   <div className="productName"><strong>{p.id} - {p.name}</strong><small>{p.brand} {p.model} {p.year||''}</small></div>
+   <button className="productImage" onClick={openPhoto}>{img?<img src={img} alt={p.name}/>:<div className="noImage">PRODUTO<br/><b>SEM IMAGEM</b></div>}{img&&<span className="photoEye">◉ Ver foto</span>}</button>
+   <div className="productMeta three"><div><small>Preço</small><b>{money(p.price)}</b></div><div><small>Estoque</small><b>{p.stock} un.</b></div><div><small>Local</small><b>{locationName}</b></div></div>
+   <ListingBadges product={p} listings={listings}/>
+  </>:<div className="compatibilityBody"><b>Veículos compatíveis</b><p>{p.compatibility||'Nenhuma compatibilidade cadastrada para esta peça.'}</p><small>OEM: {p.oem||'não informado'}</small></div>}
+  <div className="productActions">
+   <button title="Editar produto" onClick={edit}>✎ <span>Editar</span></button>
+   <button title="Imprimir etiqueta" onClick={print}>▣ <span>Etiqueta</span></button>
+   <button title="Publicar e sincronizar" onClick={()=>publish(p.id)}>↻ <span>Sincronizar</span></button>
+  </div>
+ </article>
+}
 function ListingBadges({product,listings}){const rows=listings.filter(x=>x.product_id===product.id),enabled={mercadolivre:product.publish_mercadolivre,shopee:product.publish_shopee,olx:product.publish_olx};return <div className="badges">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m),off=!enabled[m],ok=r?.status==='published',label=off?'Desativado':r?statusPt(r.status):'Não publicado';return <span key={m} title={off?'Canal desativado para esta peça':erroPt(r?.error_message)||label} className={'mini '+(off?'off':ok?'ok':r?'warn':'')}>{m==='mercadolivre'?'ML':m==='shopee'?'SH':'OLX'} · {label}</span>})}</div>}
 
 
@@ -366,11 +495,32 @@ function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConf
 
 function CustomersModule({rows,refresh,notice}){
  const empty={name:'',cpf_cnpj:'',phone:'',email:'',cep:'',address:'',neighborhood:'',city:'',state:'RJ',number:'',complement:''}
- const [open,setOpen]=useState(false),[form,setForm]=useState(empty),[search,setSearch]=useState(''),[cepBusy,setCepBusy]=useState(false)
+ const [open,setOpen]=useState(false),[form,setForm]=useState(empty),[search,setSearch]=useState(''),[cepBusy,setCepBusy]=useState(false),[editingId,setEditingId]=useState(null)
  const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return rows;return rows.filter(x=>[x.name,x.cpf_cnpj,x.phone,x.email,x.address].some(v=>String(v||'').toLowerCase().includes(q)))},[rows,search])
  const maskDoc=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,14);if(d.length<=11)return d.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2')}
  const maskPhone=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,11);return d.length<=10?d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d)/,'$1-$2'):d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d)/,'$1-$2')}
- const maskCep=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,8);return d.length>5?d.replace(/^(\d{5})(\d)/,'$1-$2'):d}
+ const maskCep=v=>String(v||'').replace(/\D/g,'').slice(0,8).replace(/(\d{5})(\d)/,'$1-$2')
+ function splitAddress(value){
+   const parts=String(value||'').split(' · ').map(x=>x.trim()).filter(Boolean)
+   let address=parts[0]||'',number='',neighborhood=parts[1]||'',city='',state='RJ',cep='',complement=''
+   const mFirst=address.match(/^(.*),\s*([^,]+)$/)
+   if(mFirst){address=mFirst[1].trim();number=mFirst[2].trim()}
+   const cityPart=parts[2]||''
+   const mCity=cityPart.match(/^(.*?)(?:\s*-\s*([A-Za-z]{2}))?$/)
+   if(mCity){city=(mCity[1]||'').trim();state=(mCity[2]||'RJ').toUpperCase()}
+   const cepIndex=parts.findIndex(x=>/^CEP\s+/i.test(x))
+   if(cepIndex>=0)cep=parts[cepIndex].replace(/^CEP\s+/i,'').trim()
+   const known=new Set([0,1,2,cepIndex])
+   complement=parts.filter((_,idx)=>idx>2&&!known.has(idx)).join(' · ')
+   return {address,number,neighborhood,city,state,cep,complement}
+ }
+ function newCustomer(){setEditingId(null);setForm(empty);setOpen(true)}
+ function editCustomer(row){
+   const addr=splitAddress(row.address)
+   setEditingId(row.id)
+   setForm({...empty,...addr,name:row.name||'',cpf_cnpj:row.cpf_cnpj||'',phone:row.phone||'',email:row.email||''})
+   setOpen(true)
+ }
  async function buscarCep(raw=form.cep){
    const cep=String(raw||'').replace(/\D/g,'')
    if(cep.length!==8)return
@@ -392,46 +542,48 @@ function CustomersModule({rows,refresh,notice}){
  async function save(){
    try{
      if(!form.name.trim())return notice('Informe o nome do cliente')
-     const fullAddress=[
-       [form.address,form.number].filter(Boolean).join(', '),
-       form.neighborhood,
-       [form.city,form.state].filter(Boolean).join(' - '),
-       form.cep?`CEP ${form.cep}`:'',
-       form.complement
-     ].filter(Boolean).join(' · ')
-     const payload={name:form.name,cpf_cnpj:form.cpf_cnpj,phone:form.phone,email:form.email,address:fullAddress}
-     await api.post('/catalog/customers',payload)
-     setForm(empty);setOpen(false);await refresh();notice('Cliente cadastrado com sucesso')
+     const first=[form.address,form.number].filter(Boolean).join(', ')
+     const cityState=[form.city,form.state].filter(Boolean).join(' - ')
+     const fullAddress=[first,form.neighborhood,cityState,form.cep?`CEP ${form.cep}`:'',form.complement].filter(Boolean).join(' · ')
+     const payload={name:form.name.trim(),cpf_cnpj:form.cpf_cnpj,phone:form.phone,email:form.email,address:fullAddress}
+     const wasEditing=!!editingId
+     if(wasEditing)await api.put(`/catalog/customers/${editingId}`,payload)
+     else await api.post('/catalog/customers',payload)
+     setForm(empty);setEditingId(null);setOpen(false);await refresh();notice(wasEditing?'Cliente atualizado com sucesso':'Cliente cadastrado com sucesso')
    }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar cliente')}
  }
  return <>
-  <div className="pageTitle"><div><span>CADASTROS</span><h2>Clientes</h2><p>Cadastre e encontre rapidamente os clientes da sua empresa.</p></div><button className="primary" onClick={()=>{setForm(empty);setOpen(true)}}>＋ Cadastrar cliente</button></div>
+  <div className="pageTitle"><div><span>CADASTROS</span><h2>Clientes</h2><p>Cadastre, encontre e corrija os dados dos clientes da sua empresa.</p></div><button className="primary" onClick={newCustomer}>＋ Cadastrar cliente</button></div>
   <section className="panel customersPanel">
    <div className="customerToolbar">
     <div><b>Clientes cadastrados</b><small>{rows.length} {rows.length===1?'cliente':'clientes'}</small></div>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, CPF/CNPJ, telefone ou e-mail..."/>
    </div>
-   {filtered.length?<Table rows={filtered} cols={['id','name','cpf_cnpj','phone','email','address']}/>:<div className="emptyState">{search?'Nenhum cliente encontrado para essa busca.':'Nenhum cliente cadastrado ainda. Clique em “Cadastrar cliente” para começar.'}</div>}
+   {filtered.length?<div className="customerEditRows">
+    <div className="customerEditHead"><span>Cliente</span><span>Documento</span><span>Contato</span><span>Endereço</span><span>Ações</span></div>
+    {filtered.map(row=><div className="customerEditRow" key={row.id}>
+      <div><b>{row.name||'—'}</b><small>#{row.id} · {row.email||'Sem e-mail'}</small></div>
+      <span>{row.cpf_cnpj||'—'}</span><span>{row.phone||'—'}</span><span className="customerAddressCell">{row.address||'—'}</span>
+      <button className="ghost editRegisterBtn" onClick={()=>editCustomer(row)}>✎ Editar</button>
+    </div>)}
+   </div>:<div className="emptyState">{search?'Nenhum cliente encontrado para essa busca.':'Nenhum cliente cadastrado ainda. Clique em “Cadastrar cliente” para começar.'}</div>}
   </section>
-  {open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal large customerModal">
-   <div className="modalHead"><div><small>CLIENTES</small><h2>Cadastrar cliente</h2><p>Digite o CEP e o endereço será preenchido automaticamente.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div>
-   <div className="modalBody">
-    <div className="customerHelp"><b>Cadastro rápido</b><span>Nome é obrigatório. Ao completar os 8 números do CEP, logradouro, bairro, cidade e UF são preenchidos automaticamente.</span></div>
-    <div className="formGrid two">
-     <Field label="Nome do cliente *"><input autoFocus className={!form.name?'requiredInput':''} placeholder="Ex.: João da Silva" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
-     <Field label="CPF / CNPJ"><input inputMode="numeric" placeholder="Ex.: 123.456.789-00" value={form.cpf_cnpj} onChange={e=>setForm({...form,cpf_cnpj:maskDoc(e.target.value)})}/></Field>
-     <Field label="Telefone / WhatsApp"><input inputMode="tel" placeholder="Ex.: (21) 99999-9999" value={form.phone} onChange={e=>setForm({...form,phone:maskPhone(e.target.value)})}/></Field>
-     <Field label="E-mail"><input type="email" placeholder="Ex.: cliente@email.com" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field>
-     <Field label="CEP"><div className="inputAction"><input inputMode="numeric" maxLength="9" placeholder="Ex.: 24800-000" value={form.cep} onChange={e=>setForm({...form,cep:maskCep(e.target.value)})}/><button type="button" className="ghost" onClick={()=>buscarCep()} disabled={cepBusy}>{cepBusy?'Buscando...':'Buscar'}</button></div></Field>
-     <Field label="Logradouro"><input placeholder="Preenchido pelo CEP" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/></Field>
-     <Field label="Número"><input placeholder="Ex.: 120" value={form.number} onChange={e=>setForm({...form,number:e.target.value})}/></Field>
-     <Field label="Bairro"><input placeholder="Preenchido pelo CEP" value={form.neighborhood} onChange={e=>setForm({...form,neighborhood:e.target.value})}/></Field>
-     <Field label="Cidade"><input placeholder="Preenchida pelo CEP" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/></Field>
-     <Field label="UF"><input maxLength="2" placeholder="RJ" value={form.state} onChange={e=>setForm({...form,state:e.target.value.toUpperCase()})}/></Field>
-     <Field label="Complemento" wide><input placeholder="Ex.: Loja 2, fundos, sala 3..." value={form.complement} onChange={e=>setForm({...form,complement:e.target.value})}/></Field>
-    </div>
-   </div>
-   <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar cliente</button></div>
+  {open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal large">
+   <div className="modalHead"><div><small>{editingId?'EDIÇÃO DE CLIENTE':'NOVO CLIENTE'}</small><h2>{editingId?'Editar cliente':'Cadastrar cliente'}</h2><p>{editingId?'Corrija os dados necessários e salve as alterações.':'Preencha os dados principais. O endereço pode ser preenchido automaticamente pelo CEP.'}</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div>
+   <div className="modalBody"><div className="formGrid three">
+     <Field label="Nome / Razão Social *"><input className={!form.name?'requiredInput':''} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
+     <Field label="CPF / CNPJ"><input value={form.cpf_cnpj} onChange={e=>setForm({...form,cpf_cnpj:maskDoc(e.target.value)})}/></Field>
+     <Field label="Telefone / WhatsApp"><input value={form.phone} onChange={e=>setForm({...form,phone:maskPhone(e.target.value)})}/></Field>
+     <Field label="E-mail"><input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field>
+     <Field label="CEP"><div className="inputAction"><input value={form.cep} onChange={e=>setForm({...form,cep:maskCep(e.target.value)})} placeholder="00000-000"/><button type="button" className="ghost" onClick={()=>buscarCep()}>{cepBusy?'...':'Buscar'}</button></div></Field>
+     <Field label="Logradouro"><input value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/></Field>
+     <Field label="Número"><input value={form.number} onChange={e=>setForm({...form,number:e.target.value})}/></Field>
+     <Field label="Bairro"><input value={form.neighborhood} onChange={e=>setForm({...form,neighborhood:e.target.value})}/></Field>
+     <Field label="Cidade"><input value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/></Field>
+     <Field label="UF"><input maxLength="2" value={form.state} onChange={e=>setForm({...form,state:e.target.value.toUpperCase()})}/></Field>
+     <Field label="Complemento"><input value={form.complement} onChange={e=>setForm({...form,complement:e.target.value})}/></Field>
+   </div></div>
+   <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>{editingId?'Salvar alterações':'Salvar cliente'}</button></div>
   </div></div>}
  </>
 }
