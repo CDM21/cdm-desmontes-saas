@@ -362,7 +362,7 @@ function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,hi
 function ListingBadges({product,listings}){const rows=listings.filter(x=>x.product_id===product.id),enabled={mercadolivre:product.publish_mercadolivre,shopee:product.publish_shopee,olx:product.publish_olx};return <div className="badges">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m),off=!enabled[m],ok=r?.status==='published',label=off?'Desativado':r?statusPt(r.status):'Não publicado';return <span key={m} title={off?'Canal desativado para esta peça':erroPt(r?.error_message)||label} className={'mini '+(off?'off':ok?'ok':r?'warn':'')}>{m==='mercadolivre'?'ML':m==='shopee'?'SH':'OLX'} · {label}</span>})}</div>}
 
 
-function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='carriers')return <CarriersModule rows={data.carriers||[]} refresh={refresh} notice={notice}/>;if(tab==='sellers')return <SellersModule rows={data.sellers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
+function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='carriers')return <CarriersModule rows={data.carriers||[]} refresh={refresh} notice={notice}/>;if(tab==='sellers')return <SellersModule rows={data.sellers||[]} refresh={refresh} notice={notice}/>;if(tab==='part-groups')return <PartGroupsModule rows={data.partGroups||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
 
 function CustomersModule({rows,refresh,notice}){
  const empty={name:'',cpf_cnpj:'',phone:'',email:'',cep:'',address:'',neighborhood:'',city:'',state:'RJ',number:'',complement:''}
@@ -494,6 +494,37 @@ function SellersModule({rows,refresh,notice}){
     </div>
    </div>
    <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar vendedor</button></div>
+  </div></div>}
+ </>
+}
+
+function PartGroupsModule({rows,refresh,notice}){
+ const empty={name:'',description:''}
+ const [open,setOpen]=useState(false),[form,setForm]=useState(empty),[search,setSearch]=useState('')
+ const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return rows;return rows.filter(x=>[x.name,x.description].some(v=>String(v||'').toLowerCase().includes(q)))},[rows,search])
+ async function save(){
+   try{
+     if(!form.name.trim())return notice('Informe o nome do grupo de peças')
+     await api.post('/catalog/part-groups',{name:form.name.trim(),description:form.description.trim()})
+     setForm(empty);setOpen(false);await refresh();notice('Grupo de peças cadastrado com sucesso')
+   }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar grupo de peças')}
+ }
+ return <>
+  <div className="pageTitle"><div><span>CADASTROS</span><h2>Grupo de peças</h2><p>Crie grupos para organizar melhor o cadastro, o estoque e a busca das peças.</p></div><button className="primary" onClick={()=>{setForm(empty);setOpen(true)}}>＋ Novo grupo</button></div>
+  <section className="panel partGroupsPanel">
+   <div className="partGroupToolbar"><div><b>Grupos cadastrados</b><small>{rows.length} {rows.length===1?'grupo':'grupos'}</small></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome ou descrição..."/></div>
+   {filtered.length?<div className="partGroupList">{filtered.map(g=><div className="partGroupRow" key={g.id}><div className="partGroupIcon">▦</div><div><b>{g.name||'Grupo sem nome'}</b><small>{g.description||'Sem descrição cadastrada'}</small></div><span>#{g.id}</span></div>)}</div>:<div className="emptyState">{search?'Nenhum grupo encontrado para essa busca.':'Nenhum grupo de peças cadastrado ainda. Clique em “Novo grupo” para começar.'}</div>}
+  </section>
+  {open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal medium partGroupModal">
+   <div className="modalHead"><div><small>GRUPO DE PEÇAS</small><h2>Novo grupo</h2><p>Use nomes simples para facilitar o cadastro e a localização das peças.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div>
+   <div className="modalBody">
+    <div className="partGroupHelp"><b>Exemplos</b><span>Motor e câmbio · Iluminação · Acabamento interno · Suspensão · Elétrica</span></div>
+    <div className="formGrid">
+     <Field label="Nome do grupo *"><input autoFocus className={!form.name?'requiredInput':''} placeholder="Ex.: Iluminação" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
+     <Field label="Descrição"><textarea placeholder="Ex.: Faróis, lanternas, milhas e componentes relacionados" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></Field>
+    </div>
+   </div>
+   <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar grupo</button></div>
   </div></div>}
  </>
 }

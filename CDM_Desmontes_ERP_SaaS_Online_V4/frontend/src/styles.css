@@ -388,3 +388,29 @@ table{font-size:12px}
 @media(max-width:700px){.sellerToolbar{align-items:stretch;flex-direction:column}.sellerToolbar input{width:100%}}
 /* CDM SELLERS V1 - END */
 
+
+/* CDM PART GROUPS V1 - START */
+.partGroupsPanel{padding:0;overflow:hidden}
+.partGroupToolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.partGroupToolbar>div{display:grid;gap:3px}
+.partGroupToolbar b{font-size:14px}
+.partGroupToolbar small{font-size:11px;color:var(--muted)}
+.partGroupToolbar input{width:min(440px,48vw);font-size:13px}
+.partGroupList{display:grid}
+.partGroupRow{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:12px;padding:15px 20px;border-bottom:1px solid var(--line)}
+.partGroupRow:last-child{border-bottom:0}
+.partGroupRow>div:nth-child(2){display:grid;gap:3px;min-width:0}
+.partGroupRow b{font-size:14px}
+.partGroupRow small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.partGroupRow>span{font-size:11px;color:var(--muted)}
+.partGroupIcon{width:36px;height:36px;border-radius:9px;background:var(--soft);display:grid;place-items:center;font-size:17px;font-weight:700}
+.partGroupModal .modalHead h2{font-size:22px}
+.partGroupModal .modalHead p{font-size:13px;line-height:1.45}
+.partGroupModal input,.partGroupModal textarea{font-size:14px;padding:12px 13px}
+.partGroupModal textarea{min-height:110px;resize:vertical}
+.partGroupHelp{display:grid;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:16px}
+.partGroupHelp b{font-size:13px}
+.partGroupHelp span{font-size:12px;color:var(--muted)}
+@media(max-width:700px){.partGroupToolbar{align-items:stretch;flex-direction:column}.partGroupToolbar input{width:100%}.partGroupRow{grid-template-columns:40px minmax(0,1fr)}.partGroupRow>span{display:none}}
+/* CDM PART GROUPS V1 - END */
+
