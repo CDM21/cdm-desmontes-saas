@@ -362,7 +362,80 @@ function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,hi
 function ListingBadges({product,listings}){const rows=listings.filter(x=>x.product_id===product.id),enabled={mercadolivre:product.publish_mercadolivre,shopee:product.publish_shopee,olx:product.publish_olx};return <div className="badges">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m),off=!enabled[m],ok=r?.status==='published',label=off?'Desativado':r?statusPt(r.status):'Não publicado';return <span key={m} title={off?'Canal desativado para esta peça':erroPt(r?.error_message)||label} className={'mini '+(off?'off':ok?'ok':r?'warn':'')}>{m==='mercadolivre'?'ML':m==='shopee'?'SH':'OLX'} · {label}</span>})}</div>}
 
 
-function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
+function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
+
+function CustomersModule({rows,refresh,notice}){
+ const empty={name:'',cpf_cnpj:'',phone:'',email:'',cep:'',address:'',neighborhood:'',city:'',state:'RJ',number:'',complement:''}
+ const [open,setOpen]=useState(false),[form,setForm]=useState(empty),[search,setSearch]=useState(''),[cepBusy,setCepBusy]=useState(false)
+ const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return rows;return rows.filter(x=>[x.name,x.cpf_cnpj,x.phone,x.email,x.address].some(v=>String(v||'').toLowerCase().includes(q)))},[rows,search])
+ const maskDoc=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,14);if(d.length<=11)return d.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2')}
+ const maskPhone=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,11);return d.length<=10?d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d)/,'$1-$2'):d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d)/,'$1-$2')}
+ const maskCep=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,8);return d.length>5?d.replace(/^(\d{5})(\d)/,'$1-$2'):d}
+ async function buscarCep(raw=form.cep){
+   const cep=String(raw||'').replace(/\D/g,'')
+   if(cep.length!==8)return
+   setCepBusy(true)
+   try{
+     const r=await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+     const d=await r.json()
+     if(d.erro)return notice('CEP não encontrado')
+     setForm(f=>({...f,address:d.logradouro||'',neighborhood:d.bairro||'',city:d.localidade||'',state:d.uf||'RJ'}))
+   }catch(e){notice('Não foi possível consultar o CEP')}finally{setCepBusy(false)}
+ }
+ useEffect(()=>{
+   if(!open)return
+   const cep=String(form.cep||'').replace(/\D/g,'')
+   if(cep.length!==8)return
+   const t=setTimeout(()=>buscarCep(cep),350)
+   return ()=>clearTimeout(t)
+ },[form.cep,open])
+ async function save(){
+   try{
+     if(!form.name.trim())return notice('Informe o nome do cliente')
+     const fullAddress=[
+       [form.address,form.number].filter(Boolean).join(', '),
+       form.neighborhood,
+       [form.city,form.state].filter(Boolean).join(' - '),
+       form.cep?`CEP ${form.cep}`:'',
+       form.complement
+     ].filter(Boolean).join(' · ')
+     const payload={name:form.name,cpf_cnpj:form.cpf_cnpj,phone:form.phone,email:form.email,address:fullAddress}
+     await api.post('/catalog/customers',payload)
+     setForm(empty);setOpen(false);await refresh();notice('Cliente cadastrado com sucesso')
+   }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar cliente')}
+ }
+ return <>
+  <div className="pageTitle"><div><span>CADASTROS</span><h2>Clientes</h2><p>Cadastre e encontre rapidamente os clientes da sua empresa.</p></div><button className="primary" onClick={()=>{setForm(empty);setOpen(true)}}>＋ Cadastrar cliente</button></div>
+  <section className="panel customersPanel">
+   <div className="customerToolbar">
+    <div><b>Clientes cadastrados</b><small>{rows.length} {rows.length===1?'cliente':'clientes'}</small></div>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, CPF/CNPJ, telefone ou e-mail..."/>
+   </div>
+   {filtered.length?<Table rows={filtered} cols={['id','name','cpf_cnpj','phone','email','address']}/>:<div className="emptyState">{search?'Nenhum cliente encontrado para essa busca.':'Nenhum cliente cadastrado ainda. Clique em “Cadastrar cliente” para começar.'}</div>}
+  </section>
+  {open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal large customerModal">
+   <div className="modalHead"><div><small>CLIENTES</small><h2>Cadastrar cliente</h2><p>Digite o CEP e o endereço será preenchido automaticamente.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div>
+   <div className="modalBody">
+    <div className="customerHelp"><b>Cadastro rápido</b><span>Nome é obrigatório. Ao completar os 8 números do CEP, logradouro, bairro, cidade e UF são preenchidos automaticamente.</span></div>
+    <div className="formGrid two">
+     <Field label="Nome do cliente *"><input autoFocus className={!form.name?'requiredInput':''} placeholder="Ex.: João da Silva" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
+     <Field label="CPF / CNPJ"><input inputMode="numeric" placeholder="Ex.: 123.456.789-00" value={form.cpf_cnpj} onChange={e=>setForm({...form,cpf_cnpj:maskDoc(e.target.value)})}/></Field>
+     <Field label="Telefone / WhatsApp"><input inputMode="tel" placeholder="Ex.: (21) 99999-9999" value={form.phone} onChange={e=>setForm({...form,phone:maskPhone(e.target.value)})}/></Field>
+     <Field label="E-mail"><input type="email" placeholder="Ex.: cliente@email.com" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field>
+     <Field label="CEP"><div className="inputAction"><input inputMode="numeric" maxLength="9" placeholder="Ex.: 24800-000" value={form.cep} onChange={e=>setForm({...form,cep:maskCep(e.target.value)})}/><button type="button" className="ghost" onClick={()=>buscarCep()} disabled={cepBusy}>{cepBusy?'Buscando...':'Buscar'}</button></div></Field>
+     <Field label="Logradouro"><input placeholder="Preenchido pelo CEP" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/></Field>
+     <Field label="Número"><input placeholder="Ex.: 120" value={form.number} onChange={e=>setForm({...form,number:e.target.value})}/></Field>
+     <Field label="Bairro"><input placeholder="Preenchido pelo CEP" value={form.neighborhood} onChange={e=>setForm({...form,neighborhood:e.target.value})}/></Field>
+     <Field label="Cidade"><input placeholder="Preenchida pelo CEP" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/></Field>
+     <Field label="UF"><input maxLength="2" placeholder="RJ" value={form.state} onChange={e=>setForm({...form,state:e.target.value.toUpperCase()})}/></Field>
+     <Field label="Complemento" wide><input placeholder="Ex.: Loja 2, fundos, sala 3..." value={form.complement} onChange={e=>setForm({...form,complement:e.target.value})}/></Field>
+    </div>
+   </div>
+   <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar cliente</button></div>
+  </div></div>}
+ </>
+}
+
 function GenericCrud({cfg,rows,refresh,notice}){const initial=Object.fromEntries(cfg.fields.map(f=>[f,f==='commission_rate'?0:''])),[form,setForm]=useState(initial);async function add(){try{await api.post(`/catalog/${cfg.endpoint}`,form);setForm(initial);await refresh();notice(`${cfg.title}: cadastro salvo`)}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar')}}return <section className="panel"><PanelHead eyebrow="CADASTROS" title={cfg.title} text="Cadastro separado por empresa e usuário."/><div className="formGrid">{cfg.fields.map(f=><Field key={f} label={pretty(f)}>{f==='description'||f==='address'?<textarea value={form[f]} onChange={e=>setForm({...form,[f]:e.target.value})}/>:<input type={f==='commission_rate'?'number':'text'} value={form[f]} onChange={e=>setForm({...form,[f]:f==='commission_rate'?+e.target.value:e.target.value})}/>}</Field>)}</div><button className="primary" onClick={add}>+ Salvar cadastro</button><Table rows={rows} cols={['id',...cfg.fields]}/></section>}
 
 function LocationsModule({rows,refresh,notice}){
