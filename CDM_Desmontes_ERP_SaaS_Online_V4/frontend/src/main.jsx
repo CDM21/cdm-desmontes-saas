@@ -362,7 +362,7 @@ function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,hi
 function ListingBadges({product,listings}){const rows=listings.filter(x=>x.product_id===product.id),enabled={mercadolivre:product.publish_mercadolivre,shopee:product.publish_shopee,olx:product.publish_olx};return <div className="badges">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m),off=!enabled[m],ok=r?.status==='published',label=off?'Desativado':r?statusPt(r.status):'Não publicado';return <span key={m} title={off?'Canal desativado para esta peça':erroPt(r?.error_message)||label} className={'mini '+(off?'off':ok?'ok':r?'warn':'')}>{m==='mercadolivre'?'ML':m==='shopee'?'SH':'OLX'} · {label}</span>})}</div>}
 
 
-function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='carriers')return <CarriersModule rows={data.carriers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
+function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='carriers')return <CarriersModule rows={data.carriers||[]} refresh={refresh} notice={notice}/>;if(tab==='sellers')return <SellersModule rows={data.sellers||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
 
 function CustomersModule({rows,refresh,notice}){
  const empty={name:'',cpf_cnpj:'',phone:'',email:'',cep:'',address:'',neighborhood:'',city:'',state:'RJ',number:'',complement:''}
@@ -458,6 +458,42 @@ function CarriersModule({rows,refresh,notice}){
     <Field label="E-mail"><input type="email" placeholder="Ex.: contato@transportadora.com.br" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field>
    </div></div>
    <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar transportadora</button></div>
+  </div></div>}
+ </>
+}
+
+function SellersModule({rows,refresh,notice}){
+ const empty={name:'',email:'',phone:'',commission_rate:''}
+ const [open,setOpen]=useState(false),[form,setForm]=useState(empty),[search,setSearch]=useState('')
+ const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return rows;return rows.filter(x=>[x.name,x.email,x.phone,x.commission_rate].some(v=>String(v??'').toLowerCase().includes(q)))},[rows,search])
+ const maskPhone=v=>{const d=String(v||'').replace(/\D/g,'').slice(0,11);return d.length<=10?d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d)/,'$1-$2'):d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d)/,'$1-$2')}
+ async function save(){
+   try{
+     if(!form.name.trim())return notice('Informe o nome do vendedor')
+     const rate=form.commission_rate===''?0:Number(form.commission_rate)
+     if(Number.isNaN(rate)||rate<0||rate>100)return notice('A comissão deve ficar entre 0% e 100%')
+     await api.post('/catalog/sellers',{...form,commission_rate:rate})
+     setForm(empty);setOpen(false);await refresh();notice('Vendedor cadastrado com sucesso')
+   }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar vendedor')}
+ }
+ return <>
+  <div className="pageTitle"><div><span>CADASTROS</span><h2>Vendedores</h2><p>Cadastre a equipe comercial e defina a comissão de cada vendedor.</p></div><button className="primary" onClick={()=>{setForm(empty);setOpen(true)}}>＋ Cadastrar vendedor</button></div>
+  <section className="panel sellersPanel">
+   <div className="sellerToolbar"><div><b>Vendedores cadastrados</b><small>{rows.length} {rows.length===1?'vendedor':'vendedores'}</small></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome, telefone ou e-mail..."/></div>
+   {filtered.length?<Table rows={filtered} cols={['id','name','email','phone','commission_rate']} format={{commission_rate:v=>`${Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2})}%`}}/>:<div className="emptyState">{search?'Nenhum vendedor encontrado para essa busca.':'Nenhum vendedor cadastrado ainda. Clique em “Cadastrar vendedor” para começar.'}</div>}
+  </section>
+  {open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal medium sellerModal">
+   <div className="modalHead"><div><small>VENDEDORES</small><h2>Cadastrar vendedor</h2><p>Informe os dados do vendedor e a porcentagem de comissão, se houver.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div>
+   <div className="modalBody">
+    <div className="sellerHelp"><b>Cadastro rápido</b><span>O nome é obrigatório. Se o vendedor não receber comissão, deixe o campo de comissão vazio ou informe 0%.</span></div>
+    <div className="formGrid two">
+     <Field label="Nome do vendedor *"><input autoFocus className={!form.name?'requiredInput':''} placeholder="Ex.: Carlos Silva" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field>
+     <Field label="Telefone / WhatsApp"><input inputMode="tel" placeholder="Ex.: (21) 99999-9999" value={form.phone} onChange={e=>setForm({...form,phone:maskPhone(e.target.value)})}/></Field>
+     <Field label="E-mail"><input type="email" placeholder="Ex.: vendedor@empresa.com.br" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field>
+     <Field label="Comissão (%)"><div className="commissionInput"><input type="number" min="0" max="100" step="0.01" placeholder="Ex.: 5" value={form.commission_rate} onChange={e=>setForm({...form,commission_rate:e.target.value})}/><span>%</span></div></Field>
+    </div>
+   </div>
+   <div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar vendedor</button></div>
   </div></div>}
  </>
 }

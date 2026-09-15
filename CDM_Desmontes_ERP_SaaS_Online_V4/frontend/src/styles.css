@@ -367,3 +367,24 @@ table{font-size:12px}
 @media(max-width:700px){.carrierToolbar{align-items:stretch;flex-direction:column}.carrierToolbar input{width:100%}}
 /* CDM CARRIERS V1 - END */
 
+
+/* CDM SELLERS V1 - START */
+.sellersPanel{padding:0;overflow:hidden}
+.sellerToolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.sellerToolbar>div{display:grid;gap:3px}
+.sellerToolbar b{font-size:14px}
+.sellerToolbar small{font-size:11px;color:var(--muted)}
+.sellerToolbar input{width:min(440px,48vw);font-size:13px}
+.sellerModal .modalHead h2{font-size:22px}
+.sellerModal .modalHead p{font-size:13px;line-height:1.45}
+.sellerModal .formGrid.two{gap:15px}
+.sellerModal input{font-size:14px;padding:12px 13px}
+.sellerHelp{display:grid;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:16px}
+.sellerHelp b{font-size:13px}
+.sellerHelp span{font-size:12px;color:var(--muted)}
+.commissionInput{position:relative}
+.commissionInput input{width:100%;padding-right:38px}
+.commissionInput span{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-weight:700;color:var(--muted)}
+@media(max-width:700px){.sellerToolbar{align-items:stretch;flex-direction:column}.sellerToolbar input{width:100%}}
+/* CDM SELLERS V1 - END */
+
