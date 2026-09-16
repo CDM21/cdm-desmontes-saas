@@ -6,12 +6,12 @@ import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
 
-cv2.setNumThreads(1)
+cv2.setNumThreads(2)
 
 def process_image(src: Path, dst: Path):
     raw = src.read_bytes()
     pil = Image.open(io.BytesIO(raw)).convert("RGB")
-    pil.thumbnail((700, 700), Image.Resampling.LANCZOS)
+    pil.thumbnail((420, 420), Image.Resampling.LANCZOS)
 
     rgb = np.array(pil)
     h, w = rgb.shape[:2]
@@ -45,7 +45,7 @@ def process_image(src: Path, dst: Path):
         None,
         bg_model,
         fg_model,
-        3,
+        1,
         cv2.GC_INIT_WITH_MASK,
     )
 
@@ -63,7 +63,7 @@ def process_image(src: Path, dst: Path):
 
     alpha = cv2.morphologyEx(alpha, cv2.MORPH_CLOSE, kernel)
     alpha = cv2.morphologyEx(alpha, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    alpha = cv2.GaussianBlur(alpha, (5, 5), 0)
+    alpha = cv2.GaussianBlur(alpha, (3, 3), 0)
 
     ys, xs = np.where(alpha > 18)
     if len(xs) < 50 or len(ys) < 50:
@@ -106,7 +106,7 @@ def process_image(src: Path, dst: Path):
     comp = comp.resize((nw, nh), Image.Resampling.LANCZOS)
     out = Image.new("RGB", (out_size, out_size), "white")
     out.paste(comp, ((out_size - nw) // 2, (out_size - nh) // 2))
-    out.save(dst, format="JPEG", quality=94, subsampling=0, optimize=True)
+    out.save(dst, format="JPEG", quality=90, subsampling=0)
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
