@@ -779,3 +779,160 @@ table{font-size:12px}
 .smartStockLoading,.smartStockClear{padding:14px;border-radius:10px;background:rgba(127,127,127,.05);font-size:13px}
 @media(max-width:1100px){.smartStockSummary{grid-template-columns:repeat(2,minmax(0,1fr))}.smartStockItem{grid-template-columns:1fr}.smartStockMetrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:640px){.smartStockHeader{align-items:flex-start;flex-direction:column}.smartStockHeaderActions{width:100%}.smartStockHeaderActions button{flex:1}.smartStockBody{padding:12px}.smartStockSummary{grid-template-columns:1fr 1fr}.smartStockMetrics{grid-template-columns:1fr 1fr}}
+
+
+/* CDM INTEGRATION CENTER V1 */
+.integrationCenterTitle{align-items:flex-start}
+.integrationTitleActions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.integrationSummary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.integrationSummary>div{padding:14px 15px;border:1px solid var(--border,#e3e7ec);border-radius:13px;background:var(--panel,#fff);display:grid;gap:3px}
+.integrationSummary small{font-size:10px;text-transform:uppercase;letter-spacing:.06em;opacity:.62}
+.integrationSummary strong{font-size:23px;line-height:1.1}
+.integrationSummary span{font-size:11px;opacity:.68}
+.integrationSummary .ok{border-left:4px solid #36a36b}
+.integrationSummary .ready{border-left:4px solid #477ed6}
+.integrationSummary .warn{border-left:4px solid #d99b27}
+.integrationSummary .bad{border-left:4px solid #c74b4b}
+.integrationMarketGrid{align-items:stretch}
+.integrationMarketCard{position:relative;overflow:hidden}
+.integrationMarketCard.connected{border-top:3px solid #36a36b}
+.integrationMarketCard.ready{border-top:3px solid #477ed6}
+.integrationMarketCard.setup{border-top:3px solid #d99b27}
+.integrationMarketCard.warning,.integrationMarketCard.error{border-top:3px solid #c74b4b}
+.integrationCardTop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 18px 0}
+.channelState{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:800;background:rgba(127,127,127,.08)}
+.channelState i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.channelState.connected{color:#278456;background:rgba(54,163,107,.12)}
+.channelState.ready{color:#356bbd;background:rgba(71,126,214,.12)}
+.channelState.setup{color:#a56b08;background:rgba(217,155,39,.14)}
+.channelState.warning,.channelState.error{color:#b13b3b;background:rgba(199,75,75,.12)}
+.integrationStateText{font-size:12px;line-height:1.45;padding:9px 10px;border-radius:9px;background:rgba(127,127,127,.05);margin:10px 0}
+.integrationStats span{display:grid;gap:2px}
+.integrationStats small{font-size:10px;opacity:.62}
+.integrationStats .hasIssue{outline:1px solid rgba(199,75,75,.45)}
+.integrationChecklist{display:grid;gap:7px;margin:13px 0}
+.integrationChecklist>div{display:flex;align-items:center;gap:8px;font-size:12px;padding:7px 9px;border-radius:8px;background:rgba(127,127,127,.045)}
+.integrationChecklist i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.integrationChecklist .done i{background:#36a36b}
+.integrationChecklist .todo i{background:#d99b27}
+.integrationChecklist .attention i{background:#c74b4b}
+.integrationCardActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.integrationCardActions button{width:100%}
+.integrationError{margin-top:10px}
+.integrationHelp{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:18px;align-items:center}
+.diagStatusGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.diagStatusGrid>div{padding:12px;border:1px solid var(--border,#e3e7ec);border-radius:10px}
+.diagStatusGrid>div.ok{border-left:4px solid #36a36b}
+.diagStatusGrid>div.warn{border-left:4px solid #d99b27}
+.diagStatusGrid small{display:block;font-size:10px;opacity:.62;margin-bottom:4px}
+.diagDetail{display:grid;gap:6px;margin:12px 0}
+.diagDetail small{font-size:11px;opacity:.65}
+.diagDetail code{display:block;padding:10px;border-radius:8px;background:rgba(127,127,127,.07);overflow-wrap:anywhere;white-space:normal}
+.diagOk{padding:11px;border-radius:9px;background:rgba(54,163,107,.1);font-size:12px;font-weight:700}
+@media(max-width:1100px){.integrationSummary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.integrationSummary{grid-template-columns:1fr 1fr}.integrationHelp{grid-template-columns:1fr}.integrationTitleActions{justify-content:flex-start}.integrationCardActions{grid-template-columns:1fr}.diagStatusGrid{grid-template-columns:1fr}}
+@media(max-width:480px){.integrationSummary{grid-template-columns:1fr}}
+
+
+/* CDM INTEGRATION LAYOUT FIX V1 */
+.integrationMarketGrid{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:14px!important;
+  align-items:stretch!important;
+}
+.integrationMarketCard{
+  display:block!important;
+  padding:0!important;
+  min-width:0!important;
+  overflow:hidden!important;
+}
+.integrationMarketCard .integrationCardTop{
+  padding:16px 16px 0!important;
+}
+.integrationMarketCard .marketBody{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  padding:12px 16px 16px!important;
+}
+.integrationMarketCard .marketBody h3{
+  margin:0 0 6px!important;
+  font-size:15px!important;
+}
+.integrationMarketCard .marketBody p{
+  min-height:0!important;
+  margin:0 0 10px!important;
+  line-height:1.45!important;
+}
+.integrationStateText{
+  margin:10px 0!important;
+}
+.integrationStats{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:7px!important;
+  margin:10px 0 12px!important;
+}
+.integrationStats span{
+  min-width:0!important;
+  padding:8px!important;
+  border:1px solid var(--line)!important;
+  border-radius:8px!important;
+  background:var(--soft)!important;
+  text-align:center!important;
+}
+.integrationStats b,
+.integrationStats small{
+  display:block!important;
+}
+.integrationStats b{
+  font-size:13px!important;
+  margin-bottom:2px!important;
+}
+.integrationChecklist{
+  margin:12px 0!important;
+}
+.integrationChecklist>div{
+  width:100%!important;
+  line-height:1.35!important;
+}
+.integrationCardActions{
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:8px!important;
+  margin-top:12px!important;
+}
+.integrationCardActions button{
+  min-width:0!important;
+  white-space:normal!important;
+  min-height:38px!important;
+}
+.channelState{
+  max-width:165px!important;
+  text-align:center!important;
+  justify-content:center!important;
+  line-height:1.15!important;
+}
+.integrationSummary{
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+}
+.integrationSummary>div{
+  min-width:0!important;
+}
+.integrationHelp{
+  align-items:start!important;
+}
+@media(max-width:1350px){
+  .integrationMarketGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .integrationSummary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media(max-width:900px){
+  .integrationMarketGrid{grid-template-columns:1fr!important}
+  .integrationSummary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:560px){
+  .integrationSummary{grid-template-columns:1fr!important}
+  .integrationCardActions{grid-template-columns:1fr!important}
+  .integrationStats{grid-template-columns:1fr 1fr 1fr!important}
+}

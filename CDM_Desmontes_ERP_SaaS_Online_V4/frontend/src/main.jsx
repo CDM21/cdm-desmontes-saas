@@ -904,13 +904,169 @@ function Sales({products,sales,customers=[],refresh,notice}){
 }
 function SalesHistory({sales}){return <section className="panel"><PanelHead eyebrow="VENDAS" title="Vendas Realizadas" text="Consulte as vendas registradas em todos os canais."/><Table rows={sales} cols={['id','source','payment_method','total','status','created_at']} format={{source:v=>valuePt('source',v),payment_method:v=>valuePt('payment_method',v),status:v=>valuePt('status',v),total:money,created_at:v=>v?new Date(v).toLocaleString('pt-BR'):'—'}}/></section>}
 
-function Marketplaces({data,listings,products,refresh,notice,focus,subscription}){const filtered=focus&&['mercadolivre','shopee','olx'].includes(focus)?data.filter(m=>m.id===focus):data;async function connect(m){try{const r=await api.get(`/marketplaces/${m}/authorize`);location.href=r.data.url}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível iniciar a conexão')}}async function remove(m){try{await api.delete(`/marketplaces/${m}/connection`);await refresh();notice(`${marketName(m)} desconectado`)}catch(e){notice('Erro ao desconectar')}}async function pub(id){try{await api.post(`/marketplaces/products/${id}/publish-all`);await refresh();notice('Publicação processada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao publicar')}}async function diag(m){try{const r=await api.get(`/marketplaces/${m}/diagnostics`);const d=r.data;alert(`${marketName(m)}
+// CDM INTEGRATION CENTER V1
+function Marketplaces({data,listings,products,refresh,notice,focus,subscription}){
+ const filtered=focus&&['mercadolivre','shopee','olx'].includes(focus)?data.filter(m=>m.id===focus):data
+ const [diagData,setDiagData]=useState(null),[diagBusy,setDiagBusy]=useState('')
+ const connectedCount=filtered.filter(m=>m.connected).length
+ const readyCount=filtered.filter(m=>m.app_ready&&!m.connected).length
+ const setupCount=filtered.filter(m=>!m.app_ready).length
+ const issueCount=filtered.reduce((a,m)=>a+Number(m.issues||0),0)
 
-Aplicação configurada: ${d.app_ready?'SIM':'NÃO'}
-Conta conectada: ${d.connected?'SIM':'NÃO'}
-Endereço de retorno: ${d.redirect_uri}
-Situação: ${statusPt(d.status)}
-Último erro: ${d.last_error?erroPt(d.last_error):'nenhum'}`)}catch(e){notice('Não foi possível executar o diagnóstico')}}return <><div className="pageTitle marketplaceTitle"><div><span>CENTRAL DE VENDAS</span><h2>{focus&&['mercadolivre','shopee','olx'].includes(focus)?marketName(focus):'Integrações dos canais de venda'}</h2><p>Cada assinante conecta a própria conta. Você não precisa receber senha nem chave de acesso do cliente.</p></div><span className={['active','trial'].includes(subscription?.status)?'statusBadge':'statusBadge bad'}>Plano: {statusPt(subscription?.status)}</span></div><div className="marketGrid">{filtered.map(m=><div className="marketCard" key={m.id}><MarketLogo id={m.id} large/><div className="marketBody"><h3>{marketName(m.id)}</h3><p>{marketDesc(m.id)}</p><div className="marketStats"><span><b>{m.published}</b> publicados</span><span><b>{m.processing||0}</b> processando</span><span><b>{m.issues}</b> pendências</span></div>{m.connected?<><div className="connection ready"><i/> Conectado: {m.account_name||m.external_account_id}</div><button className="ghost full" onClick={()=>remove(m.id)}>Desconectar conta</button></>:<><div className="connection"><i/> {m.app_ready?'Conta ainda não autorizada':'Aplicação precisa ser configurada no servidor'}</div><button className="primary full" disabled={!m.app_ready} onClick={()=>connect(m.id)}>Conectar {marketName(m.id)} →</button></>}{m.last_error&&<div className="marketError"><b>Último erro da conexão</b><span>{erroPt(m.last_error)}</span></div>}<button className="ghost full" onClick={()=>diag(m.id)}>Verificar configuração</button></div></div>)}</div><section className="panel info"><h3>Como funciona para seus clientes</h3><p>Você configura uma vez as credenciais da aplicação CDM no servidor. Depois, cada empresa assinante entra no próprio painel e clica em <b>Conectar</b>; o canal abre a autorização oficial e a autorização fica vinculada somente àquela empresa.</p><p className="muted">Se o Mercado Livre recusar a autorização, use “Verificar configuração”. O CDM mostra o endereço de retorno que precisa ser idêntico ao cadastrado no painel do Mercado Livre e guarda o último erro sem exibir segredos.</p></section><section className="panel"><PanelHead eyebrow="PUBLICAÇÃO" title="Central de anúncios" text="Acompanhe o retorno por canal."/><div className="tableWrap"><table><thead><tr><th>Produto</th><th>Mercado Livre</th><th>Shopee</th><th>OLX</th><th>Ação</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><b>{p.name}</b><small className="block">{p.sku}</small></td>{['mercadolivre','shopee','olx'].map(m=>{const r=listings.find(x=>x.product_id===p.id&&x.marketplace===m);return <td key={m}><Status r={r}/></td>})}<td><button className="ghost" onClick={()=>pub(p.id)}>Publicar em todos</button></td></tr>)}</tbody></table></div></section></>}
+ const stateOf=m=>{
+   if(m.connected&&m.last_error)return {key:'warning',label:'Conectado com alerta',text:'A conta está conectada, mas existe um erro recente para revisar.'}
+   if(m.connected)return {key:'connected',label:'Conectado',text:'Conta autorizada e pronta para operar neste canal.'}
+   if(!m.app_ready)return {key:'setup',label:'Configurar servidor',text:'As credenciais da aplicação ainda precisam ser configuradas no servidor.'}
+   if(m.last_error)return {key:'error',label:'Erro de conexão',text:'A aplicação está configurada, mas a última tentativa apresentou erro.'}
+   return {key:'ready',label:'Pronto para conectar',text:'A aplicação está configurada. Falta apenas autorizar a conta da empresa.'}
+ }
+
+ async function connect(m){
+   try{
+     const r=await api.get(`/marketplaces/${m}/authorize`)
+     location.href=r.data.url
+   }catch(e){
+     notice(erroPt(e.response?.data?.detail)||'Não foi possível iniciar a conexão')
+   }
+ }
+
+ async function remove(m){
+   if(!confirm(`Desconectar ${marketName(m)} desta empresa?`))return
+   try{
+     await api.delete(`/marketplaces/${m}/connection`)
+     await refresh()
+     notice(`${marketName(m)} desconectado`)
+   }catch(e){
+     notice('Erro ao desconectar')
+   }
+ }
+
+ async function pub(id){
+   try{
+     await api.post(`/marketplaces/products/${id}/publish-all`)
+     await refresh()
+     notice('Publicação processada')
+   }catch(e){
+     notice(erroPt(e.response?.data?.detail)||'Erro ao publicar')
+   }
+ }
+
+ async function diag(m){
+   setDiagBusy(m)
+   try{
+     const r=await api.get(`/marketplaces/${m}/diagnostics`)
+     setDiagData({...r.data,id:m})
+   }catch(e){
+     notice('Não foi possível executar o diagnóstico')
+   }finally{
+     setDiagBusy('')
+   }
+ }
+
+ async function reloadStatus(){
+   try{
+     await refresh()
+     notice('Status das integrações atualizado')
+   }catch(e){
+     notice('Não foi possível atualizar agora')
+   }
+ }
+
+ return <>
+   <div className="pageTitle marketplaceTitle integrationCenterTitle">
+     <div>
+       <span>CENTRAL DE INTEGRAÇÕES</span>
+       <h2>{focus&&['mercadolivre','shopee','olx'].includes(focus)?marketName(focus):'Status dos canais de venda'}</h2>
+       <p>Veja rapidamente o que está conectado, o que já pode ser autorizado e o que ainda precisa de configuração.</p>
+     </div>
+     <div className="integrationTitleActions">
+       <span className={['active','trial'].includes(subscription?.status)?'statusBadge':'statusBadge bad'}>Plano: {statusPt(subscription?.status)}</span>
+       <button className="ghost" onClick={reloadStatus}>↻ Atualizar status</button>
+     </div>
+   </div>
+
+   <div className="integrationSummary">
+     <div><small>Canais exibidos</small><strong>{filtered.length}</strong><span>nesta tela</span></div>
+     <div className={connectedCount?'ok':''}><small>Conectados</small><strong>{connectedCount}</strong><span>contas autorizadas</span></div>
+     <div className={readyCount?'ready':''}><small>Prontos para conectar</small><strong>{readyCount}</strong><span>falta autorização</span></div>
+     <div className={setupCount?'warn':''}><small>Configuração pendente</small><strong>{setupCount}</strong><span>credenciais do servidor</span></div>
+     <div className={issueCount?'bad':''}><small>Pendências de anúncios</small><strong>{issueCount}</strong><span>itens para revisar</span></div>
+   </div>
+
+   <div className="marketGrid integrationMarketGrid">
+     {filtered.map(m=>{
+       const state=stateOf(m)
+       return <div className={'marketCard integrationMarketCard '+state.key} key={m.id}>
+         <div className="integrationCardTop">
+           <MarketLogo id={m.id} large/>
+           <span className={'channelState '+state.key}><i/>{state.label}</span>
+         </div>
+         <div className="marketBody">
+           <h3>{marketName(m.id)}</h3>
+           <p>{marketDesc(m.id)}</p>
+           <div className="integrationStateText">{state.text}</div>
+
+           <div className="marketStats integrationStats">
+             <span><b>{m.published||0}</b><small>publicados</small></span>
+             <span><b>{m.processing||0}</b><small>processando</small></span>
+             <span className={Number(m.issues||0)>0?'hasIssue':''}><b>{m.issues||0}</b><small>pendências</small></span>
+           </div>
+
+           <div className="integrationChecklist">
+             <div className={m.app_ready?'done':'todo'}><i/>{m.app_ready?'Aplicação configurada':'Configurar aplicação no servidor'}</div>
+             <div className={m.connected?'done':'todo'}><i/>{m.connected?`Conta autorizada${m.account_name?`: ${m.account_name}`:''}`:'Autorizar conta da empresa'}</div>
+             <div className={Number(m.issues||0)===0?'done':'attention'}><i/>{Number(m.issues||0)===0?'Sem pendências de anúncios':`${m.issues} pendência(s) de anúncio`}</div>
+           </div>
+
+           {m.last_error&&<div className="marketError integrationError"><b>Último erro registrado</b><span>{erroPt(m.last_error)}</span></div>}
+
+           <div className="integrationCardActions">
+             {m.connected
+               ? <button className="ghost" onClick={()=>remove(m.id)}>Desconectar</button>
+               : <button className="primary" disabled={!m.app_ready} onClick={()=>connect(m.id)}>Conectar {marketName(m.id)}</button>}
+             <button className="ghost" disabled={diagBusy===m.id} onClick={()=>diag(m.id)}>{diagBusy===m.id?'Verificando...':'Diagnóstico'}</button>
+           </div>
+         </div>
+       </div>
+     })}
+   </div>
+
+   <section className="panel info integrationHelp">
+     <div>
+       <h3>Como ler os status</h3>
+       <p><b>Conectado:</b> conta autorizada. <b>Pronto para conectar:</b> servidor configurado, falta o cliente autorizar. <b>Configurar servidor:</b> faltam credenciais da aplicação. <b>Conectado com alerta:</b> a conta existe, mas houve erro recente.</p>
+     </div>
+     <p className="muted">O diagnóstico mostra somente informações operacionais, como endereço de retorno e último erro. Chaves e segredos não são exibidos.</p>
+   </section>
+
+   <section className="panel">
+     <PanelHead eyebrow="PUBLICAÇÃO" title="Central de anúncios" text="Acompanhe o retorno por canal."/>
+     <div className="tableWrap"><table><thead><tr><th>Produto</th><th>Mercado Livre</th><th>Shopee</th><th>OLX</th><th>Ação</th></tr></thead><tbody>
+       {products.map(p=><tr key={p.id}><td><b>{p.name}</b><small className="block">{p.sku}</small></td>{['mercadolivre','shopee','olx'].map(m=>{const r=listings.find(x=>x.product_id===p.id&&x.marketplace===m);return <td key={m}><Status r={r}/></td>})}<td><button className="ghost" onClick={()=>pub(p.id)}>Publicar em todos</button></td></tr>)}
+     </tbody></table></div>
+   </section>
+
+   {diagData&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setDiagData(null)}>
+     <div className="v8Modal medium integrationDiagModal">
+       <div className="modalHead">
+         <div><small>DIAGNÓSTICO DO CANAL</small><h2>{marketName(diagData.id)}</h2><p>Verificação técnica sem exibir chaves ou segredos.</p></div>
+         <button className="iconClose" onClick={()=>setDiagData(null)}>×</button>
+       </div>
+       <div className="modalBody">
+         <div className="diagStatusGrid">
+           <div className={diagData.app_ready?'ok':'warn'}><small>Aplicação</small><strong>{diagData.app_ready?'Configurada':'Pendente'}</strong></div>
+           <div className={diagData.connected?'ok':'warn'}><small>Conta</small><strong>{diagData.connected?'Conectada':'Desconectada'}</strong></div>
+           <div><small>Situação</small><strong>{statusPt(diagData.status)}</strong></div>
+         </div>
+         <div className="diagDetail"><small>Endereço de retorno</small><code>{diagData.redirect_uri||'Não informado'}</code></div>
+         {diagData.last_error
+           ? <div className="marketError integrationError"><b>Último erro</b><span>{erroPt(diagData.last_error)}</span></div>
+           : <div className="diagOk">✓ Nenhum erro recente informado pelo canal.</div>}
+       </div>
+     </div>
+   </div>}
+ </>
+}
 
 function Status({r}){if(!r)return <span className="pill neutral">Não enviado</span>;if(r.status==='published')return <span className="pill success">Publicado</span>;if(['processing','queued','pending'].includes(r.status))return <span className="pill neutral">Processando</span>;return <span className="pill warn" title={erroPt(r.error_message)}>{r.status==='needs_connection'?'Conectar conta':r.status==='needs_product_data'?'Completar produto':'Pendência'}</span>}
 function MarketLogo({id,large}) {return <div className={'marketLogo '+id+(large?' large':'')}>{id==='mercadolivre'?'ML':id==='shopee'?'SH':'OLX'}</div>}
