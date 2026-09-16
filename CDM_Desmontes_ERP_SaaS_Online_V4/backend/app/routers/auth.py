@@ -7,7 +7,7 @@ from ..db import get_db
 from ..models import User, Company, Subscription
 from ..security import verify_password, hash_password, create_token
 from ..deps import current_user
-from ..admin import is_platform_admin
+from ..admin import is_platform_admin, audit
 
 router=APIRouter()
 
@@ -47,7 +47,7 @@ def session_payload(db:Session,user:User):
     company=db.get(Company,user.company_id)
     sub=db.query(Subscription).filter(Subscription.company_id==user.company_id).first()
     return {
-        "access_token":create_token(user.id),
+        "access_token":create_token(user.id,user.company_id,getattr(user,"token_version",0)),
         "user":{"id":user.id,"name":user.name,"email":user.email,"role":user.role,"company_id":user.company_id},
         "company":company,
         "subscription":sub,
@@ -57,12 +57,16 @@ def session_payload(db:Session,user:User):
 @router.post("/login")
 def login(data:Login, request:Request, db:Session=Depends(get_db)):
     _check_rate(request,"login")
-    user=db.query(User).filter(User.email==data.email).first()
+    email=data.email.lower().strip()
+    user=db.query(User).filter(User.email==email).first()
     if not user or not verify_password(data.password,user.password_hash):
         raise HTTPException(401,"E-mail ou senha inválidos")
     if not user.active: raise HTTPException(403,"Usuário desativado")
     company=db.get(Company,user.company_id)
     if not company or not company.active: raise HTTPException(403,"Empresa desativada")
+    user.last_login_at=datetime.utcnow()
+    audit(db,user,"auth.login","user",str(user.id),{"ip":request.client.host if request.client else ""})
+    db.commit();db.refresh(user)
     return session_payload(db,user)
 
 @router.post("/register")
@@ -85,6 +89,14 @@ def me(user=Depends(current_user), db:Session=Depends(get_db)):
     company=db.get(Company,user.company_id)
     sub=db.query(Subscription).filter(Subscription.company_id==user.company_id).first()
     return {"user":{"id":user.id,"name":user.name,"email":user.email,"role":user.role,"company_id":user.company_id},"company":company,"subscription":sub,"is_platform_admin":is_platform_admin(user)}
+
+
+@router.post("/logout")
+def logout_current(user=Depends(current_user),db:Session=Depends(get_db)):
+    user.token_version=int(getattr(user,"token_version",0) or 0)+1
+    audit(db,user,"auth.logout","user",str(user.id),{})
+    db.commit()
+    return {"ok":True}
 
 @router.post("/bootstrap")
 def bootstrap(db:Session=Depends(get_db)):

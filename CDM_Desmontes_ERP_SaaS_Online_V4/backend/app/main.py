@@ -13,6 +13,7 @@ Base.metadata.create_all(bind=engine)
 def ensure_v8_schema():
     """Migração leve para instalações V4/V5/V6/V7 já existentes no Render."""
     additions={
+        "users":{"token_version":"INTEGER DEFAULT 0","last_login_at":"TIMESTAMP NULL"},
         "products":{"publish_mercadolivre":"BOOLEAN DEFAULT TRUE","publish_shopee":"BOOLEAN DEFAULT TRUE","publish_olx":"BOOLEAN DEFAULT TRUE","ml_has_warranty":"BOOLEAN DEFAULT FALSE","ml_warranty_text":"VARCHAR(180) DEFAULT ''","ml_shipping_mode":"VARCHAR(60) DEFAULT ''","ml_free_shipping":"BOOLEAN DEFAULT FALSE","ml_local_pickup":"BOOLEAN DEFAULT TRUE","ml_attributes_json":"TEXT DEFAULT '{}'","ml_store_id":"VARCHAR(80) DEFAULT ''","ml_network_node_id":"VARCHAR(120) DEFAULT ''","quality_grade":"VARCHAR(10) DEFAULT 'B'","quality_notes":"TEXT DEFAULT ''","warranty_days":"INTEGER DEFAULT 90","public_catalog":"BOOLEAN DEFAULT TRUE"},
         "sales":{"source":"VARCHAR(40) DEFAULT 'manual'","external_order_id":"VARCHAR(180) DEFAULT ''"},
         "locations":{"code":"VARCHAR(40) DEFAULT ''","description":"VARCHAR(180) DEFAULT ''","max_quantity":"INTEGER DEFAULT 0","auto_generate":"BOOLEAN DEFAULT FALSE","active":"BOOLEAN DEFAULT TRUE"},
@@ -31,7 +32,7 @@ def ensure_v8_schema():
 
 ensure_v8_schema()
 
-app = FastAPI(title="CDM Desmontes ERP API", version="8.3.0")
+app = FastAPI(title="CDM Desmontes ERP API", version="12.0.0")
 
 frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
 origins = {"http://localhost:5173", "http://127.0.0.1:5173", frontend_url}
@@ -77,7 +78,7 @@ app.include_router(admin.router, prefix="/api/admin", tags=["Admin SaaS"])
 
 @app.get("/api/health")
 def health():
-    return {"status":"ok","service":"cdm-desmontes-erp","version":"8.3.0"}
+    return {"status":"ok","service":"cdm-desmontes-erp","version":"12.0.0"}
 
 frontend_dist = Path(os.getenv("FRONTEND_DIST", "/app/frontend_dist"))
 if frontend_dist.exists() and (frontend_dist / "index.html").exists():

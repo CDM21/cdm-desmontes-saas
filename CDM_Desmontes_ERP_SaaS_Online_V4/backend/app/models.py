@@ -51,6 +51,8 @@ class User(Base):
     name = Column(String(120))
     role = Column(String(40), default="admin")
     active = Column(Boolean, default=True)
+    token_version = Column(Integer, default=0)
+    last_login_at = Column(DateTime, nullable=True)
 
 
 class Vehicle(Base):

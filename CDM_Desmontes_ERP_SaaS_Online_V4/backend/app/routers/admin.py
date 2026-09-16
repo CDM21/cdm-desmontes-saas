@@ -4,11 +4,11 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import inspect, select, func
+from sqlalchemy import inspect, select, func, text
 from sqlalchemy.orm import Session
 from ..db import get_db, engine
 from ..deps import current_user
-from ..models import Company, User, Subscription, Product, Sale, MarketplaceConnection
+from ..models import Company, User, Subscription, Product, Sale, SaleItem, Vehicle, VehicleExpense, StockMovement, MarketplaceConnection, MarketplaceListing, AuditLog
 from ..admin import require_platform_admin, audit
 
 router=APIRouter()
@@ -86,3 +86,256 @@ def backup(db:Session=Depends(get_db),user=Depends(current_user)):
     db.commit()
     name=f"cdm-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json.gz"
     return Response(gz,media_type="application/gzip",headers={"Content-Disposition":f'attachment; filename="{name}"',"Cache-Control":"no-store"})
+
+@router.get("/overview")
+def overview(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_platform_admin(user)
+    total=db.query(Company).count();active=db.query(Company).filter(Company.active==True).count()
+    subs=db.query(Subscription).filter(Subscription.status=="active").count()
+    price=float(__import__("os").getenv("MONTHLY_PRICE","350") or 350)
+    return {"companies_total":total,"companies_active":active,"companies_inactive":max(0,total-active),
+            "subscriptions_active":subs,"subscriptions_trial":db.query(Subscription).filter(Subscription.status=="trial").count(),
+            "subscriptions_past_due":db.query(Subscription).filter(Subscription.status=="past_due").count(),
+            "users_total":db.query(User).count(),"products_total":db.query(Product).filter(Product.active==True).count(),
+            "sales_total":db.query(Sale).count(),"projected_mrr":round(subs*price,2)}
+
+@router.get("/audit-logs")
+def audit_logs(limit:int=80,db:Session=Depends(get_db),user=Depends(current_user)):
+    require_platform_admin(user)
+    rows=db.query(AuditLog).order_by(AuditLog.id.desc()).limit(max(1,min(limit,200))).all()
+    return [{"id":x.id,"company_id":x.company_id,"user_id":x.user_id,"action":x.action,"entity":x.entity,
+             "entity_id":x.entity_id,"details":x.details_json,"created_at":x.created_at} for x in rows]
+
+@router.get("/system-health")
+def system_health(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_platform_admin(user);db.execute(text("SELECT 1"));inspector=inspect(engine)
+    return {"ok":True,"database":"online","tables":len(inspector.get_table_names()),"checked_at":datetime.utcnow()}
+
+@router.get("/tenant-audit")
+def tenant_audit(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_platform_admin(user)
+    checks={
+      "users_without_company":db.query(User).outerjoin(Company,Company.id==User.company_id).filter(Company.id==None).count(),
+      "product_vehicle_cross_company":db.query(Product).join(Vehicle,Vehicle.id==Product.vehicle_id).filter(Product.vehicle_id!=None,Product.company_id!=Vehicle.company_id).count(),
+      "sale_item_sale_cross_company":db.query(SaleItem).join(Sale,Sale.id==SaleItem.sale_id).filter(SaleItem.company_id!=Sale.company_id).count(),
+      "sale_item_product_cross_company":db.query(SaleItem).join(Product,Product.id==SaleItem.product_id).filter(SaleItem.company_id!=Product.company_id).count(),
+      "stock_product_cross_company":db.query(StockMovement).join(Product,Product.id==StockMovement.product_id).filter(StockMovement.company_id!=Product.company_id).count(),
+      "listing_product_cross_company":db.query(MarketplaceListing).join(Product,Product.id==MarketplaceListing.product_id).filter(MarketplaceListing.company_id!=Product.company_id).count(),
+    }
+    total=sum(checks.values())
+    return {"ok":total==0,"issues":total,"checks":checks,"checked_at":datetime.utcnow()}
+
+# CDM V12.2 - PAINEL SaaS DO DONO PRO
+def _v122_sync_subscriptions(db):
+    now = datetime.utcnow()
+    changed = 0
+    subs = db.query(Subscription).all()
+    for sub in subs:
+        exp = getattr(sub, "expires_at", None)
+        status = (getattr(sub, "status", "") or "").lower()
+        if exp and status in ("trial", "active") and exp < now:
+            sub.status = "past_due"
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
+def _v122_log(db, user, action, entity="company", entity_id=None, details=None):
+    try:
+        db.add(AuditLog(
+            company_id=getattr(user, "company_id", None),
+            user_id=getattr(user, "id", None),
+            action=action,
+            entity=entity,
+            entity_id=entity_id,
+            details_json=details or {},
+        ))
+    except Exception:
+        pass
+
+def _v122_company_payload(db, company):
+    sub = db.query(Subscription).filter(Subscription.company_id == company.id).first()
+    now = datetime.utcnow()
+    exp = getattr(sub, "expires_at", None) if sub else None
+    days = (exp.date() - now.date()).days if exp else None
+    status = (getattr(sub, "status", None) or "inactive") if sub else "inactive"
+    if not getattr(company, "active", True):
+        visual_status = "blocked"
+    elif status in ("past_due", "canceled", "trial", "active"):
+        visual_status = status
+    else:
+        visual_status = status or "inactive"
+    return {
+        "id": company.id,
+        "trade_name": getattr(company, "trade_name", "") or getattr(company, "legal_name", "") or f"Empresa #{company.id}",
+        "legal_name": getattr(company, "legal_name", "") or "",
+        "cnpj": getattr(company, "cnpj", "") or "",
+        "email": getattr(company, "email", "") or "",
+        "phone": getattr(company, "phone", "") or "",
+        "active": bool(getattr(company, "active", True)),
+        "subscription_status": status,
+        "visual_status": visual_status,
+        "expires_at": exp.isoformat() if exp else None,
+        "days_remaining": days,
+        "users": db.query(User).filter(User.company_id == company.id).count(),
+        "products": db.query(Product).filter(Product.company_id == company.id).count(),
+        "sales": db.query(Sale).filter(Sale.company_id == company.id).count(),
+        "vehicles": db.query(Vehicle).filter(Vehicle.company_id == company.id).count(),
+    }
+
+def _v122_platform_admin_user(user=Depends(current_user)):
+    require_platform_admin(user)
+    return user
+
+@router.get("/dashboard-v2")
+def admin_dashboard_v2(db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    synced = _v122_sync_subscriptions(db)
+    companies = db.query(Company).order_by(Company.id.desc()).all()
+    rows = [_v122_company_payload(db, c) for c in companies]
+    active = sum(1 for x in rows if x["visual_status"] == "active")
+    trial = sum(1 for x in rows if x["visual_status"] == "trial")
+    overdue = sum(1 for x in rows if x["visual_status"] == "past_due")
+    blocked = sum(1 for x in rows if x["visual_status"] == "blocked")
+    canceled = sum(1 for x in rows if x["visual_status"] == "canceled")
+    monthly_price = float(os.getenv("MONTHLY_PRICE", "350") or 350)
+    logs = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(60).all()
+    recent_logs = [{
+        "id": x.id,
+        "company_id": x.company_id,
+        "user_id": x.user_id,
+        "action": x.action,
+        "entity": x.entity,
+        "entity_id": x.entity_id,
+        "details_json": x.details_json,
+        "created_at": x.created_at.isoformat() if x.created_at else None,
+    } for x in logs]
+    return {
+        "summary": {
+            "companies_total": len(rows),
+            "active": active,
+            "trial": trial,
+            "past_due": overdue,
+            "blocked": blocked,
+            "canceled": canceled,
+            "users_total": db.query(User).count(),
+            "products_total": db.query(Product).count(),
+            "sales_total": db.query(Sale).count(),
+            "projected_mrr": active * monthly_price,
+            "monthly_price": monthly_price,
+            "synced_now": synced,
+        },
+        "companies": rows,
+        "recent_logs": recent_logs,
+        "automation": {
+            "expiry_sync": True,
+            "payment_webhook_required_for_real_payment_confirmation": True,
+        },
+    }
+
+@router.post("/companies/{company_id}/trial")
+def admin_company_trial(company_id: int, days: int = 7, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    days = max(1, min(int(days or 7), 90))
+    sub = db.query(Subscription).filter(Subscription.company_id == company_id).first()
+    if not sub:
+        sub = Subscription(company_id=company_id, plan="mensal-350", status="trial")
+        db.add(sub)
+    sub.status = "trial"
+    sub.started_at = datetime.utcnow()
+    sub.expires_at = datetime.utcnow() + timedelta(days=days)
+    company.active = True
+    _v122_log(db, user, "admin.company.trial", entity_id=company_id, details={"days": days})
+    db.commit()
+    return {"ok": True, "status": "trial", "days": days}
+
+@router.post("/companies/{company_id}/activate")
+def admin_company_activate(company_id: int, days: int = 31, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    days = max(1, min(int(days or 31), 365))
+    sub = db.query(Subscription).filter(Subscription.company_id == company_id).first()
+    if not sub:
+        sub = Subscription(company_id=company_id, plan="mensal-350", status="active")
+        db.add(sub)
+    sub.status = "active"
+    sub.expires_at = datetime.utcnow() + timedelta(days=days)
+    company.active = True
+    _v122_log(db, user, "admin.company.activate", entity_id=company_id, details={"days": days})
+    db.commit()
+    return {"ok": True, "status": "active", "days": days}
+
+@router.post("/companies/{company_id}/past-due")
+def admin_company_past_due(company_id: int, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    sub = db.query(Subscription).filter(Subscription.company_id == company_id).first()
+    if not sub:
+        sub = Subscription(company_id=company_id, plan="mensal-350", status="past_due")
+        db.add(sub)
+    sub.status = "past_due"
+    _v122_log(db, user, "admin.company.past_due", entity_id=company_id)
+    db.commit()
+    return {"ok": True, "status": "past_due"}
+
+@router.post("/companies/{company_id}/cancel")
+def admin_company_cancel(company_id: int, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    sub = db.query(Subscription).filter(Subscription.company_id == company_id).first()
+    if sub:
+        sub.status = "canceled"
+    _v122_log(db, user, "admin.company.cancel", entity_id=company_id)
+    db.commit()
+    return {"ok": True, "status": "canceled"}
+
+@router.post("/companies/{company_id}/block")
+def admin_company_block(company_id: int, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    if company.id == getattr(user, "company_id", None):
+        raise HTTPException(400, "Você não pode bloquear a própria empresa administradora por este painel")
+    company.active = False
+    _v122_log(db, user, "admin.company.block", entity_id=company_id)
+    db.commit()
+    return {"ok": True, "active": False}
+
+@router.post("/companies/{company_id}/unblock")
+def admin_company_unblock(company_id: int, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    company.active = True
+    _v122_log(db, user, "admin.company.unblock", entity_id=company_id)
+    db.commit()
+    return {"ok": True, "active": True}
+
+@router.delete("/companies/{company_id}")
+def admin_company_delete_empty(company_id: int, db: Session = Depends(get_db), user: User = Depends(_v122_platform_admin_user)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(404, "Empresa não encontrada")
+    if company.id == getattr(user, "company_id", None):
+        raise HTTPException(400, "A empresa administradora da plataforma não pode ser excluída")
+    operational = (
+        db.query(Product).filter(Product.company_id == company_id).count()
+        + db.query(Sale).filter(Sale.company_id == company_id).count()
+        + db.query(Vehicle).filter(Vehicle.company_id == company_id).count()
+    )
+    if operational:
+        raise HTTPException(409, "Esta empresa possui dados operacionais. Por segurança, bloqueie ou cancele em vez de excluir.")
+    try:
+        db.query(AuditLog).filter(AuditLog.company_id == company_id).delete(synchronize_session=False)
+        db.query(Subscription).filter(Subscription.company_id == company_id).delete(synchronize_session=False)
+        db.query(User).filter(User.company_id == company_id).delete(synchronize_session=False)
+        db.delete(company)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(409, "Não foi possível excluir porque ainda existem dados ligados à empresa. Use Bloquear/Cancelar.")
+    return {"ok": True, "deleted": company_id}

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Sale, SaleItem, Product, FinancialEntry, StockMovement, Customer
-from ..deps import active_user
+from ..deps import active_user, require_roles
 from ..admin import audit
 from ..services.marketplaces import sync_marketplace_stock_for_product
 from .notifications import add_sale_notification
@@ -49,7 +49,7 @@ def get_sale(sale_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
     return _serialize_sale(db,row)
 
 @router.post("")
-def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(active_user)):
+def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","cashier"))):
     if not data.items: raise HTTPException(400,"Venda sem itens")
     if data.customer_id and not db.query(Customer).filter(Customer.id==data.customer_id,Customer.company_id==user.company_id).first():
         raise HTTPException(404,"Cliente não encontrado")

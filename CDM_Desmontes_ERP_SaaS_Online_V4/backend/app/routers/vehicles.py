@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Vehicle,Dismantling,Product,SaleItem,Sale,VehicleExpense
-from ..deps import current_user, active_user
+from ..deps import current_user, active_user, require_roles
 
 router=APIRouter()
 
@@ -32,12 +32,12 @@ def list_vehicles(db:Session=Depends(get_db), user=Depends(active_user)):
     return db.query(Vehicle).filter(Vehicle.company_id==user.company_id).order_by(Vehicle.id.desc()).all()
 
 @router.post("")
-def create_vehicle(data:VehicleIn, db:Session=Depends(get_db), user=Depends(active_user)):
+def create_vehicle(data:VehicleIn, db:Session=Depends(get_db), user=Depends(require_roles("owner","admin","manager","stock"))):
     v=Vehicle(company_id=user.company_id,**data.model_dump()); db.add(v); db.commit(); db.refresh(v); return v
 
 
 @router.put("/{vehicle_id}")
-def update_vehicle(vehicle_id:int,data:VehicleIn,db:Session=Depends(get_db),user=Depends(active_user)):
+def update_vehicle(vehicle_id:int,data:VehicleIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
     row=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
     if not row:
         raise HTTPException(404,"Veículo não encontrado")
@@ -59,7 +59,7 @@ def vehicle_expenses(vehicle_id:int,db:Session=Depends(get_db),user=Depends(acti
 
 
 @router.post("/{vehicle_id}/expenses")
-def add_vehicle_expense(vehicle_id:int,data:VehicleExpenseIn,db:Session=Depends(get_db),user=Depends(active_user)):
+def add_vehicle_expense(vehicle_id:int,data:VehicleExpenseIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager"))):
     v=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
     if not v:
         raise HTTPException(404,"Veículo não encontrado")
@@ -78,7 +78,7 @@ def add_vehicle_expense(vehicle_id:int,data:VehicleExpenseIn,db:Session=Depends(
 
 
 @router.delete("/{vehicle_id}/expenses/{expense_id}")
-def delete_vehicle_expense(vehicle_id:int,expense_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
+def delete_vehicle_expense(vehicle_id:int,expense_id:int,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager"))):
     row=db.query(VehicleExpense).filter(
         VehicleExpense.id==expense_id,
         VehicleExpense.vehicle_id==vehicle_id,

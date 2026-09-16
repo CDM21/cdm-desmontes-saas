@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..deps import active_user
+from ..deps import active_user, require_roles
 from ..models import Customer,Supplier,Carrier,Seller,PartGroup,Location,TaxConfig,User
 from ..security import hash_password
+from ..admin import audit
 
 router=APIRouter()
 
@@ -77,7 +78,15 @@ class UserIn(BaseModel):
     name:str
     email:str
     password:str
-    role:str="user"
+    role:str="cashier"
+
+class UserUpdateIn(BaseModel):
+    name:str
+    role:str
+    active:bool=True
+
+class UserPasswordIn(BaseModel):
+    password:str
 
 @router.get("/customers")
 def customers(db:Session=Depends(get_db),user=Depends(active_user)):
@@ -177,19 +186,53 @@ def tax(db:Session=Depends(get_db),user=Depends(active_user)):
     if not row: row=TaxConfig(company_id=user.company_id);db.add(row);db.commit();db.refresh(row)
     return row
 @router.put("/tax")
-def update_tax(data:TaxIn,db:Session=Depends(get_db),user=Depends(active_user)):
+def update_tax(data:TaxIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):
     row=db.query(TaxConfig).filter(TaxConfig.company_id==user.company_id).first()
     if not row: row=TaxConfig(company_id=user.company_id);db.add(row)
     for k,v in data.model_dump().items(): setattr(row,k,v)
     db.commit();db.refresh(row);return row
 @router.get("/users")
-def users(db:Session=Depends(get_db),user=Depends(active_user)):
-    rows=db.query(User).filter(User.company_id==user.company_id).order_by(User.id.desc()).all()
-    return [{"id":r.id,"name":r.name,"email":r.email,"role":r.role,"active":r.active} for r in rows]
+def users(db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):
+    rows=db.query(User).filter(User.company_id==user.company_id).order_by(User.id.asc()).all()
+    return [{"id":r.id,"name":r.name,"email":r.email,"role":r.role,"active":r.active,"last_login_at":r.last_login_at} for r in rows]
+
 @router.post("/users")
-def add_user(data:UserIn,db:Session=Depends(get_db),user=Depends(active_user)):
-    if user.role not in {"owner","admin"}: raise HTTPException(403,"Sem permissão")
-    if db.query(User).filter(User.email==data.email.lower().strip()).first(): raise HTTPException(409,"E-mail já cadastrado")
+def add_user(data:UserIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):
+    allowed={"owner","admin","manager","stock","cashier","user"}
+    role=(data.role or "cashier").lower().strip()
+    if role not in allowed: raise HTTPException(400,"Perfil inválido")
+    if role=="owner" and user.role!="owner": raise HTTPException(403,"Somente o dono pode criar outro dono")
+    email=data.email.lower().strip()
+    if db.query(User).filter(User.email==email).first(): raise HTTPException(409,"E-mail já cadastrado")
     if len(data.password)<8: raise HTTPException(400,"Senha deve ter pelo menos 8 caracteres")
-    row=User(company_id=user.company_id,name=data.name,email=data.email.lower().strip(),role=data.role,password_hash=hash_password(data.password));db.add(row);db.commit();db.refresh(row)
-    return {"id":row.id,"name":row.name,"email":row.email,"role":row.role,"active":row.active}
+    row=User(company_id=user.company_id,name=data.name.strip(),email=email,role=role,password_hash=hash_password(data.password))
+    db.add(row);db.flush();audit(db,user,"user.create","user",str(row.id),{"email":email,"role":role});db.commit();db.refresh(row)
+    return {"id":row.id,"name":row.name,"email":row.email,"role":row.role,"active":row.active,"last_login_at":row.last_login_at}
+
+@router.put("/users/{user_id}")
+def update_user(user_id:int,data:UserUpdateIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):
+    row=db.query(User).filter(User.id==user_id,User.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Usuário não encontrado")
+    role=(data.role or "").lower().strip()
+    if role not in {"owner","admin","manager","stock","cashier","user"}: raise HTTPException(400,"Perfil inválido")
+    if role=="owner" and user.role!="owner": raise HTTPException(403,"Somente o dono pode promover outro dono")
+    if row.role=="owner" and user.role!="owner": raise HTTPException(403,"Administrador não pode alterar o dono")
+    if row.id==user.id and not data.active: raise HTTPException(400,"Você não pode desativar seu próprio usuário")
+    if row.role=="owner" and (role!="owner" or not bool(data.active)):
+        active_owners=db.query(User).filter(User.company_id==user.company_id,User.role=="owner",User.active==True).count()
+        if active_owners<=1: raise HTTPException(400,"A empresa precisa manter pelo menos um dono ativo")
+    row.name=data.name.strip();row.role=role;row.active=bool(data.active)
+    if not row.active: row.token_version=int(getattr(row,"token_version",0) or 0)+1
+    audit(db,user,"user.update","user",str(row.id),{"role":role,"active":row.active});db.commit();db.refresh(row)
+    return {"id":row.id,"name":row.name,"email":row.email,"role":row.role,"active":row.active,"last_login_at":row.last_login_at}
+
+@router.post("/users/{user_id}/password")
+def reset_password(user_id:int,data:UserPasswordIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):
+    row=db.query(User).filter(User.id==user_id,User.company_id==user.company_id).first()
+    if not row: raise HTTPException(404,"Usuário não encontrado")
+    if row.role=="owner" and user.role!="owner": raise HTTPException(403,"Administrador não pode redefinir a senha do dono")
+    if len(data.password)<8: raise HTTPException(400,"Senha deve ter pelo menos 8 caracteres")
+    row.password_hash=hash_password(data.password)
+    row.token_version=int(getattr(row,"token_version",0) or 0)+1
+    audit(db,user,"user.password_reset","user",str(row.id),{});db.commit()
+    return {"ok":True}

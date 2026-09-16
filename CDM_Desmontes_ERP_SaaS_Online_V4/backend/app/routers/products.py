@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Product
-from ..deps import active_user
+from ..deps import active_user, require_roles
 from ..services.marketplaces import publish_all
 
 router=APIRouter()
@@ -253,7 +253,7 @@ def remove_product_background(
     )
 
 @router.post("")
-def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(active_user)):
+def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
     if db.query(Product).filter(Product.company_id==user.company_id,Product.sku==data.sku).first():
         raise HTTPException(409,"SKU já existe nesta empresa")
     payload=data.model_dump(exclude={"auto_publish"})
@@ -264,7 +264,7 @@ def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(active
     return p
 
 @router.put("/{product_id}")
-def update_product(product_id:int,data:ProductIn,db:Session=Depends(get_db),user=Depends(active_user)):
+def update_product(product_id:int,data:ProductIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
     p=db.query(Product).filter(Product.id==product_id,Product.company_id==user.company_id,Product.active==True).first()
     if not p:
         raise HTTPException(404,"Peça não encontrada")
@@ -279,7 +279,7 @@ def update_product(product_id:int,data:ProductIn,db:Session=Depends(get_db),user
     return p
 
 @router.delete("/{product_id}")
-def archive_product(product_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
+def archive_product(product_id:int,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
     p=db.query(Product).filter(Product.id==product_id,Product.company_id==user.company_id,Product.active==True).first()
     if not p:
         raise HTTPException(404,"Peça não encontrada")

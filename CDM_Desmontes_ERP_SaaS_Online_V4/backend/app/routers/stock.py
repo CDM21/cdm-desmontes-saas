@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Product, Location, StockMovement
-from ..deps import active_user
+from ..deps import active_user, require_roles
 from ..admin import audit
 from ..services.marketplaces import sync_marketplace_stock_for_product
 
@@ -29,7 +29,7 @@ def locations(db: Session = Depends(get_db), user=Depends(active_user)):
 
 
 @router.post("/locations")
-def create_location(data: LocationIn, db: Session = Depends(get_db), user=Depends(active_user)):
+def create_location(data: LocationIn, db: Session = Depends(get_db), user=Depends(require_roles("owner","admin","manager","stock"))):
     row = Location(company_id=user.company_id, **data.model_dump())
     db.add(row)
     db.commit()
@@ -45,7 +45,7 @@ def movements(limit: int = 200, product_id: int | None = None, db: Session = Dep
 
 
 @router.post("/move")
-def move(data: MoveIn, db: Session = Depends(get_db), user=Depends(active_user)):
+def move(data: MoveIn, db: Session = Depends(get_db), user=Depends(require_roles("owner","admin","manager","stock"))):
     product = (
         db.query(Product)
         .filter(Product.id == data.product_id, Product.company_id == user.company_id)

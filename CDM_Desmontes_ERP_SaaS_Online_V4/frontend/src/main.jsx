@@ -26,7 +26,7 @@ const erroPt=v=>{
  return 'Não foi possível concluir a operação no serviço externo. Verifique a configuração do canal.'
 }
 function setToken(t){localStorage.setItem('token',t);api.defaults.headers.common.Authorization=`Bearer ${t}`}
-function logout(){localStorage.removeItem('token');location.href='/'}
+async function logout(){try{await api.post('/auth/logout')}catch(e){}localStorage.removeItem('token');delete api.defaults.headers.common.Authorization;location.href='/'}
 
 const MENU=[
  {key:'dashboard',icon:'▦',label:'Painel'},
@@ -40,7 +40,8 @@ const MENU=[
    {key:'carriers',icon:'▰',label:'Transportadoras'},
    {key:'sellers',icon:'♟',label:'Vendedores'},
    {key:'suppliers',icon:'♙',label:'Fornecedores'},
-   {key:'tax',icon:'⌁',label:'Configuração Tributária'}
+   {key:'tax',icon:'⌁',label:'Configuração Tributária'},
+   {key:'users',icon:'♟',label:'Usuários e permissões'}
  ]},
  {key:'products',icon:'▤',label:'Estoque de peças'},
  {key:'vehicles',icon:'▱',label:'Sucatas'},
@@ -82,8 +83,16 @@ const MENU=[
  {key:'cashflow',icon:'⇆',label:'Fluxo de Caixa'},
  {key:'reports',icon:'▥',label:'Relatórios'},
  {key:'gamification',icon:'✦',label:'Gamificação'},
- {key:'platform-admin',icon:'★',label:'Clientes da plataforma'}
+ {key:'platform-admin',icon:'★',label:'Painel SaaS do Dono'}
 ]
+const ROLE_TABS={
+ manager:new Set(['dashboard','qrcode','cadastros','vehicle-create','product-create','part-groups','customers','locations','carriers','sellers','suppliers','products','vehicles','marketplaces','sales','sales-history','shipping','finance','cashflow','reports']),
+ stock:new Set(['dashboard','qrcode','cadastros','vehicle-create','product-create','part-groups','locations','suppliers','products','vehicles','shipping','reports']),
+ cashier:new Set(['dashboard','customers','products','sales','sales-history','shipping','reports']),
+ user:new Set(['dashboard','products','vehicles','sales-history','reports'])
+}
+function roleLabel(r){return ({owner:'Dono',admin:'Administrador',manager:'Gerente',stock:'Estoque',cashier:'Vendedor / Caixa',user:'Somente leitura'}[r]||r||'Usuário')}
+function canAccessTab(r,k,isPlatformAdmin=false){if(k==='platform-admin')return !!isPlatformAdmin;if(r==='owner'||r==='admin')return true;return (ROLE_TABS[r]||ROLE_TABS.user).has(k)}
 const TITLE_MAP={company:'Informações da Empresa'}
 MENU.forEach(item=>{TITLE_MAP[item.key]=item.label;(item.children||[]).forEach(c=>TITLE_MAP[c.key]=c.label)})
 
@@ -103,13 +112,14 @@ function App(){
    try{
      const [me,bi]=await Promise.all([api.get('/auth/me'),api.get('/billing/status')])
      setSession(me.data);setBilling(bi.data||{})
+     const role=me.data?.user?.role||'user';const canFinance=['owner','admin','manager'].includes(role);const canUsers=['owner','admin'].includes(role)
      if(bi.data?.active===false){
        setVehicles([]);setProducts([]);setSales([]);setFinance([]);setMarketplaces([]);setListings([])
        return
      }
      const [v,p,s,f,m,l,cu,su,ca,se,pg,lo,us,tx,vb]=await Promise.all([
-       api.get('/vehicles'),api.get('/products'),api.get('/sales'),api.get('/finance'),api.get('/marketplaces/status'),api.get('/marketplaces/listings'),
-       api.get('/catalog/customers'),api.get('/catalog/suppliers'),api.get('/catalog/carriers'),api.get('/catalog/sellers'),api.get('/catalog/part-groups'),api.get('/catalog/locations'),api.get('/catalog/users'),api.get('/catalog/tax'),api.get('/vehicle-catalog/brands')
+       api.get('/vehicles'),api.get('/products'),api.get('/sales'),canFinance?api.get('/finance'):Promise.resolve({data:[]}),api.get('/marketplaces/status'),api.get('/marketplaces/listings'),
+       api.get('/catalog/customers'),api.get('/catalog/suppliers'),api.get('/catalog/carriers'),api.get('/catalog/sellers'),api.get('/catalog/part-groups'),api.get('/catalog/locations'),canUsers?api.get('/catalog/users'):Promise.resolve({data:[]}),api.get('/catalog/tax'),api.get('/vehicle-catalog/brands')
      ])
      setVehicles(v.data);setProducts(p.data);setSales(s.data);setFinance(f.data);setMarketplaces(m.data);setListings(l.data)
      setVehicleBrands(vb.data.brands||[])
@@ -117,6 +127,7 @@ function App(){
    }catch(e){if(e.response?.status===401){logout()}else if(e.response?.status===402){setBilling(b=>({...b,active:false}))}else console.error(e)}
  }
  useEffect(()=>{if(logged)load()},[logged])
+ useEffect(()=>{if(session&&!canAccessTab(session?.user?.role,tab,session?.is_platform_admin))setTab('dashboard')},[tab,session])
  useEffect(()=>{const q=new URLSearchParams(location.search);const integration=q.get('integration');const status=q.get('status');if(integration){setTab('marketplaces');setTimeout(()=>notice(status==='connected'?`${marketName(integration)} conectado com sucesso`:`Não foi possível conectar ${marketName(integration)}`),300);history.replaceState({},'',location.pathname)}},[])
  function notice(t){setToast(t);setTimeout(()=>setToast(''),3800)}
  const publicParams=new URLSearchParams(location.search)
@@ -126,7 +137,7 @@ function App(){
  if(!logged)return <Login onLogin={r=>{setToken(r.access_token);setSession(r);setLogged(true)}}/>
  const accessBlocked=!!session&&billing?.active===false
  return <div className="appShell">
-   <Sidebar tab={tab} setTab={setTab} company={session?.company} isAdmin={session?.is_platform_admin} openMobile={mobileNav} onClose={()=>setMobileNav(false)}/>
+   <Sidebar tab={tab} setTab={setTab} company={session?.company} role={session?.user?.role} isAdmin={session?.is_platform_admin} openMobile={mobileNav} onClose={()=>setMobileNav(false)}/>
    <main className="mainArea">
      <Topbar tab={tab} setTab={setTab} session={session} theme={theme} setTheme={setTheme} onMenu={()=>setMobileNav(true)}/>
      <div className="content">
@@ -138,7 +149,7 @@ function App(){
        {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>} 
        {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>} 
        {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company}/>} 
-       {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} 
+       {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} {tab==='users'&&<UsersPermissions notice={notice}/>} 
        {tab==='cadastros'&&<CadastrosHome setTab={setTab}/>} 
        {['labels','label-models','etiquetas'].includes(tab)&&<LabelsModule tab={tab} products={products} company={session?.company}/>} 
        {tab==='sales'&&<Sales products={products} sales={sales} customers={catalog.customers} refresh={load} notice={notice}/>} 
@@ -159,7 +170,7 @@ function App(){
        {tab==='cashflow'&&<CashFlow data={finance}/>} 
        {tab==='reports'&&<Reports products={products} sales={sales} finance={finance} vehicles={vehicles}/>} 
        {tab==='gamification'&&<Gamification sales={sales} products={products}/>} 
-       {tab==='platform-admin'&&session?.is_platform_admin&&<PlatformAdmin notice={notice}/>} 
+       {tab==='platform-admin'&&session?.is_platform_admin&&<PlatformAdminV2 notice={notice}/>} 
        </>}
      </div>
    </main>
@@ -168,10 +179,10 @@ function App(){
 }
 
 // CDM MOBILE NAV V2
-function Sidebar({tab,setTab,company,isAdmin,openMobile=false,onClose}){
+function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClose}){
  const [open,setOpen]=useState({cadastros:true,etiquetas:false,integracoes:false,compras:false,vendas:true,notas:true,inteligencia:true})
  function isActive(item){return tab===item.key||(item.children||[]).some(c=>c.key===tab)}
- const visibleMenu=MENU.filter(item=>item.key!=='platform-admin'||isAdmin)
+ const visibleMenu=MENU.map(item=>item.children?({...item,children:item.children.filter(c=>canAccessTab(role,c.key,isAdmin))}):item).filter(item=>item.key==='platform-admin'?isAdmin:(item.children?item.children.length>0:canAccessTab(role,item.key,isAdmin)))
  function go(key){setTab(key);onClose?.()}
  return <>
    {openMobile&&<button className="mobileNavBackdrop" aria-label="Fechar menu" onClick={()=>onClose?.()}/>}
@@ -184,7 +195,7 @@ function Sidebar({tab,setTab,company,isAdmin,openMobile=false,onClose}){
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V8.3 Inteligência funcional</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V12 Administração e Segurança</small></div>
    </aside>
  </>
 }
@@ -258,7 +269,7 @@ function Topbar({tab,setTab,session,theme,setTheme,onMenu}){
    </div>
    <button className="topIcon" title="Compras" onClick={()=>setTab('purchases')}><V8Icon name="cart"/></button>
    <div className="profileWrap"><button className="profileButton" title="Perfil" onClick={()=>{setProfile(!profile);setNotifOpen(false)}}><V8Icon name="user"/><span>⌄</span></button>
-     {profile&&<div className="profileMenu"><div className="profileHead"><div className="avatar">{(session?.user?.name||'U').slice(0,1).toUpperCase()}</div><div><b>{session?.user?.email}</b><small>{session?.user?.role==='owner'?'Administrador':'Usuário'}</small></div></div><button onClick={()=>{setTab('company');setProfile(false)}}>▦ <span>Informações da Empresa</span></button><div className="themeRow"><span>◉ Alterar tema</span><div><button className={theme==='light'?'sel':''} onClick={()=>setTheme('light')}>☀</button><button className={theme==='dark'?'sel':''} onClick={()=>setTheme('dark')}>☾</button></div></div><div className="subMini"><span>Plano {sub?.plan||'mensal'}</span><b className={['active','trial'].includes(sub?.status)?'ok':'bad'}>{statusPt(sub?.status)}</b></div><button className="dangerText" onClick={logout}>↪ <span>Sair</span></button></div>}
+     {profile&&<div className="profileMenu"><div className="profileHead"><div className="avatar">{(session?.user?.name||'U').slice(0,1).toUpperCase()}</div><div><b>{session?.user?.email}</b><small>{roleLabel(session?.user?.role)}</small></div></div><button onClick={()=>{setTab('company');setProfile(false)}}>▦ <span>Informações da Empresa</span></button><div className="themeRow"><span>◉ Alterar tema</span><div><button className={theme==='light'?'sel':''} onClick={()=>setTheme('light')}>☀</button><button className={theme==='dark'?'sel':''} onClick={()=>setTheme('dark')}>☾</button></div></div><div className="subMini"><span>Plano {sub?.plan||'mensal'}</span><b className={['active','trial'].includes(sub?.status)?'ok':'bad'}>{statusPt(sub?.status)}</b></div><button className="dangerText" onClick={logout}>↪ <span>Sair</span></button></div>}
    </div>
  </header>
 }
@@ -1147,6 +1158,111 @@ function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,hi
 }
 function ListingBadges({product,listings}){const rows=listings.filter(x=>x.product_id===product.id),enabled={mercadolivre:product.publish_mercadolivre,shopee:product.publish_shopee,olx:product.publish_olx};return <div className="badges">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m),off=!enabled[m],ok=r?.status==='published',label=off?'Desativado':r?statusPt(r.status):'Não publicado';return <span key={m} title={off?'Canal desativado para esta peça':erroPt(r?.error_message)||label} className={'mini '+(off?'off':ok?'ok':r?'warn':'')}>{m==='mercadolivre'?'ML':m==='shopee'?'SH':'OLX'} · {label}</span>})}</div>}
 
+
+
+function UsersPermissions({notice}){
+ const [rows,setRows]=useState([]),[form,setForm]=useState({name:'',email:'',password:'',role:'cashier'})
+ const roles=[['owner','Dono'],['admin','Administrador'],['manager','Gerente'],['stock','Estoque'],['cashier','Vendedor / Caixa'],['user','Somente leitura']]
+ async function load(){try{setRows((await api.get('/catalog/users')).data||[])}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao carregar usuários')}}
+ useEffect(()=>{load()},[])
+ async function add(){try{await api.post('/catalog/users',form);setForm({name:'',email:'',password:'',role:'cashier'});await load();notice('Usuário criado')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao criar usuário')}}
+ async function upd(r,p){try{await api.put(`/catalog/users/${r.id}`,{name:r.name,role:p.role??r.role,active:p.active??r.active});await load();notice('Usuário atualizado')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao atualizar')}}
+ async function pass(r){const v=prompt('Nova senha (mínimo 8 caracteres)');if(!v)return;try{await api.post(`/catalog/users/${r.id}/password`,{password:v});notice('Senha alterada e sessões antigas encerradas')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao alterar senha')}}
+ return <><div className="pageTitle"><div><span>EQUIPE</span><h2>Usuários e permissões</h2><p>Controle quem pode administrar, vender, gerenciar estoque ou apenas consultar.</p></div></div>
+ <section className="panel"><PanelHead eyebrow="NOVO USUÁRIO" title="Adicionar acesso" text="Cada pessoa entra com seu próprio e-mail."/><div className="formGrid"><Field label="Nome"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><Field label="E-mail"><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></Field><Field label="Perfil"><select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>{roles.map(x=><option key={x[0]} value={x[0]}>{x[1]}</option>)}</select></Field></div><button className="primary" onClick={add}>Criar usuário</button></section>
+ <section className="panel"><PanelHead eyebrow="ACESSOS" title="Equipe da empresa" text="Desativar um acesso impede novos usos do sistema."/><div className="v12Users">{rows.map(r=><div className="v12User" key={r.id}><div><b>{r.name}</b><span>{r.email}</span><small>{r.last_login_at?new Date(r.last_login_at).toLocaleString('pt-BR'):'Ainda não acessou'}</small></div><select value={r.role} onChange={e=>upd(r,{role:e.target.value})}>{roles.map(x=><option key={x[0]} value={x[0]}>{x[1]}</option>)}</select><button className="ghost" onClick={()=>pass(r)}>Nova senha</button><button className={r.active?'v12Active':'v12Inactive'} onClick={()=>upd(r,{active:!r.active})}>{r.active?'Ativo':'Inativo'}</button></div>)}</div></section></>
+}
+
+function PlatformAdminV2({notice}){
+ const [data,setData]=useState({summary:{},companies:[],recent_logs:[],automation:{}}),
+       [filter,setFilter]=useState('all'),
+       [query,setQuery]=useState(''),
+       [busy,setBusy]=useState(false),
+       [lastUpdate,setLastUpdate]=useState(null)
+ const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
+ const statusMeta={active:['Ativa','success'],trial:['Teste','info'],past_due:['Atrasada','danger'],blocked:['Bloqueada','dark'],canceled:['Cancelada','muted'],inactive:['Inativa','muted']}
+
+ async function load(silent=false){
+   if(!silent)setBusy(true)
+   try{
+     const r=await api.get('/admin/dashboard-v2')
+     setData(r.data||{})
+     setLastUpdate(new Date())
+   }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao carregar Painel SaaS do Dono')}
+   finally{if(!silent)setBusy(false)}
+ }
+ useEffect(()=>{load();const t=setInterval(()=>load(true),60000);return()=>clearInterval(t)},[])
+
+ async function act(c,action){
+   try{
+     if(action==='trial')await api.post(`/admin/companies/${c.id}/trial?days=7`)
+     if(action==='active')await api.post(`/admin/companies/${c.id}/activate?days=31`)
+     if(action==='past_due')await api.post(`/admin/companies/${c.id}/past-due`)
+     if(action==='cancel')await api.post(`/admin/companies/${c.id}/cancel`)
+     if(action==='block')await api.post(`/admin/companies/${c.id}/block`)
+     if(action==='unblock')await api.post(`/admin/companies/${c.id}/unblock`)
+     notice('Empresa atualizada');await load(true)
+   }catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível atualizar a empresa')}
+ }
+ async function removeCompany(c){
+   if(!confirm(`Excluir ${c.trade_name}?
+
+Só será permitido se a empresa não possuir dados operacionais.`))return
+   try{await api.delete(`/admin/companies/${c.id}`);notice('Empresa excluída');await load(true)}
+   catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível excluir a empresa')}
+ }
+ const shown=rows.filter(c=>{
+   const byStatus=filter==='all'||c.visual_status===filter
+   const q=query.trim().toLowerCase()
+   const byText=!q||[c.trade_name,c.legal_name,c.cnpj,c.email].some(v=>(v||'').toLowerCase().includes(q))
+   return byStatus&&byText
+ })
+ function statusBadge(c){const [label,kind]=statusMeta[c.visual_status]||[c.visual_status||'Inativa','muted'];return <span className={`v122Status ${kind}`}><i/>{label}</span>}
+ function expiry(c){
+   if(!c.expires_at)return 'Sem vencimento'
+   const d=new Date(c.expires_at).toLocaleDateString('pt-BR')
+   if(c.visual_status==='past_due')return `Venceu em ${d}`
+   if(c.days_remaining===0)return `Vence hoje · ${d}`
+   if(c.days_remaining!=null&&c.days_remaining>0)return `${c.days_remaining} dia(s) · ${d}`
+   return d
+ }
+
+ return <div className="v122Owner">
+   <section className="v122Hero"><div><span className="v122Eyebrow">ADMINISTRAÇÃO DA PLATAFORMA</span><h2>Painel SaaS do Dono</h2><p>Clientes, assinaturas, acessos e saúde da operação em uma visão única.</p></div><div className="v122HeroActions"><span className="v122Auto"><i/> Automação ativa</span><button className="ghost" disabled={busy} onClick={()=>load()}>{busy?'Atualizando...':'↻ Atualizar'}</button></div></section>
+
+   <section className="v122Automation"><div><b>Automático</b><span>Assinaturas vencidas mudam para <strong>Atrasada</strong> na sincronização.</span></div><div><b>Pagamento real</b><span>Quando o webhook do Mercado Pago estiver concluído, pagamento aprovado poderá reativar automaticamente.</span></div><small>{lastUpdate?`Última atualização: ${lastUpdate.toLocaleTimeString('pt-BR')}`:'Carregando...'}</small></section>
+
+   <div className="v122Metrics">
+     <div><span>EMPRESAS</span><b>{s.companies_total||0}</b><small>Total cadastrado</small></div>
+     <div><span>ATIVAS</span><b>{s.active||0}</b><small>Pagantes ativas</small></div>
+     <div><span>EM TESTE</span><b>{s.trial||0}</b><small>Período grátis</small></div>
+     <div><span>ATRASADAS</span><b>{s.past_due||0}</b><small>Precisam atenção</small></div>
+     <div><span>BLOQUEADAS</span><b>{s.blocked||0}</b><small>Sem acesso</small></div>
+     <div><span>MRR PREVISTO</span><b>{money(s.projected_mrr||0)}</b><small>Base: {money(s.monthly_price||350)}/mês</small></div>
+   </div>
+
+   <section className="panel v122CompaniesPanel">
+     <div className="v122PanelHead"><div><span>CLIENTES SaaS</span><h3>Empresas cadastradas</h3><p>Controle automático com intervenção manual quando você precisar.</p></div><div className="v122Search"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar empresa, CNPJ ou e-mail..."/></div></div>
+     <div className="v122Filters">{[['all','Todas',s.companies_total],['active','Ativas',s.active],['trial','Teste',s.trial],['past_due','Atrasadas',s.past_due],['blocked','Bloqueadas',s.blocked],['canceled','Canceladas',s.canceled]].map(([k,l,n])=><button key={k} className={filter===k?'active':''} onClick={()=>setFilter(k)}>{l}<b>{n||0}</b></button>)}</div>
+     <div className="v122CompanyTable">
+       <div className="v122CompanyRow head"><span>Empresa</span><span>Status</span><span>Vencimento</span><span>Uso</span><span>Ações</span></div>
+       {shown.map(c=><div className="v122CompanyRow" key={c.id}>
+         <div className="v122CompanyIdentity"><b>{c.trade_name}</b><span>{c.email||c.cnpj||'Sem contato cadastrado'}</span><small>Empresa #{c.id}</small></div>
+         <div>{statusBadge(c)}</div>
+         <div className="v122Expiry"><b>{expiry(c)}</b><small>{c.subscription_status||'inactive'}</small></div>
+         <div className="v122Usage"><span><b>{c.users}</b> usuários</span><span><b>{c.products}</b> peças</span><span><b>{c.sales}</b> vendas</span></div>
+         <div className="v122Actions"><select defaultValue="" onChange={e=>{const v=e.target.value;e.target.value='';if(v)act(c,v)}}><option value="">Alterar situação...</option><option value="trial">Dar teste · 7 dias</option><option value="active">Ativar · 31 dias</option><option value="past_due">Marcar como atrasada</option><option value="cancel">Cancelar assinatura</option>{c.active?<option value="block">Bloquear acesso</option>:<option value="unblock">Liberar acesso</option>}</select><button className="v122Delete" onClick={()=>removeCompany(c)} title="Só exclui empresa sem dados operacionais">Excluir</button></div>
+       </div>)}
+       {!shown.length&&<div className="v122Empty">Nenhuma empresa encontrada com esse filtro.</div>}
+     </div>
+   </section>
+
+   <div className="v122BottomGrid">
+     <section className="panel"><div className="v122PanelHead"><div><span>MONITORAMENTO</span><h3>Atividades recentes</h3><p>Últimas ações registradas na plataforma.</p></div></div><div className="v122Logs">{logs.slice(0,30).map(x=><div key={x.id}><i/><div><b>{x.action}</b><span>{x.entity||'sistema'} {x.entity_id||''}</span></div><small>{x.created_at?new Date(x.created_at).toLocaleString('pt-BR'):'—'}</small></div>)}{!logs.length&&<div className="v122Empty">Nenhum log recente.</div>}</div></section>
+     <section className="panel"><div className="v122PanelHead"><div><span>RESUMO OPERACIONAL</span><h3>Uso da plataforma</h3><p>Visão rápida da base inteira.</p></div></div><div className="v122Ops"><div><span>Usuários</span><b>{s.users_total||0}</b></div><div><span>Peças cadastradas</span><b>{s.products_total||0}</b></div><div><span>Vendas registradas</span><b>{s.sales_total||0}</b></div><div><span>Sincronizados agora</span><b>{s.synced_now||0}</b></div></div></section>
+   </div>
+ </div>
+}
 
 function CatalogModule({tab,data,refresh,notice}){if(tab==='tax')return <TaxConfig data={data.tax} refresh={refresh} notice={notice}/>;if(tab==='suppliers')return <SuppliersModule rows={data.suppliers||[]} refresh={refresh} notice={notice}/>;if(tab==='customers')return <CustomersModule rows={data.customers||[]} refresh={refresh} notice={notice}/>;if(tab==='carriers')return <CarriersModule rows={data.carriers||[]} refresh={refresh} notice={notice}/>;if(tab==='sellers')return <SellersModule rows={data.sellers||[]} refresh={refresh} notice={notice}/>;if(tab==='part-groups')return <PartGroupsModule rows={data.partGroups||[]} refresh={refresh} notice={notice}/>;if(tab==='locations')return <LocationsModule rows={data.locations||[]} refresh={refresh} notice={notice}/>;const cfg={customers:{title:'Clientes',endpoint:'customers',fields:['name','cpf_cnpj','phone','email','address']},carriers:{title:'Transportadoras',endpoint:'carriers',fields:['name','cnpj','phone','email']},sellers:{title:'Vendedores',endpoint:'sellers',fields:['name','email','phone','commission_rate']},'part-groups':{title:'Grupo de peças',endpoint:'part-groups',fields:['name','description']}}[tab],arr=tab==='part-groups'?data.partGroups:data[tab]||[];return <GenericCrud cfg={cfg} rows={arr} refresh={refresh} notice={notice}/>}
 
