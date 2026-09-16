@@ -131,7 +131,7 @@ function App(){
      <Topbar tab={tab} setTab={setTab} session={session} theme={theme} setTheme={setTheme} onMenu={()=>setMobileNav(true)}/>
      <div className="content">
        {accessBlocked?<BillingPage billing={billing} session={session} refresh={load} notice={notice}/>:<>
-       {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session}/>} 
+       {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session} setTab={setTab}/>} 
        {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>} 
        {tab==='qrcode'&&<QRCodeModule products={products} locations={catalog.locations}/>} 
        {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
@@ -273,7 +273,43 @@ function Login({onLogin}){
 }
 
 const Card=({icon,title,value,sub})=><div className="metric"><div className="metricIcon">{icon}</div><div><small>{title}</small><strong>{value}</strong><em>{sub}</em></div></div>
-function Dashboard({v,p,s,f,marketplaces,session}){let receita=s.reduce((a,x)=>a+x.total,0),entr=f.filter(x=>x.kind==='income').reduce((a,x)=>a+x.amount,0),sai=f.filter(x=>x.kind==='expense').reduce((a,x)=>a+x.amount,0),stock=p.reduce((a,x)=>a+x.stock,0);return <><div className="pageTitle"><div><span>PAINEL OPERACIONAL</span><h2>{session?.company?.trade_name||'CDM Desmontes'}</h2><p>Acompanhe sua operação em tempo real.</p></div><div className="statusBadge">● Assinatura {statusPt(session?.subscription?.status)}</div></div><div className="grid metrics"><Card icon="🚗" title="Sucatas cadastradas" value={v.length} sub="Base de desmontagem"/><Card icon="⚙" title="Peças em estoque" value={stock} sub={`${p.length} SKUs cadastrados`}/><Card icon="↗" title="Faturamento" value={money(receita)} sub={`${s.length} vendas registradas`}/><Card icon="▣" title="Saldo financeiro" value={money(entr-sai)} sub="Entradas menos saídas"/></div><div className="twoCols"><section className="panel"><PanelHead eyebrow="OPERAÇÃO" title="Estoque recente" text="Últimos itens cadastrados"/><Table rows={p.slice(0,6)} cols={['sku','name','price','stock']} format={{price:money}}/></section><section className="panel"><PanelHead eyebrow="CANAIS" title="Canais de venda" text="Conexões da sua empresa"/><div className="channelList">{marketplaces.map(m=><div className="channel" key={m.id}><MarketLogo id={m.id}/><div><b>{marketName(m.id)}</b><small>{m.connected?(m.account_name||'Conta conectada'):'Aguardando autorização'}</small></div><span className={m.connected?'pill success':'pill warn'}>{m.connected?'Conectado':'Conectar'}</span></div>)}</div></section></div></>}
+
+// CDM ONBOARDING V11
+function OnboardingChecklist({v=[],p=[],s=[],marketplaces=[],session,setTab}){
+ const [hidden,setHidden]=useState(false)
+ const company=session?.company||{}
+ const connected=marketplaces.some(m=>m?.connected===true||String(m?.status||'').toLowerCase()==='connected')
+ const steps=[
+   {key:'empresa',label:'Complete os dados da empresa',done:!!(company.trade_name&&(company.cnpj||company.legal_name)),tab:'company'},
+   {key:'sucata',label:'Cadastre a primeira sucata',done:v.length>0,tab:'vehicle-create'},
+   {key:'peca',label:'Cadastre a primeira peça',done:p.length>0,tab:'product-create'},
+   {key:'canal',label:'Configure um canal de venda',done:connected,tab:'marketplaces'},
+   {key:'venda',label:'Registre a primeira venda',done:s.length>0,tab:'sales'}
+ ]
+ const done=steps.filter(x=>x.done).length
+ const pct=Math.round((done/steps.length)*100)
+ if(hidden)return null
+ return <section className={'cdmOnboarding '+(done===steps.length?'complete':'')}>
+   <div className="cdmOnboardingHead">
+     <div>
+       <span>PRIMEIROS PASSOS</span>
+       <h3>{done===steps.length?'Configuração inicial concluída 🎉':'Deixe sua operação pronta para vender'}</h3>
+       <p>{done} de {steps.length} etapas concluídas.</p>
+     </div>
+     <button type="button" className="ghost cdmOnboardingHide" onClick={()=>{localStorage.setItem('cdm_onboarding_hidden','1');setHidden(true)}}>Ocultar</button>
+   </div>
+   <div className="cdmOnboardingProgress"><i style={{width:`${pct}%`}}/></div>
+   <div className="cdmOnboardingSteps">
+     {steps.map((step,i)=><button type="button" key={step.key} className={step.done?'done':''} onClick={()=>setTab?.(step.tab)}>
+       <b>{step.done?'✓':i+1}</b>
+       <span>{step.label}</span>
+       <em>{step.done?'Concluído':'Abrir'}</em>
+     </button>)}
+   </div>
+ </section>
+}
+
+function Dashboard({v,p,s,f,marketplaces,session,setTab}){let receita=s.reduce((a,x)=>a+x.total,0),entr=f.filter(x=>x.kind==='income').reduce((a,x)=>a+x.amount,0),sai=f.filter(x=>x.kind==='expense').reduce((a,x)=>a+x.amount,0),stock=p.reduce((a,x)=>a+x.stock,0);return <><div className="pageTitle"><div><span>PAINEL OPERACIONAL</span><h2>{session?.company?.trade_name||'CDM Desmontes'}</h2><p>Acompanhe sua operação em tempo real.</p></div><div className="statusBadge">● Assinatura {statusPt(session?.subscription?.status)}</div></div><OnboardingChecklist v={v} p={p} s={s} marketplaces={marketplaces} session={session} setTab={setTab}/><div className="grid metrics"><Card icon="🚗" title="Sucatas cadastradas" value={v.length} sub="Base de desmontagem"/><Card icon="⚙" title="Peças em estoque" value={stock} sub={`${p.length} SKUs cadastrados`}/><Card icon="↗" title="Faturamento" value={money(receita)} sub={`${s.length} vendas registradas`}/><Card icon="▣" title="Saldo financeiro" value={money(entr-sai)} sub="Entradas menos saídas"/></div><div className="twoCols"><section className="panel"><PanelHead eyebrow="OPERAÇÃO" title="Estoque recente" text="Últimos itens cadastrados"/><Table rows={p.slice(0,6)} cols={['sku','name','price','stock']} format={{price:money}}/></section><section className="panel"><PanelHead eyebrow="CANAIS" title="Canais de venda" text="Conexões da sua empresa"/><div className="channelList">{marketplaces.map(m=><div className="channel" key={m.id}><MarketLogo id={m.id}/><div><b>{marketName(m.id)}</b><small>{m.connected?(m.account_name||'Conta conectada'):'Aguardando autorização'}</small></div><span className={m.connected?'pill success':'pill warn'}>{m.connected?'Conectado':'Conectar'}</span></div>)}</div></section></div></>}
 
 function CompanyInfo({session,reload,notice}){const empty={trade_name:'',legal_name:'',cnpj:'',state_registration:'',tax_regime:'Simples Nacional',email:'',phone:'',responsible_name:'',rg:'',cpf:'',issuing_agency:'',cep:'',state:'RJ',city:'',address:'',number:'',complement:'',logo_url:''};const [form,setForm]=useState({...empty,...(session?.company||{})});useEffect(()=>setForm({...empty,...(session?.company||{})}),[session]);async function save(){try{await api.put('/company/me',form);await reload();notice('Informações da empresa atualizadas')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar')}}return <section className="panel companyPanel"><PanelHead eyebrow="EMPRESA" title="Informações da empresa" text="Esses dados pertencem somente a esta assinatura e também ajudam no envio para os canais de venda."/><div className="companyGrid">{[['Nome Fantasia','trade_name'],['Razão Social','legal_name'],['CNPJ','cnpj'],['Inscrição Estadual','state_registration'],['Regime de Tributação','tax_regime'],['E-mail','email'],['Telefone','phone'],['Nome do Responsável','responsible_name'],['RG','rg'],['CPF','cpf'],['Órgão Expedidor','issuing_agency'],['CEP','cep'],['UF','state'],['Cidade','city'],['Endereço','address'],['Número','number'],['Complemento','complement']].map(([label,key])=><Field key={key} label={label}><input value={form[key]||''} onChange={e=>setForm({...form,[key]:e.target.value})}/></Field>)}</div><div className="subscriptionBox"><div><small>ASSINATURA</small><b>Plano {session?.subscription?.plan||'mensal'}</b><span>Situação: {statusPt(session?.subscription?.status)} · vencimento {fmtDate(session?.subscription?.expires_at)}</span></div><span className={['active','trial'].includes(session?.subscription?.status)?'pill success':'pill warn'}>{statusPt(session?.subscription?.status)}</span></div><button className="primary" onClick={save}>Salvar informações</button></section>}
 
@@ -621,11 +657,54 @@ function MarketplaceConfigModal({market,form,setForm,onClose}){
     <div className="modalFoot"><button className="ghost" onClick={onClose}>Fechar</button><button className="primary" onClick={onClose}>Salvar configuração</button></div></div></div>
 }
 
+
+// CDM RACE PHOTO LOADER V11
+function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
+ const pct=Math.max(3,Math.min(100,Number(progress)||0))
+ return <div className={'cdmRaceLoader '+(pct>=100?'finished':'')} role="status" aria-live="polite">
+   <div className="cdmRaceLoaderHead">
+     <div>
+       <span>TRATAMENTO DE IMAGEM</span>
+       <b>{pct>=100?'Foto pronta!':text}</b>
+     </div>
+     <strong>{pct>=100?'🏁':`${elapsed}s`}</strong>
+   </div>
+   <div className="cdmRaceStage">
+     <div className="cdmRaceRoad">
+       <div className="cdmRaceFill" style={{width:`${pct}%`}}/>
+       <div className="cdmRaceCar" style={{left:`calc(${Math.min(pct,94)}% - 23px)`}}>
+         <svg viewBox="0 0 90 48" aria-hidden="true">
+           <path className="carBody" d="M12 29l8-13c2-4 6-6 11-6h24c5 0 9 2 12 6l7 8 8 3c3 1 5 4 5 7v4H6v-4c0-3 2-5 6-5z"/>
+           <path className="carWindow" d="M29 15h25c4 0 6 1 9 5l3 4H22l5-7c1-1 1-2 2-2z"/>
+           <circle cx="24" cy="38" r="7" className="carWheel"/><circle cx="69" cy="38" r="7" className="carWheel"/>
+           <circle cx="24" cy="38" r="3" className="carHub"/><circle cx="69" cy="38" r="3" className="carHub"/>
+           <path d="M76 28h8" className="carLight"/>
+         </svg>
+       </div>
+       <div className="cdmRaceFlag" aria-hidden="true"><i/><span>🏁</span></div>
+     </div>
+   </div>
+   <div className="cdmRaceMeta">
+     <span>{pct<30?'Preparando sua foto…':pct<75?'Separando a peça do fundo…':pct<100?'Quase lá, finalizando…':'Concluído!'}</span>
+     <b>{Math.round(pct)}%</b>
+   </div>
+ </div>
+}
+
 // CDM PRODUCT IMAGES V2
 function ProductImages({form,setForm,notice}){
- const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null)
+ const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
+ const progress=raceDone?100:Math.min(92,12+(elapsed*13))
+ const progressText=raceDone?'Foto pronta!':elapsed<2?'Enviando a foto...':elapsed<5?'Removendo o fundo...':'Finalizando a imagem...'
+
+ useEffect(()=>{
+   if(!busy){setElapsed(0);return}
+   setElapsed(0)
+   const timer=setInterval(()=>setElapsed(v=>v+1),1000)
+   return()=>clearInterval(timer)
+ },[busy])
 
  function stepZoom(dir){
    if(!images.length)return
@@ -652,6 +731,7 @@ function ProductImages({form,setForm,notice}){
    const remaining=Math.max(0,8-images.length)
    if(!remaining)return notice('Limite de 8 fotos atingido')
    setBusy(true)
+   setRaceDone(false)
    try{
      const arr=[]
      for(const f of Array.from(files).slice(0,remaining)){
@@ -659,13 +739,18 @@ function ProductImages({form,setForm,notice}){
        arr.push(await prepareProductImage(f,removeBg))
      }
      save([...images,...arr])
+     setRaceDone(true)
+     await new Promise(r=>setTimeout(r,650))
      notice(`${arr.length} foto(s) adicionada(s)`)
    }catch(e){
      notice('Não foi possível processar a foto')
-   }finally{setBusy(false)}
+   }finally{setBusy(false);setRaceDone(false)}
  }
 
  async function whiten(i){
+   if(busy)return
+   setBusy(true)
+   setRaceDone(false)
    try{
      const value=images[i]
      const blob=await fetch(value).then(r=>r.blob())
@@ -675,8 +760,11 @@ function ProductImages({form,setForm,notice}){
      next[i]=out
      save(next)
      if(zoom===value)setZoom(out)
+     setRaceDone(true)
+     await new Promise(r=>setTimeout(r,650))
      notice('Fundo tratado e deixado branco')
    }catch(e){notice('Não foi possível tratar esta imagem')}
+   finally{setBusy(false);setRaceDone(false)}
  }
 
  function remove(i){
@@ -718,6 +806,8 @@ function ProductImages({form,setForm,notice}){
      </label>
    </div>
 
+   {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
+
    <div className="mediaStudioGrid">
      <section className="mediaPhotoBox">
        <div className="mediaThumbRail">
@@ -732,7 +822,7 @@ function ProductImages({form,setForm,notice}){
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
-             <button type="button" onClick={()=>whiten(i)} title="Deixar fundo branco">✎</button>
+             <button type="button" disabled={busy} onClick={()=>whiten(i)} title="Deixar fundo branco">✎</button>
              {i!==0&&<button type="button" onClick={()=>principal(i)} title="Usar como principal">★</button>}
            </div>
 
