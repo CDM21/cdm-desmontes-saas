@@ -115,7 +115,7 @@ def status(db: Session = Depends(get_db), user = Depends(active_user)):
         "mode": "ia" if (os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_MODEL")) else "inteligencia_local",
         "messages_used_month": used,
         "messages_limit_month": limit,
-        "message": "O Assistente CDM Ã© liberado automaticamente para esta empresa enquanto a assinatura estiver ativa ou em perÃ­odo de teste."
+        "message": "O Assistente CDM é liberado automaticamente para esta empresa enquanto a assinatura estiver ativa ou em período de teste."
     }
 
 
@@ -200,7 +200,7 @@ def search_event(payload: dict, db: Session = Depends(get_db), user = Depends(ac
 def pricing(product_id: int, db: Session = Depends(get_db), user = Depends(active_user)):
     p = db.query(Product).filter(Product.id == product_id, Product.company_id == user.company_id, Product.active == True).first()
     if not p:
-        raise HTTPException(404, "PeÃ§a nÃ£o encontrada")
+        raise HTTPException(404, "Peça não encontrada")
 
     history = (
         db.query(SaleItem)
@@ -221,10 +221,10 @@ def pricing(product_id: int, db: Session = Depends(get_db), user = Depends(activ
 
     if hist_avg > 0:
         base = hist_avg * .65 + current * .35 if current > 0 else hist_avg
-        reason = "histÃ³rico de vendas da prÃ³pria empresa"
+        reason = "histórico de vendas da própria empresa"
     else:
         base = current if current > 0 else max(cost * 1.6, 0)
-        reason = "preÃ§o atual e custo cadastrado"
+        reason = "preço atual e custo cadastrado"
 
     discount = .10 if age >= 180 else (.05 if age >= 120 else 0)
     suggested = max(floor, base * (1 - discount))
@@ -238,14 +238,14 @@ def pricing(product_id: int, db: Session = Depends(get_db), user = Depends(activ
         "historical_average": round(hist_avg, 2),
         "sales_sample": len(historical_prices),
         "days_in_stock": age,
-        "reason": f"SugestÃ£o baseada em {reason}" + (f" e ajuste por {age} dias em estoque." if discount else "."),
+        "reason": f"Sugestão baseada em {reason}" + (f" e ajuste por {age} dias em estoque." if discount else "."),
         "channel_note": "O valor por canal pode ser ajustado depois para considerar taxas e frete."
     }
 
 
 @router.post("/pricing/{product_id}/apply")
 def apply_pricing(product_id: int, db: Session = Depends(get_db), user = Depends(active_user)):
-    """Recalcula no servidor e aplica a sugestÃ£o ao preÃ§o local da peÃ§a."""
+    """Recalcula no servidor e aplica a sugestão ao preço local da peça."""
     result = pricing(product_id, db, user)
     p = db.query(Product).filter(
         Product.id == product_id,
@@ -253,11 +253,11 @@ def apply_pricing(product_id: int, db: Session = Depends(get_db), user = Depends
         Product.active == True
     ).first()
     if not p:
-        raise HTTPException(404, "PeÃ§a nÃ£o encontrada")
+        raise HTTPException(404, "Peça não encontrada")
     old_price = float(p.price or 0)
     new_price = float(result["suggested_price"] or 0)
     if new_price <= 0:
-        raise HTTPException(400, "NÃ£o foi possÃ­vel calcular um preÃ§o vÃ¡lido para aplicar")
+        raise HTTPException(400, "Não foi possível calcular um preço válido para aplicar")
     p.price = new_price
     db.commit()
     db.refresh(p)
@@ -266,7 +266,7 @@ def apply_pricing(product_id: int, db: Session = Depends(get_db), user = Depends
         "product_id": p.id,
         "old_price": old_price,
         "new_price": float(p.price or 0),
-        "message": "PreÃ§o inteligente aplicado Ã  peÃ§a. Use Sincronizar no estoque para enviar o novo valor aos canais conectados."
+        "message": "Preço inteligente aplicado à peça. Use Sincronizar no estoque para enviar o novo valor aos canais conectados."
     }
 
 
@@ -274,10 +274,10 @@ def apply_pricing(product_id: int, db: Session = Depends(get_db), user = Depends
 def dismantling(vehicle_id: int, db: Session = Depends(get_db), user = Depends(active_user)):
     v = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.company_id == user.company_id).first()
     if not v:
-        raise HTTPException(404, "Sucata nÃ£o encontrada")
+        raise HTTPException(404, "Sucata não encontrada")
 
     terms = [
-        ("Motor", 96), ("CÃ¢mbio", 94), ("MÃ³dulo", 90), ("Alternador", 86), ("Farol", 84),
+        ("Motor", 96), ("Câmbio", 94), ("Módulo", 90), ("Alternador", 86), ("Farol", 84),
         ("Compressor", 82), ("Lanterna", 80), ("Retrovisor", 76), ("Porta", 70), ("Banco", 62)
     ]
     all_items = (
@@ -301,7 +301,7 @@ def dismantling(vehicle_id: int, db: Session = Depends(get_db), user = Depends(a
                 qty += int(item.quantity or 0)
         avg_price = mean(matches) if matches else 0
         score = min(100, base_score + min(10, qty))
-        priority = "Alta" if score >= 85 else ("MÃ©dia" if score >= 70 else "Normal")
+        priority = "Alta" if score >= 85 else ("Média" if score >= 70 else "Normal")
         suggestions.append({
             "piece": label, "score": score, "priority": priority,
             "historical_sales": qty, "estimated_price": round(avg_price, 2),
@@ -326,7 +326,7 @@ def dismantling(vehicle_id: int, db: Session = Depends(get_db), user = Depends(a
         "estimated_total": estimated_total,
         "high_priority_count": high_priority_count,
         "generated_at": datetime.utcnow(),
-        "note": "A prioridade usa o histÃ³rico da prÃ³pria empresa e uma base operacional. Valores estimados sÃ³ aparecem quando existe histÃ³rico de venda compatÃ­vel."
+        "note": "A prioridade usa o histórico da própria empresa e uma base operacional. Valores estimados só aparecem quando existe histórico de venda compatível."
     }
 
 
@@ -334,7 +334,7 @@ def dismantling(vehicle_id: int, db: Session = Depends(get_db), user = Depends(a
 def public_catalog(company_id: int, q: str = "", db: Session = Depends(get_db)):
     company = db.query(Company).filter(Company.id == company_id, Company.active == True).first()
     if not company:
-        raise HTTPException(404, "Loja nÃ£o encontrada")
+        raise HTTPException(404, "Loja não encontrada")
     query = db.query(Product).filter(
         Product.company_id == company_id,
         Product.active == True,
@@ -355,7 +355,7 @@ def public_catalog(company_id: int, q: str = "", db: Session = Depends(get_db)):
         db.commit()
     return {
         "company": {
-            "id": company.id, "name": company.trade_name or company.legal_name or "AutopeÃ§as",
+            "id": company.id, "name": company.trade_name or company.legal_name or "Autopeças",
             "phone": company.phone or "", "city": company.city or "", "state": company.state or ""
         },
         "query": q,
@@ -388,7 +388,7 @@ def _warranty_decode(token: str):
             raise ValueError("assinatura")
         return company_id, sale_id, product_id
     except Exception:
-        raise HTTPException(400, "CÃ³digo de garantia invÃ¡lido")
+        raise HTTPException(400, "Código de garantia inválido")
 
 
 class WarrantyIn(BaseModel):
@@ -401,12 +401,12 @@ def warranty_token(data: WarrantyIn, db: Session = Depends(get_db), user = Depen
     sale = db.query(Sale).filter(Sale.id == data.sale_id, Sale.company_id == user.company_id).first()
     product = db.query(Product).filter(Product.id == data.product_id, Product.company_id == user.company_id).first()
     if not sale or not product:
-        raise HTTPException(404, "Venda ou peÃ§a nÃ£o encontrada")
+        raise HTTPException(404, "Venda ou peça não encontrada")
     item = db.query(SaleItem).filter(
         SaleItem.sale_id == sale.id, SaleItem.product_id == product.id, SaleItem.company_id == user.company_id
     ).first()
     if not item:
-        raise HTTPException(400, "Esta peÃ§a nÃ£o faz parte da venda informada")
+        raise HTTPException(400, "Esta peça não faz parte da venda informada")
     return {
         "token": _warranty_sign(user.company_id, sale.id, product.id),
         "warranty_days": int(getattr(product, "warranty_days", 90) or 0),
@@ -420,7 +420,7 @@ def public_warranty(token: str, db: Session = Depends(get_db)):
     sale = db.query(Sale).filter(Sale.id == sale_id, Sale.company_id == company_id).first()
     product = db.query(Product).filter(Product.id == product_id, Product.company_id == company_id).first()
     if not company or not sale or not product:
-        raise HTTPException(404, "Garantia nÃ£o encontrada")
+        raise HTTPException(404, "Garantia não encontrada")
     days = int(getattr(product, "warranty_days", 90) or 0)
     start = sale.created_at or datetime.utcnow()
     expires = start + timedelta(days=days)
@@ -479,7 +479,7 @@ def product_photo_analysis(data: ProductPhotoAnalysisIn, db: Session = Depends(g
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     model = (os.getenv("OPENAI_MODEL") or "").strip()
     if not key or not model:
-        raise HTTPException(503, "IA por foto ainda nÃ£o estÃ¡ configurada no servidor")
+        raise HTTPException(503, "IA por foto ainda não está configurada no servidor")
 
     images = []
     for value in (data.images or [])[:3]:
@@ -487,9 +487,9 @@ def product_photo_analysis(data: ProductPhotoAnalysisIn, db: Session = Depends(g
         if img.startswith("data:image/") or img.startswith("https://") or img.startswith("http://"):
             images.append(img)
     if not images:
-        raise HTTPException(400, "Envie pelo menos uma foto da peÃ§a")
+        raise HTTPException(400, "Envie pelo menos uma foto da peça")
     if sum(len(x) for x in images) > 8_000_000:
-        raise HTTPException(413, "As fotos ficaram muito grandes. Envie atÃ© 3 fotos menores")
+        raise HTTPException(413, "As fotos ficaram muito grandes. Envie até 3 fotos menores")
 
     vehicle_context = None
     if data.vehicle_id:
@@ -517,27 +517,27 @@ def product_photo_analysis(data: ProductPhotoAnalysisIn, db: Session = Depends(g
         "grupos_existentes": [str(x)[:120] for x in (data.context.get("groups") or [])[:80]],
     }
 
-    prompt = f'''\nVocÃª Ã© o mÃ³dulo Cadastro de PeÃ§as com IA do CDM Desmontes, um ERP brasileiro de desmontes e autopeÃ§as.
-Analise as fotos de UMA peÃ§a automotiva e devolva SOMENTE um objeto JSON vÃ¡lido, sem markdown e sem texto antes/depois.
+    prompt = f'''\nVocê é o módulo Cadastro de Peças com IA do CDM Desmontes, um ERP brasileiro de desmontes e autopeças.
+Analise as fotos de UMA peça automotiva e devolva SOMENTE um objeto JSON válido, sem markdown e sem texto antes/depois.
 
 CONTEXTO DO CADASTRO:
 {json.dumps(safe_context, ensure_ascii=False, default=str)}
 
 REGRAS IMPORTANTES:
-- Seja conservador. Foto sozinha pode nÃ£o provar aplicaÃ§Ã£o exata.
-- NÃ£o invente cÃ³digo OEM, marca, modelo, ano ou aplicaÃ§Ã£o. Se nÃ£o estiver visÃ­vel/confiÃ¡vel, use string vazia ou null.
-- Se houver etiqueta, gravaÃ§Ã£o ou cÃ³digo legÃ­vel na peÃ§a, transcreva em "oem". Se nÃ£o estiver legÃ­vel, deixe vazio.
+- Seja conservador. Foto sozinha pode não provar aplicação exata.
+- Não invente código OEM, marca, modelo, ano ou aplicação. Se não estiver visível/confiável, use string vazia ou null.
+- Se houver etiqueta, gravação ou código legível na peça, transcreva em "oem". Se não estiver legível, deixe vazio.
 - "condition" deve ser exatamente: "used", "new" ou "reconditioned".
 - "side" use "Esquerdo", "Direito", "Ambos" ou "".
 - "position" use algo curto como "Dianteiro", "Traseiro", "Superior", "Inferior" ou "".
-- Em "part_group", prefira um dos grupos existentes enviados no contexto quando houver correspondÃªncia clara.
-- "compatibility" deve trazer apenas aplicaÃ§Ãµes possÃ­veis com cautela. Nunca prometa compatibilidade.
-- "description" deve ser uma descriÃ§Ã£o profissional para anÃºncio em portuguÃªs do Brasil, sem afirmar funcionamento que a foto nÃ£o comprova.
-- "marketplace_title" deve ser um tÃ­tulo curto e Ãºtil para anÃºncio.
-- "keywords" deve ter no mÃ¡ximo 10 itens.
-- "warnings" deve listar o que o usuÃ¡rio precisa conferir manualmente.
+- Em "part_group", prefira um dos grupos existentes enviados no contexto quando houver correspondência clara.
+- "compatibility" deve trazer apenas aplicações possíveis com cautela. Nunca prometa compatibilidade.
+- "description" deve ser uma descrição profissional para anúncio em português do Brasil, sem afirmar funcionamento que a foto não comprova.
+- "marketplace_title" deve ser um título curto e útil para anúncio.
+- "keywords" deve ter no máximo 10 itens.
+- "warnings" deve listar o que o usuário precisa conferir manualmente.
 - "confidence" deve ser "alta", "media" ou "baixa".
-- Se a imagem nÃ£o parecer uma peÃ§a automotiva, deixe os campos tÃ©cnicos vazios e explique em warnings.
+- Se a imagem não parecer uma peça automotiva, deixe os campos técnicos vazios e explique em warnings.
 
 FORMATO EXATO:
 {{
@@ -579,14 +579,14 @@ FORMATO EXATO:
                 json=payload,
             )
         if r.status_code >= 400:
-            raise HTTPException(502, f"A IA nÃ£o conseguiu analisar a foto agora (status {r.status_code})")
+            raise HTTPException(502, f"A IA não conseguiu analisar a foto agora (status {r.status_code})")
         parsed = _json_from_ai_text(_response_output_text(r.json()))
         if not isinstance(parsed, dict):
             raise HTTPException(502, "A IA respondeu em um formato inesperado. Tente novamente")
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(502, "NÃ£o foi possÃ­vel conectar ao serviÃ§o de IA agora")
+        raise HTTPException(502, "Não foi possível conectar ao serviço de IA agora")
 
     allowed_condition = {"used", "new", "reconditioned"}
     condition = str(parsed.get("condition") or "used").strip().lower()
@@ -637,24 +637,24 @@ def _local_answer(db: Session, company_id: int, message: str):
 
     if any(x in q for x in ["hoje", "vendi hoje", "faturamento hoje"]):
         return f"Hoje foram {snap['sales_today']} venda(s), totalizando {_money(snap['revenue_today'])}."
-    if any(x in q for x in ["30 dias", "mÃªs", "mes", "mensal"]):
-        return f"Nos Ãºltimos 30 dias a empresa registrou {snap['sales_30d']} venda(s) e {_money(snap['revenue_30d'])} em faturamento."
+    if any(x in q for x in ["30 dias", "mês", "mes", "mensal"]):
+        return f"Nos últimos 30 dias a empresa registrou {snap['sales_30d']} venda(s) e {_money(snap['revenue_30d'])} em faturamento."
     if "estoque" in q and any(x in q for x in ["baixo", "acabando", "zerado"]):
-        return f"HÃ¡ {snap['low_stock']} peÃ§a(s) com estoque de 1 unidade ou menos. O estoque total soma {snap['stock_qty']} unidade(s)."
+        return f"Há {snap['low_stock']} peça(s) com estoque de 1 unidade ou menos. O estoque total soma {snap['stock_qty']} unidade(s)."
     if any(x in q for x in ["parada", "encalhada", "120 dias"]):
-        return f"Encontrei {snap['stale_count']} peÃ§a(s) com estoque e cadastro hÃ¡ pelo menos 120 dias. Abra o Radar de Oportunidades para ver a lista."
-    if any(x in q for x in ["mais vende", "campeÃ£", "campea", "top"]):
+        return f"Encontrei {snap['stale_count']} peça(s) com estoque e cadastro há pelo menos 120 dias. Abra o Radar de Oportunidades para ver a lista."
+    if any(x in q for x in ["mais vende", "campeã", "campea", "top"]):
         if not tops:
-            return "Ainda nÃ£o hÃ¡ histÃ³rico suficiente de vendas para montar o ranking das peÃ§as."
-        return "PeÃ§as com maior saÃ­da nos Ãºltimos 90 dias: " + "; ".join(
+            return "Ainda não há histórico suficiente de vendas para montar o ranking das peças."
+        return "Peças com maior saída nos últimos 90 dias: " + "; ".join(
             f"{x['name']} ({x['quantity']} un.)" for x in tops
         ) + "."
     if "saldo" in q or "financeiro" in q:
-        return f"O saldo financeiro acumulado registrado no CDM Ã© {_money(snap['balance'])}."
+        return f"O saldo financeiro acumulado registrado no CDM é {_money(snap['balance'])}."
     return (
-        f"Resumo da empresa: {snap['products']} peÃ§a(s) cadastrada(s), {snap['stock_qty']} unidade(s) em estoque, "
-        f"{snap['sales_30d']} venda(s) nos Ãºltimos 30 dias e faturamento de {_money(snap['revenue_30d'])}. "
-        "VocÃª pode perguntar sobre vendas de hoje, estoque baixo, peÃ§as paradas, saldo financeiro ou peÃ§as que mais vendem."
+        f"Resumo da empresa: {snap['products']} peça(s) cadastrada(s), {snap['stock_qty']} unidade(s) em estoque, "
+        f"{snap['sales_30d']} venda(s) nos últimos 30 dias e faturamento de {_money(snap['revenue_30d'])}. "
+        "Você pode perguntar sobre vendas de hoje, estoque baixo, peças paradas, saldo financeiro ou peças que mais vendem."
     )
 
 
@@ -678,11 +678,11 @@ def _ai_answer(db: Session, user: User, message: str):
         ]
     }
     instructions = (
-        "VocÃª Ã© o Assistente CDM de um ERP brasileiro de desmontes e autopeÃ§as. "
-        "Responda sempre em portuguÃªs do Brasil, de forma curta, prÃ¡tica e profissional. "
-        "Use somente os dados da empresa enviados no contexto. Nunca invente vendas, preÃ§os, estoque ou documentos. "
-        "Quando a informaÃ§Ã£o nÃ£o estiver no contexto, diga claramente que nÃ£o hÃ¡ dados suficientes. "
-        "NÃ£o execute exclusÃµes, alteraÃ§Ãµes financeiras, fiscais ou publicaÃ§Ãµes; apenas oriente."
+        "Você é o Assistente CDM de um ERP brasileiro de desmontes e autopeças. "
+        "Responda sempre em português do Brasil, de forma curta, prática e profissional. "
+        "Use somente os dados da empresa enviados no contexto. Nunca invente vendas, preços, estoque ou documentos. "
+        "Quando a informação não estiver no contexto, diga claramente que não há dados suficientes. "
+        "Não execute exclusões, alterações financeiras, fiscais ou publicações; apenas oriente."
     )
     payload = {
         "model": model,
@@ -774,21 +774,21 @@ def list_evidence(db: Session = Depends(get_db), user = Depends(active_user)):
 def create_evidence(data: EvidenceIn, db: Session = Depends(get_db), user = Depends(active_user)):
     sale = db.query(Sale).filter(Sale.id == data.sale_id, Sale.company_id == user.company_id).first()
     if not sale:
-        raise HTTPException(404, "Venda nÃ£o encontrada")
+        raise HTTPException(404, "Venda não encontrada")
     if data.product_id:
         product = db.query(Product).filter(Product.id == data.product_id, Product.company_id == user.company_id).first()
         if not product:
-            raise HTTPException(404, "PeÃ§a nÃ£o encontrada")
+            raise HTTPException(404, "Peça não encontrada")
         sold_item = db.query(SaleItem).filter(
             SaleItem.sale_id == sale.id,
             SaleItem.product_id == product.id,
             SaleItem.company_id == user.company_id
         ).first()
         if not sold_item:
-            raise HTTPException(400, "A peÃ§a selecionada nÃ£o pertence Ã  venda informada")
+            raise HTTPException(400, "A peça selecionada não pertence à venda informada")
     photos = data.photos[:4]
     if sum(len(x) for x in photos) > 6_000_000:
-        raise HTTPException(413, "As fotos estÃ£o muito grandes. Use atÃ© 4 fotos menores.")
+        raise HTTPException(413, "As fotos estão muito grandes. Use até 4 fotos menores.")
     row = SaleEvidence(
         company_id=user.company_id, sale_id=data.sale_id, product_id=data.product_id,
         serial_number=data.serial_number[:120], condition_notes=data.condition_notes[:3000],
@@ -826,7 +826,7 @@ def shipping_checks(db: Session = Depends(get_db), user = Depends(active_user)):
 def shipping_check(data: ShippingCheckIn, db: Session = Depends(get_db), user = Depends(active_user)):
     sale = db.query(Sale).filter(Sale.id == data.sale_id, Sale.company_id == user.company_id).first()
     if not sale:
-        raise HTTPException(404, "Venda nÃ£o encontrada")
+        raise HTTPException(404, "Venda não encontrada")
     sku = data.sku.strip().upper()
     items = db.query(SaleItem).filter(
         SaleItem.sale_id == sale.id, SaleItem.company_id == user.company_id
@@ -846,7 +846,7 @@ def shipping_check(data: ShippingCheckIn, db: Session = Depends(get_db), user = 
     db.commit()
     return {
         "ok": bool(matched),
-        "result": "PeÃ§a correta para este pedido." if matched else "AtenÃ§Ã£o: este SKU nÃ£o pertence Ã  venda informada.",
+        "result": "Peça correta para este pedido." if matched else "Atenção: este SKU não pertence à venda informada.",
         "product": {"id": matched.id, "sku": matched.sku, "name": matched.name} if matched else None,
     }
 
