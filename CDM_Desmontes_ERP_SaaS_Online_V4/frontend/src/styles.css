@@ -745,3 +745,37 @@ table{font-size:12px}
 .duplicateScore em{font-size:11px;font-style:normal;opacity:.7}
 .duplicateClear{margin-top:10px;font-size:12px;font-weight:700;opacity:.75}
 @media(max-width:720px){.duplicateDetectorHead,.duplicateMatch{align-items:stretch;flex-direction:column}.duplicateScore{text-align:left;display:flex;align-items:center;gap:8px}}
+
+
+/* CDM SMART STOCK V1 */
+.smartStockPanel{margin-bottom:16px;border:1px solid var(--border,#e3e7ec);border-radius:16px;background:var(--panel,#fff);overflow:hidden}
+.smartStockHeader{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-bottom:1px solid var(--border,#e3e7ec)}
+.smartStockHeader span{font-size:11px;font-weight:800;letter-spacing:.12em;opacity:.62}
+.smartStockHeader h3{margin:4px 0 3px;font-size:20px}
+.smartStockHeader p{margin:0;font-size:13px;opacity:.72}
+.smartStockHeaderActions{display:flex;gap:8px;flex-shrink:0}
+.smartStockBody{padding:16px 20px 20px}
+.smartStockSummary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.smartStockSummary>div{padding:13px;border:1px solid var(--border,#e3e7ec);border-radius:12px;background:rgba(127,127,127,.04)}
+.smartStockSummary>div.warn{border-color:#d99b27}
+.smartStockSummary small{display:block;font-size:11px;opacity:.65;margin-bottom:5px}
+.smartStockSummary strong{font-size:18px}
+.smartStockList{display:grid;gap:8px}
+.smartStockItem{display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(420px,2fr) auto;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--border,#e3e7ec);border-radius:12px}
+.smartStockItem.parada{border-left:4px solid #c74b4b}
+.smartStockItem.atencao{border-left:4px solid #d99b27}
+.smartStockItem.estoque_baixo,.smartStockItem.sem_estoque{border-left:4px solid #b35c39}
+.smartStockItem.margem_baixa{border-left:4px solid #9875b9}
+.smartStockItemMain{display:grid;gap:3px}
+.smartStockItemMain b{font-size:13px}
+.smartStockItemMain small{font-size:11px;opacity:.68}
+.smartStockItemMain span{font-size:12px;font-weight:700}
+.smartStockMetrics{display:grid;grid-template-columns:repeat(5,minmax(66px,1fr));gap:7px}
+.smartStockMetrics>span{padding:8px;border-radius:9px;background:rgba(127,127,127,.06)}
+.smartStockMetrics small{display:block;font-size:10px;opacity:.62}
+.smartStockMetrics b{display:block;font-size:12px;margin-top:2px}
+.smartStockMetrics em{display:block;font-size:10px;font-style:normal;margin-top:2px}
+.smartStockMetrics .priceSuggestion{outline:1px solid #d99b27}
+.smartStockLoading,.smartStockClear{padding:14px;border-radius:10px;background:rgba(127,127,127,.05);font-size:13px}
+@media(max-width:1100px){.smartStockSummary{grid-template-columns:repeat(2,minmax(0,1fr))}.smartStockItem{grid-template-columns:1fr}.smartStockMetrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){.smartStockHeader{align-items:flex-start;flex-direction:column}.smartStockHeaderActions{width:100%}.smartStockHeaderActions button{flex:1}.smartStockBody{padding:12px}.smartStockSummary{grid-template-columns:1fr 1fr}.smartStockMetrics{grid-template-columns:1fr 1fr}}

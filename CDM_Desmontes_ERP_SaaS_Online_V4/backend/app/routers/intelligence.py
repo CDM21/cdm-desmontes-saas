@@ -150,6 +150,163 @@ def owner_dashboard(db: Session = Depends(get_db), user = Depends(active_user)):
     return snap
 
 
+
+# CDM SMART STOCK V1
+@router.get("/smart-stock")
+def smart_stock(db: Session = Depends(get_db), user = Depends(active_user)):
+    now = datetime.utcnow()
+    products = (
+        db.query(Product)
+        .filter(Product.company_id == user.company_id, Product.active == True)
+        .order_by(Product.created_at.asc())
+        .all()
+    )
+
+    sale_rows = (
+        db.query(SaleItem, Sale)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Sale.company_id == user.company_id)
+        .all()
+    )
+
+    sales_by_product = {}
+    for item, sale in sale_rows:
+        pid = int(item.product_id or 0)
+        if not pid:
+            continue
+        sales_by_product.setdefault(pid, []).append((item, sale))
+
+    items = []
+    low_stock_count = 0
+    stale_120_count = 0
+    stale_180_count = 0
+    stock_sale_value = 0.0
+    stock_cost_value = 0.0
+
+    for p in products:
+        stock = int(p.stock or 0)
+        price = float(p.price or 0)
+        cost = float(p.cost or 0)
+        age_days = max(0, (now - p.created_at).days) if p.created_at else 0
+
+        rows = sales_by_product.get(p.id, [])
+        sold_30 = 0
+        sold_90 = 0
+        revenue_90 = 0.0
+        last_sale_at = None
+
+        for item, sale in rows:
+            created = sale.created_at
+            qty = int(item.quantity or 0)
+            unit = float(item.unit_price or 0)
+            if created:
+                if last_sale_at is None or created > last_sale_at:
+                    last_sale_at = created
+                days_ago = (now - created).days
+                if days_ago <= 30:
+                    sold_30 += qty
+                if days_ago <= 90:
+                    sold_90 += qty
+                    revenue_90 += qty * unit
+
+        margin_value = price - cost
+        margin_percent = ((margin_value / price) * 100) if price > 0 else 0.0
+
+        low_stock = stock <= 1
+        stale_120 = stock > 0 and age_days >= 120 and sold_90 == 0
+        stale_180 = stock > 0 and age_days >= 180 and sold_90 == 0
+
+        if low_stock:
+            low_stock_count += 1
+        if stale_120:
+            stale_120_count += 1
+        if stale_180:
+            stale_180_count += 1
+
+        stock_sale_value += max(stock, 0) * price
+        stock_cost_value += max(stock, 0) * cost
+
+        discount = 0
+        if stock > 0 and sold_90 == 0:
+            if age_days >= 240:
+                discount = 15
+            elif age_days >= 180:
+                discount = 10
+            elif age_days >= 120:
+                discount = 5
+
+        suggested_price = price
+        if discount and price > 0:
+            floor = cost * 1.30 if cost > 0 else price * 0.70
+            suggested_price = max(floor, price * (1 - discount / 100))
+            suggested_price = round(suggested_price / 5) * 5 if suggested_price >= 50 else round(suggested_price, 2)
+
+        if stock <= 0:
+            status = "sem_estoque"
+            priority = 95
+            action = "Repor ou revisar cadastro"
+        elif stale_180:
+            status = "parada"
+            priority = min(94, 70 + min(24, age_days // 30))
+            action = "Revisar preço e anúncio"
+        elif stale_120:
+            status = "atencao"
+            priority = 68
+            action = "Acompanhar e considerar ajuste"
+        elif low_stock:
+            status = "estoque_baixo"
+            priority = 62
+            action = "Avaliar reposição"
+        elif margin_percent < 20 and cost > 0:
+            status = "margem_baixa"
+            priority = 55
+            action = "Revisar margem"
+        else:
+            status = "saudavel"
+            priority = 20
+            action = "Sem ação urgente"
+
+        items.append({
+            "id": p.id,
+            "sku": p.sku,
+            "name": p.name,
+            "brand": p.brand,
+            "model": p.model,
+            "year": p.year,
+            "stock": stock,
+            "price": round(price, 2),
+            "cost": round(cost, 2),
+            "margin_value": round(margin_value, 2),
+            "margin_percent": round(margin_percent, 1),
+            "age_days": age_days,
+            "sold_30": sold_30,
+            "sold_90": sold_90,
+            "revenue_90": round(revenue_90, 2),
+            "last_sale_at": last_sale_at,
+            "status": status,
+            "priority": priority,
+            "action": action,
+            "suggested_discount_percent": discount,
+            "suggested_price": round(suggested_price, 2),
+        })
+
+    items.sort(key=lambda x: (x["priority"], x["age_days"]), reverse=True)
+
+    return {
+        "generated_at": now,
+        "summary": {
+            "products_analyzed": len(products),
+            "low_stock": low_stock_count,
+            "stale_120": stale_120_count,
+            "stale_180": stale_180_count,
+            "stock_sale_value": round(stock_sale_value, 2),
+            "stock_cost_value": round(stock_cost_value, 2),
+            "estimated_stock_margin": round(stock_sale_value - stock_cost_value, 2),
+        },
+        "items": items,
+    }
+
+
 @router.get("/radar")
 def radar(db: Session = Depends(get_db), user = Depends(active_user)):
     now = datetime.utcnow()
