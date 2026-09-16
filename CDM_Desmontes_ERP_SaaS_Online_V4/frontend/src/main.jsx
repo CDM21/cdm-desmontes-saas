@@ -572,10 +572,12 @@ async function prepareProductImage(file,removeBg=true){
 
     try{
       const response=await api.post('/products/remove-background',formData,{
-        responseType:'blob',
+        responseType:'arraybuffer',
         timeout:45000
       })
-      const blob=response.data
+      const contentType=response.headers?.['content-type']||'image/jpeg'
+      const blob=new Blob([response.data],{type:contentType})
+      if(!blob.size)throw new Error('Imagem processada vazia')
       return await new Promise((resolve,reject)=>{
         const reader=new FileReader()
         reader.onload=()=>resolve(reader.result)
