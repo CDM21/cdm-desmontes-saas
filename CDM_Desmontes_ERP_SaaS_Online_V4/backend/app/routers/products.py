@@ -1,8 +1,13 @@
 import base64
+import io
 import re
 import unicodedata
+
+import cv2
+import numpy as np
+from PIL import Image, ImageEnhance
 from difflib import SequenceMatcher
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -186,6 +191,66 @@ def find_product_duplicates(
         },
     }
 
+
+
+
+# CDM SMART BACKGROUND V10
+@router.post("/remove-background")
+def remove_product_background(
+    file: UploadFile = File(...),
+    user = Depends(active_user),
+):
+    import subprocess
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    raw = file.file.read()
+    if not raw:
+        raise HTTPException(400, "Imagem vazia")
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(413, "A imagem deve ter no máximo 15 MB")
+
+    worker = Path(__file__).resolve().parents[1] / "image_bg_worker.py"
+    if not worker.exists():
+        raise HTTPException(500, "Processador de imagem não encontrado")
+
+    with tempfile.TemporaryDirectory(prefix="cdm_bg_") as tmp:
+        tmp_dir = Path(tmp)
+        src = tmp_dir / "entrada.img"
+        dst = tmp_dir / "saida.jpg"
+        src.write_bytes(raw)
+
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(worker), str(src), str(dst)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=35,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(
+                504,
+                "O recorte demorou mais de 35 segundos e foi interrompido. Tente outra foto."
+            )
+
+        if proc.returncode != 0 or not dst.exists():
+            err = proc.stderr.decode("utf-8", errors="replace").strip()
+            if not err:
+                err = "Falha no processador de imagem"
+            raise HTTPException(422, err[-500:])
+
+        result = dst.read_bytes()
+
+    return Response(
+        content=result,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "X-CDM-Background": "smart-v10.3-process",
+        },
+    )
 
 @router.post("")
 def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(active_user)):

@@ -96,6 +96,7 @@ function App(){
  const [vehicleBrands,setVehicleBrands]=useState([]),[billing,setBilling]=useState({monthly_price:350,checkout_provider_configured:false})
  const [catalog,setCatalog]=useState({customers:[],suppliers:[],carriers:[],sellers:[],partGroups:[],locations:[],users:[],tax:null})
  const [toast,setToast]=useState('')
+ const [mobileNav,setMobileNav]=useState(false)
  useEffect(()=>{document.body.dataset.theme=theme;localStorage.setItem('theme',theme)},[theme])
  useEffect(()=>{const t=localStorage.getItem('token');if(t)api.defaults.headers.common.Authorization=`Bearer ${t}`},[])
  async function load(){
@@ -125,14 +126,14 @@ function App(){
  if(!logged)return <Login onLogin={r=>{setToken(r.access_token);setSession(r);setLogged(true)}}/>
  const accessBlocked=!!session&&billing?.active===false
  return <div className="appShell">
-   <Sidebar tab={tab} setTab={setTab} company={session?.company} isAdmin={session?.is_platform_admin}/>
+   <Sidebar tab={tab} setTab={setTab} company={session?.company} isAdmin={session?.is_platform_admin} openMobile={mobileNav} onClose={()=>setMobileNav(false)}/>
    <main className="mainArea">
-     <Topbar tab={tab} setTab={setTab} session={session} theme={theme} setTheme={setTheme}/>
+     <Topbar tab={tab} setTab={setTab} session={session} theme={theme} setTheme={setTheme} onMenu={()=>setMobileNav(true)}/>
      <div className="content">
        {accessBlocked?<BillingPage billing={billing} session={session} refresh={load} notice={notice}/>:<>
        {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session}/>} 
        {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>} 
-       {tab==='qrcode'&&<QRCodeModule products={products}/>} 
+       {tab==='qrcode'&&<QRCodeModule products={products} locations={catalog.locations}/>} 
        {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
        {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>} 
        {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>} 
@@ -166,26 +167,32 @@ function App(){
  </div>
 }
 
-function Sidebar({tab,setTab,company,isAdmin}){
+// CDM MOBILE NAV V2
+function Sidebar({tab,setTab,company,isAdmin,openMobile=false,onClose}){
  const [open,setOpen]=useState({cadastros:true,etiquetas:false,integracoes:false,compras:false,vendas:true,notas:true,inteligencia:true})
  function isActive(item){return tab===item.key||(item.children||[]).some(c=>c.key===tab)}
  const visibleMenu=MENU.filter(item=>item.key!=='platform-admin'||isAdmin)
- return <aside className="sidebar">
-   <div className="brand"><div className="brandMark">CDM</div><div><h1>{company?.trade_name||'CDM Desmontes'}</h1><small>ERP de autopeças</small></div></div>
-   <nav className="sideNav">{visibleMenu.map(item=>item.children?
-     <div className={'navGroup '+(isActive(item)?'activeGroup':'')} key={item.key}>
-       <button className={'navMain '+(isActive(item)?'active':'')} onClick={()=>setOpen({...open,[item.key]:!open[item.key]})}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span><span className={'chevron '+(open[item.key]?'open':'')}>⌄</span></button>
-       {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>setTab(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
-     </div>
-     :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>setTab(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-   <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V8.3 Inteligência funcional</small></div>
- </aside>
+ function go(key){setTab(key);onClose?.()}
+ return <>
+   {openMobile&&<button className="mobileNavBackdrop" aria-label="Fechar menu" onClick={()=>onClose?.()}/>}
+   <aside className={'sidebar '+(openMobile?'mobileOpen':'')}>
+     <button className="mobileSidebarClose" aria-label="Fechar menu" onClick={()=>onClose?.()}>×</button>
+     <div className="brand"><div className="brandMark">CDM</div><div><h1>{company?.trade_name||'CDM Desmontes'}</h1><small>ERP de autopeças</small></div></div>
+     <nav className="sideNav">{visibleMenu.map(item=>item.children?
+       <div className={'navGroup '+(isActive(item)?'activeGroup':'')} key={item.key}>
+         <button className={'navMain '+(isActive(item)?'active':'')} onClick={()=>setOpen({...open,[item.key]:!open[item.key]})}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span><span className={'chevron '+(open[item.key]?'open':'')}>⌄</span></button>
+         {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
+       </div>
+       :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V8.3 Inteligência funcional</small></div>
+   </aside>
+ </>
 }
 
 function V8Icon({name}){const paths={document:<><path d="M6 2h9l3 3v17H6z"/><path d="M14 2v5h4"/><path d="M9 11h6M9 15h6"/></>,bell:<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,cart:<><path d="M3 3h2l2 12h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></>,user:<><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></>};return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]||paths.user}</svg>}
 
 // CDM NOTIFICATIONS V2
-function Topbar({tab,setTab,session,theme,setTheme}){
+function Topbar({tab,setTab,session,theme,setTheme,onMenu}){
  const [profile,setProfile]=useState(false),[query,setQuery]=useState(''),[notifications,setNotifications]=useState([]),[notifOpen,setNotifOpen]=useState(false),[notifFilter,setNotifFilter]=useState('all'),[notifBusy,setNotifBusy]=useState(false)
  const sub=session?.subscription,unread=notifications.filter(n=>!n.is_read).length
  const visibleNotifications=notifFilter==='unread'?notifications.filter(n=>!n.is_read):notifications
@@ -226,7 +233,7 @@ function Topbar({tab,setTab,session,theme,setTheme}){
  useEffect(()=>{loadNotifications();const timer=setInterval(()=>loadNotifications(false),20000);return()=>clearInterval(timer)},[])
 
  return <header className="topbar">
-   <button className="hamb" title="Menu">☰</button>
+   <button className="hamb" title="Menu" onClick={()=>onMenu?.()}>☰</button>
    <div className="globalSearch">⌕<input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')setTab('products')}} placeholder="O que você está procurando?"/></div>
    <button className="topAdd" title="Cadastrar peça" onClick={()=>setTab('product-create')}>＋</button><div className="topSpacer"/>
    <button className="topIcon" title="Notas fiscais" onClick={()=>setTab('invoices')}><V8Icon name="document"/></button>
@@ -272,7 +279,110 @@ function CompanyInfo({session,reload,notice}){const empty={trade_name:'',legal_n
 
 function BillingPage({billing,session,refresh,notice}){const price=Number(billing?.monthly_price||350);async function checkout(){try{const r=await api.post('/billing/checkout');if(!r.data.checkout_url)return notice('O Mercado Pago não retornou o endereço de pagamento');location.href=r.data.checkout_url}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível abrir a assinatura')}}async function sync(){try{await api.post('/billing/sync');await refresh();notice('Situação da assinatura atualizada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível sincronizar')}}async function cancel(){if(!confirm('Cancelar a renovação desta assinatura?'))return;try{await api.post('/billing/cancel');await refresh();notice('Assinatura cancelada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível cancelar')}}const active=['active','trial'].includes(session?.subscription?.status);return <><div className="pageTitle"><div><span>PLANO CDM</span><h2>Assinatura mensal</h2><p>Venda o acesso ao seu ERP por assinatura recorrente.</p></div><span className={active?'statusBadge':'statusBadge bad'}>{statusPt(session?.subscription?.status)}</span></div><div className="billingHero panel"><div><small>PLANO PROFISSIONAL</small><h2>{money(price)} <span>/ mês</span></h2><p>Uma empresa por assinatura, com usuários, estoque, veículos, vendas e integrações separados.</p><Checklist items={['7 dias de teste para novos cadastros','Cadastro de sucatas e peças','Mercado Livre, Shopee e OLX por empresa','Estoque, vendas e financeiro','Assistente CDM automático por empresa','Inteligência de preço, radar e desmonte','Renovação mensal via Mercado Pago']}/></div><div className="billingAction"><span className={billing?.checkout_provider_configured?'pill success':'pill warn'}>{billing?.checkout_provider_configured?'Mercado Pago configurado':'Pagamento recorrente ainda não configurado'}</span><button className="primary bigBtn" disabled={!billing?.checkout_provider_configured} onClick={checkout}>Assinar por {money(price)} / mês →</button>{session?.subscription?.external_subscription_id&&<><button className="ghost full" onClick={sync}>Atualizar situação da assinatura</button><button className="ghost full dangerOutline" onClick={cancel}>Cancelar assinatura</button></>}<small>O cliente paga diretamente na página de pagamento do Mercado Pago. O CDM nunca recebe a senha da conta bancária do cliente.</small></div></div></>}
 
-function QRCodeModule({products}){const [pid,setPid]=useState(products[0]?.id||'');const p=products.find(x=>x.id===+pid);const value=p?`CDM|${p.id}|${p.sku}|${p.name}`:'CDM Desmontes';return <div className="twoCols"><section className="panel"><PanelHead eyebrow="IDENTIFICAÇÃO" title="Código QR" text="Gere um Código QR para localizar rapidamente uma peça."/><Field label="Peça"><select value={pid} onChange={e=>setPid(e.target.value)}><option value="">Selecione...</option>{products.map(x=><option key={x.id} value={x.id}>{x.sku} — {x.name}</option>)}</select></Field>{p&&<div className="qrCard"><QRCodeSVG value={value} size={180}/><div><small>SKU</small><strong>{p.sku}</strong><h3>{p.name}</h3><p>{p.brand} {p.model}</p></div></div>}</section><section className="panel"><PanelHead eyebrow="LEITURA" title="Uso no estoque" text="Identifique caixas, peças e prateleiras."/><Checklist items={['Identificação por SKU','Conferência de estoque','Separação para expedição','Impressão de etiquetas']}/></section></div>}
+// CDM QR CODE V2
+function QRCodeModule({products=[],locations=[]}){
+ const [mode,setMode]=useState('product'),[selectedId,setSelectedId]=useState(''),[search,setSearch]=useState('')
+ const items=mode==='product'?products:locations
+ const filtered=useMemo(()=>{
+   const q=search.trim().toLowerCase()
+   if(!q)return items
+   return items.filter(x=>mode==='product'
+     ? `${x.sku||''} ${x.name||''} ${x.brand||''} ${x.model||''} ${x.oem||''}`.toLowerCase().includes(q)
+     : `${x.code||''} ${x.description||''} ${x.warehouse||''} ${x.aisle||''} ${x.shelf||''} ${x.bin||''}`.toLowerCase().includes(q))
+ },[items,search,mode])
+
+ useEffect(()=>{
+   if(!items.length){setSelectedId('');return}
+   if(!items.some(x=>String(x.id)===String(selectedId)))setSelectedId(String(items[0].id))
+ },[mode,products,locations])
+
+ const item=items.find(x=>String(x.id)===String(selectedId))
+ const payload=item
+   ? mode==='product'
+     ? `CDM|PECA|${item.id}|${item.sku||''}|${item.name||''}`
+     : `CDM|LOCAL|${item.id}|${item.code||''}|${item.description||''}`
+   : 'CDM Desmontes'
+
+ function copyCode(){
+   if(!item)return
+   navigator.clipboard?.writeText(payload)
+ }
+
+ function printQr(){if(item)window.print()}
+
+ function downloadSvg(){
+   if(!item)return
+   const svg=document.querySelector('.qrAdvancedCode svg')
+   if(!svg)return
+   const xml=new XMLSerializer().serializeToString(svg)
+   const blob=new Blob([xml],{type:'image/svg+xml;charset=utf-8'})
+   const a=document.createElement('a')
+   a.href=URL.createObjectURL(blob)
+   const raw=mode==='product'?(item.sku||`peca-${item.id}`):(item.code||`local-${item.id}`)
+   a.download=`QR-${String(raw).replace(/[^a-z0-9_-]+/gi,'-')}.svg`
+   a.click()
+   setTimeout(()=>URL.revokeObjectURL(a.href),500)
+ }
+
+ const locationText=item&&mode==='location'
+   ? [item.warehouse,item.aisle,item.shelf,item.bin].filter(Boolean).join(' › ')
+   : ''
+
+ return <div className="qrAdvancedPage">
+   <div className="pageTitle">
+     <div><span>IDENTIFICAÇÃO INTELIGENTE</span><h2>Código QR</h2><p>Gere QR para peças e localizações do estoque, pronto para imprimir ou baixar.</p></div>
+     <span className="pill neutral">{mode==='product'?`${products.length} peças`:`${locations.length} localizações`}</span>
+   </div>
+
+   <div className="qrModeTabs">
+     <button className={mode==='product'?'active':''} onClick={()=>{setMode('product');setSearch('')}}>QR de peça</button>
+     <button className={mode==='location'?'active':''} onClick={()=>{setMode('location');setSearch('')}}>QR de localização</button>
+   </div>
+
+   <div className="twoCols qrAdvancedLayout">
+     <section className="panel qrControlPanel">
+       <PanelHead eyebrow="SELEÇÃO" title={mode==='product'?'Escolha a peça':'Escolha a localização'} text="Pesquise e selecione o item que vai receber o código."/>
+       <Field label="Pesquisar"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={mode==='product'?'SKU, peça, marca, modelo ou OEM...':'Código, nome, depósito ou corredor...'}/></Field>
+       <Field label={mode==='product'?'Peça':'Localização'}><select value={selectedId} onChange={e=>setSelectedId(e.target.value)}><option value="">Selecione...</option>{filtered.map(x=><option key={x.id} value={x.id}>{mode==='product'?`${x.sku||'#'+x.id} — ${x.name||'Peça'}`:`${x.code||'#'+x.id} — ${x.description||'Localização'}`}</option>)}</select></Field>
+
+       <div className="qrUseCards">
+         <div><b>1</b><span>Selecione</span><small>peça ou local</small></div>
+         <div><b>2</b><span>Gere</span><small>QR exclusivo</small></div>
+         <div><b>3</b><span>Imprima</span><small>e cole no estoque</small></div>
+       </div>
+
+       <div className="qrTips">
+         <b>Uso recomendado</b>
+         <span>• Identificação rápida de peças</span>
+         <span>• Endereçamento de prateleiras e caixas</span>
+         <span>• Conferência durante separação e expedição</span>
+       </div>
+     </section>
+
+     <section className="panel qrPrintPanel">
+       {!item?<div className="emptyState">Selecione um item para gerar o Código QR.</div>:<>
+         <div className="qrAdvancedCard">
+           <div className="qrAdvancedCode"><QRCodeSVG value={payload} size={220} level="M" includeMargin/></div>
+           <div className="qrAdvancedData">
+             <small>{mode==='product'?'PEÇA CDM':'LOCALIZAÇÃO CDM'}</small>
+             <strong>{mode==='product'?(item.sku||`#${item.id}`):(item.code||`#${item.id}`)}</strong>
+             <h3>{mode==='product'?(item.name||'Peça'):(item.description||'Localização')}</h3>
+             {mode==='product'
+               ? <><p>{[item.brand,item.model,item.year].filter(Boolean).join(' ')||'Veículo não informado'}</p>{item.oem&&<span>OEM: {item.oem}</span>}</>
+               : <><p>{locationText||'Sem detalhamento de posição'}</p>{item.max_quantity>0&&<span>Limite: {item.max_quantity} peças</span>}</>}
+           </div>
+         </div>
+         <div className="qrPayload"><small>CONTEÚDO DO QR</small><code>{payload}</code></div>
+         <div className="qrActions">
+           <button className="ghost" onClick={copyCode}>Copiar código</button>
+           <button className="ghost" onClick={downloadSvg}>↓ Baixar SVG</button>
+           <button className="primary" onClick={printQr}>▣ Imprimir QR</button>
+         </div>
+       </>}
+     </section>
+   </div>
+ </div>
+}
 
 function CadastrosHome({setTab}){const cards=[['▰','Cadastro de Sucatas','vehicle-create'],['⚙','Cadastro de Peças','product-create'],['◆','Grupo de peças','part-groups'],['♣','Clientes','customers'],['●','Localizações','locations'],['▰','Transportadoras','carriers'],['♟','Vendedores','sellers'],['♙','Fornecedores','suppliers'],['⌁','Configuração Tributária','tax']];return <><div className="pageTitle"><div><span>BASE CADASTRAL</span><h2>Cadastros</h2><p>Organize todos os dados essenciais da operação.</p></div></div><div className="moduleCards">{cards.map(([i,t,k])=><button className="moduleCard clickable" key={k} onClick={()=>setTab(k)}><div className="moduleIcon">{i}</div><div><h3>{t}</h3><p>Abrir cadastro e gerenciamento.</p><span className="pill neutral">Acessar</span></div></button>)}</div></>}
 
@@ -456,20 +566,44 @@ function imageList(value){const v=value||'';return (v.includes('data:image/')?v.
 function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
 function loadImage(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src})}
 async function prepareProductImage(file,removeBg=true){
-  const src=await readFileAsDataUrl(file),img=await loadImage(src),max=1400,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
-  const base=document.createElement('canvas');base.width=w;base.height=h;const ctx=base.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
-  let minX=0,minY=0,maxX=w-1,maxY=h-1;
-  if(removeBg&&w*h<3000000){
-    const image=ctx.getImageData(0,0,w,h),d=image.data,visited=new Uint8Array(w*h),queue=[],samples=[];
-    const addSample=(x,y)=>{const i=(y*w+x)*4;samples.push([d[i],d[i+1],d[i+2]])};
-    for(let x=0;x<w;x+=Math.max(1,Math.floor(w/24))){addSample(x,0);addSample(x,h-1)}for(let y=0;y<h;y+=Math.max(1,Math.floor(h/24))){addSample(0,y);addSample(w-1,y)}
-    const bg=[0,1,2].map(c=>samples.reduce((a,v)=>a+v[c],0)/Math.max(1,samples.length)),threshold=58;
-    const similar=i=>{const dr=d[i]-bg[0],dg=d[i+1]-bg[1],db=d[i+2]-bg[2];return Math.sqrt(dr*dr+dg*dg+db*db)<threshold};
-    for(let x=0;x<w;x++){queue.push(x,(h-1)*w+x)}for(let y=1;y<h-1;y++){queue.push(y*w,y*w+w-1)}
-    let head=0;while(head<queue.length){const pos=queue[head++];if(visited[pos])continue;const x=pos%w,y=Math.floor(pos/w),i=pos*4;if(!similar(i))continue;visited[pos]=1;d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=255;if(x>0)queue.push(pos-1);if(x<w-1)queue.push(pos+1);if(y>0)queue.push(pos-w);if(y<h-1)queue.push(pos+w)}
-    ctx.putImageData(image,0,0);minX=w;minY=h;maxX=0;maxY=0;let found=false;for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const i=(y*w+x)*4;if(d[i]<245||d[i+1]<245||d[i+2]<245){found=true;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y)}}if(!found){minX=0;minY=0;maxX=w-1;maxY=h-1}
+  if(removeBg){
+    const formData=new FormData()
+    formData.append('file',file)
+
+    try{
+      const response=await api.post('/products/remove-background',formData,{
+        responseType:'blob',
+        timeout:45000
+      })
+      const blob=response.data
+      return await new Promise((resolve,reject)=>{
+        const reader=new FileReader()
+        reader.onload=()=>resolve(reader.result)
+        reader.onerror=reject
+        reader.readAsDataURL(blob)
+      })
+    }catch(e){
+      console.error('CDM Smart Background:',e)
+      throw new Error('Não foi possível remover o fundo desta foto')
+    }
   }
-  const bw=Math.max(1,maxX-minX+1),bh=Math.max(1,maxY-minY+1),outSize=1200,margin=90,fit=Math.min((outSize-margin*2)/bw,(outSize-margin*2)/bh),dw=Math.round(bw*fit),dh=Math.round(bh*fit),out=document.createElement('canvas');out.width=outSize;out.height=outSize;const oc=out.getContext('2d');oc.fillStyle='#fff';oc.fillRect(0,0,outSize,outSize);oc.drawImage(base,minX,minY,bw,bh,Math.round((outSize-dw)/2),Math.round((outSize-dh)/2),dw,dh);return out.toDataURL('image/jpeg',.88)
+
+  const src=await readFileAsDataUrl(file)
+  const img=await loadImage(src)
+  const max=1800
+  const scale=Math.min(1,max/Math.max(img.width,img.height))
+  const w=Math.max(1,Math.round(img.width*scale))
+  const h=Math.max(1,Math.round(img.height*scale))
+
+  const out=document.createElement('canvas')
+  out.width=w
+  out.height=h
+  const ctx=out.getContext('2d')
+  ctx.imageSmoothingEnabled=true
+  ctx.imageSmoothingQuality='high'
+  ctx.drawImage(img,0,0,w,h)
+
+  return out.toDataURL('image/jpeg',.94)
 }
 
 function parseMlAttrs(value){try{const x=JSON.parse(value||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{}}catch{return {}}}
@@ -485,12 +619,181 @@ function MarketplaceConfigModal({market,form,setForm,onClose}){
     <div className="modalFoot"><button className="ghost" onClick={onClose}>Fechar</button><button className="primary" onClick={onClose}>Salvar configuração</button></div></div></div>
 }
 
+// CDM PRODUCT IMAGES V2
 function ProductImages({form,setForm,notice}){
-  const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false);const images=imageList(form.image_urls)
-  async function upload(files){if(!files?.length)return;setBusy(true);try{const arr=[];for(const f of Array.from(files).slice(0,8)){if(!f.type.startsWith('image/'))continue;arr.push(await prepareProductImage(f,removeBg))}setForm({...form,image_urls:[...images,...arr].join('\n')});notice(`${arr.length} foto(s) adicionada(s)`)}catch(e){notice('Não foi possível processar a foto')}finally{setBusy(false)}}
-  async function whiten(i){try{const value=images[i];const blob=await fetch(value).then(r=>r.blob());const file=new File([blob],`produto-${i}.jpg`,{type:blob.type||'image/jpeg'});const out=await prepareProductImage(file,true);const next=[...images];next[i]=out;setForm({...form,image_urls:next.join('\n')});notice('Fundo tratado e deixado branco')}catch(e){notice('Não foi possível tratar esta imagem')}}
-  function remove(i){const next=images.filter((_,idx)=>idx!==i);setForm({...form,image_urls:next.join('\n')})}
-  return <div className="imageEditor"><div className="imageUploadBar"><label className="uploadButton">＋ Adicionar fotos<input type="file" accept="image/*" multiple onChange={e=>upload(e.target.files)} disabled={busy}/></label><label className="tinyCheck"><input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/><span>Remover fundo e deixar branco ao adicionar</span></label>{busy&&<small>Processando imagens...</small>}</div>{images.length>0&&<div className="imagePreviewGrid">{images.map((src,i)=><div className="imagePreview" key={i}><img src={src}/><div><button type="button" className="ghost" onClick={()=>whiten(i)}>Fundo branco</button><button type="button" className="dangerSmall" onClick={()=>remove(i)}>Remover</button></div></div>)}</div>}<details className="advancedUrls"><summary>Adicionar imagem por URL</summary><textarea placeholder="Uma URL pública por linha" value={form.image_urls} onChange={e=>setForm({...form,image_urls:e.target.value})}/></details></div>
+ const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null)
+ const images=imageList(form.image_urls)
+ const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
+
+ function stepZoom(dir){
+   if(!images.length)return
+   const current=zoomIndex>=0?zoomIndex:0
+   const next=(current+dir+images.length)%images.length
+   setZoom(images[next])
+ }
+
+ useEffect(()=>{
+   if(!zoom)return
+   function onKey(e){
+     if(e.key==='Escape')setZoom(null)
+     if(e.key==='ArrowLeft')stepZoom(-1)
+     if(e.key==='ArrowRight')stepZoom(1)
+   }
+   window.addEventListener('keydown',onKey)
+   return()=>window.removeEventListener('keydown',onKey)
+ },[zoom,images.length])
+
+ function save(next){setForm({...form,image_urls:next.join('\n')})}
+
+ async function upload(files){
+   if(!files?.length)return
+   const remaining=Math.max(0,8-images.length)
+   if(!remaining)return notice('Limite de 8 fotos atingido')
+   setBusy(true)
+   try{
+     const arr=[]
+     for(const f of Array.from(files).slice(0,remaining)){
+       if(!f.type.startsWith('image/'))continue
+       arr.push(await prepareProductImage(f,removeBg))
+     }
+     save([...images,...arr])
+     notice(`${arr.length} foto(s) adicionada(s)`)
+   }catch(e){
+     notice('Não foi possível processar a foto')
+   }finally{setBusy(false)}
+ }
+
+ async function whiten(i){
+   try{
+     const value=images[i]
+     const blob=await fetch(value).then(r=>r.blob())
+     const file=new File([blob],`produto-${i}.jpg`,{type:blob.type||'image/jpeg'})
+     const out=await prepareProductImage(file,true)
+     const next=[...images]
+     next[i]=out
+     save(next)
+     if(zoom===value)setZoom(out)
+     notice('Fundo tratado e deixado branco')
+   }catch(e){notice('Não foi possível tratar esta imagem')}
+ }
+
+ function remove(i){
+   const removed=images[i]
+   const next=images.filter((_,idx)=>idx!==i)
+   save(next)
+   if(zoom===removed)setZoom(null)
+ }
+
+ function principal(i){
+   if(i===0)return
+   const next=[...images]
+   const chosen=next.splice(i,1)[0]
+   next.unshift(chosen)
+   save(next)
+   notice('Foto principal atualizada')
+ }
+
+ function move(i,dir){
+   const to=i+dir
+   if(to<0||to>=images.length)return
+   const next=[...images]
+   const temp=next[i]
+   next[i]=next[to]
+   next[to]=temp
+   save(next)
+ }
+
+ return <div className="productImagesV2">
+   <div className="mediaStudioHeader">
+     <div>
+       <span>MÍDIA</span>
+       <h3>Fotos da peça</h3>
+       <p>Organize as imagens que serão usadas no estoque e nos canais de venda.</p>
+     </div>
+     <label className="inlineCheck mediaWhiteToggle">
+       <input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/>
+       <span>Fundo branco ao adicionar</span>
+     </label>
+   </div>
+
+   <div className="mediaStudioGrid">
+     <section className="mediaPhotoBox">
+       <div className="mediaThumbRail">
+         {images.map((src,i)=><article className={'mediaThumbCard '+(i===0?'principal':'')} key={`${i}-${src.slice(0,28)}`}>
+           <button type="button" className="mediaThumbImage" onClick={()=>setZoom(src)} title="Ampliar foto">
+             <img src={src} alt={`Foto ${i+1} da peça`}/>
+             {i===0&&<span className="mediaPrincipalBadge">Principal</span>}
+             <span className="mediaThumbIndex">{i+1}</span>
+           </button>
+
+           <button type="button" className="mediaDeletePhoto" onClick={()=>remove(i)} title="Excluir foto">×</button>
+
+           <div className="mediaThumbTools">
+             <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
+             <button type="button" onClick={()=>whiten(i)} title="Deixar fundo branco">✎</button>
+             {i!==0&&<button type="button" onClick={()=>principal(i)} title="Usar como principal">★</button>}
+           </div>
+
+           <div className="mediaThumbOrder">
+             <button type="button" disabled={i===0} onClick={()=>move(i,-1)}>←</button>
+             <button type="button" disabled={i===images.length-1} onClick={()=>move(i,1)}>→</button>
+           </div>
+         </article>)}
+
+         <label className={'mediaAddTile '+(busy||images.length>=8?'disabled':'')}>
+           <span className="mediaAddIcon">＋</span>
+           <b>{busy?'Processando...':'Adicionar fotos'}</b>
+           <small>{images.length}/8 imagens</small>
+           <input type="file" accept="image/*" multiple disabled={busy||images.length>=8} onChange={e=>{upload(e.target.files);e.target.value=''}}/>
+         </label>
+       </div>
+
+       <div className="mediaRailHelp">
+         <span>Clique na foto para ampliar</span>
+         <span>★ define a principal</span>
+         <span>← → altera a ordem</span>
+       </div>
+     </section>
+
+     <aside className="mediaVideoBox">
+       <div className="mediaVideoIcon">▶</div>
+       <b>Vídeo do produto</b>
+       <p>Área preparada para vídeo da peça.</p>
+       <span className="pill neutral">Integração de vídeo depois</span>
+       <small>O vídeo será ativado quando adicionarmos o campo próprio no produto e nos canais de venda.</small>
+     </aside>
+   </div>
+
+   {!images.length&&<div className="mediaEmptyNote">
+     <b>Nenhuma foto cadastrada ainda</b>
+     <span>Use “Adicionar fotos” para começar. A primeira imagem ficará como principal.</span>
+   </div>}
+   <details className="imageUrlsAdvanced"><summary>Opção avançada: endereços das imagens</summary><textarea value={form.image_urls||''} onChange={e=>setForm({...form,image_urls:e.target.value})}/></details>
+
+   {zoom&&<div className="modalBackdrop imageZoomBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setZoom(null)}>
+     <div className="imageViewerModal imageViewerVideoStyle">
+       <div className="imageViewerSimpleTitle">Imagens</div>
+
+       <div className="imageViewerVideoStage">
+         <button type="button" className="imageViewerVideoArrow prev" onClick={()=>stepZoom(-1)} disabled={images.length<2} aria-label="Foto anterior">‹</button>
+
+         <div className="imageViewerWhiteFrame">
+           <img src={zoom} alt={`Foto ${(zoomIndex>=0?zoomIndex:0)+1} da peça`}/>
+           <div className="imageViewerBars">
+             {images.map((src,i)=><button type="button" key={`bar-${i}`} className={src===zoom?'active':''} onClick={()=>setZoom(src)} aria-label={`Abrir foto ${i+1}`}/>)}
+           </div>
+         </div>
+
+         <button type="button" className="imageViewerVideoArrow next" onClick={()=>stepZoom(1)} disabled={images.length<2} aria-label="Próxima foto">›</button>
+       </div>
+
+       <div className="imageViewerVideoFoot">
+         <span>{(zoomIndex>=0?zoomIndex:0)+1} / {images.length}</span>
+         <button type="button" className="ghost" onClick={()=>setZoom(null)}>Fechar</button>
+       </div>
+     </div>
+   </div>}
+ </div>
 }
 
 function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[],initialProduct=null,onClose=null}){
