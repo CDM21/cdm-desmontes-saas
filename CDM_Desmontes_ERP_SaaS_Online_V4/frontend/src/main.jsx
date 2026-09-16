@@ -184,20 +184,70 @@ function Sidebar({tab,setTab,company,isAdmin}){
 
 function V8Icon({name}){const paths={document:<><path d="M6 2h9l3 3v17H6z"/><path d="M14 2v5h4"/><path d="M9 11h6M9 15h6"/></>,bell:<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,cart:<><path d="M3 3h2l2 12h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></>,user:<><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></>};return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]||paths.user}</svg>}
 
+// CDM NOTIFICATIONS V2
 function Topbar({tab,setTab,session,theme,setTheme}){
- const [profile,setProfile]=useState(false),[query,setQuery]=useState(''),[notifications,setNotifications]=useState([]),[notifOpen,setNotifOpen]=useState(false)
+ const [profile,setProfile]=useState(false),[query,setQuery]=useState(''),[notifications,setNotifications]=useState([]),[notifOpen,setNotifOpen]=useState(false),[notifFilter,setNotifFilter]=useState('all'),[notifBusy,setNotifBusy]=useState(false)
  const sub=session?.subscription,unread=notifications.filter(n=>!n.is_read).length
- async function loadNotifications(){try{setNotifications((await api.get('/notifications')).data||[])}catch(e){}}
- async function readAll(){try{await api.post('/notifications/read-all');setNotifications(v=>v.map(x=>({...x,is_read:true})))}catch(e){}}
- async function readOne(n){if(n.is_read)return;try{await api.post(`/notifications/${n.id}/read`);setNotifications(v=>v.map(x=>x.id===n.id?{...x,is_read:true}:x))}catch(e){}}
- useEffect(()=>{loadNotifications();const timer=setInterval(loadNotifications,20000);return()=>clearInterval(timer)},[])
+ const visibleNotifications=notifFilter==='unread'?notifications.filter(n=>!n.is_read):notifications
+
+ async function loadNotifications(showNotice=false){
+   setNotifBusy(true)
+   try{
+     setNotifications((await api.get('/notifications')).data||[])
+   }catch(e){
+   }finally{
+     setNotifBusy(false)
+   }
+ }
+
+ async function readAll(){
+   try{
+     await api.post('/notifications/read-all')
+     setNotifications(v=>v.map(x=>({...x,is_read:true})))
+   }catch(e){}
+ }
+
+ async function readOne(n){
+   if(n.is_read)return
+   try{
+     await api.post(`/notifications/${n.id}/read`)
+     setNotifications(v=>v.map(x=>x.id===n.id?{...x,is_read:true}:x))
+   }catch(e){}
+ }
+
+ async function openNotification(n){
+   await readOne(n)
+   if(n.sale_id){
+     setTab('sales-history')
+     setNotifOpen(false)
+   }
+ }
+
+ useEffect(()=>{loadNotifications();const timer=setInterval(()=>loadNotifications(false),20000);return()=>clearInterval(timer)},[])
+
  return <header className="topbar">
    <button className="hamb" title="Menu">☰</button>
    <div className="globalSearch">⌕<input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')setTab('products')}} placeholder="O que você está procurando?"/></div>
    <button className="topAdd" title="Cadastrar peça" onClick={()=>setTab('product-create')}>＋</button><div className="topSpacer"/>
    <button className="topIcon" title="Notas fiscais" onClick={()=>setTab('invoices')}><V8Icon name="document"/></button>
-   <div className="notificationWrap"><button className="topIcon notificationTrigger" title="Notificações" onClick={()=>{setNotifOpen(!notifOpen);setProfile(false)}}><V8Icon name="bell"/>{unread>0&&<span className="notificationBadge">{unread>99?'99+':unread}</span>}</button>
-     {notifOpen&&<div className="notificationPanel"><div className="notificationHead"><div><small>CENTRAL</small><h3>Notificações</h3></div><button onClick={readAll}>Marcar tudo como lido</button></div><div className="notificationList">{notifications.length?notifications.map(n=><button key={n.id} className={'notificationItem '+(!n.is_read?'unread':'')} onClick={()=>readOne(n)}><div className={'notificationSource '+n.source}>{n.source==='mercadolivre'?'ML':n.source==='shopee'?'SH':n.source==='olx'?'OLX':'$'}</div><div><b>{n.title}</b><span>{n.message}</span><small>{n.created_at?new Date(n.created_at).toLocaleString('pt-BR'):'Agora'} · {n.source_label||'Sistema'}{n.sale_status?` · ${statusPt(n.sale_status)}`:''}{n.external_order_id?` · Pedido ${n.external_order_id}`:''}</small></div><strong>{Number(n.amount||0)>0?money(n.amount):''}</strong></button>):<div className="notificationEmpty">Nenhuma notificação por enquanto.</div>}</div></div>}
+   <div className="notificationWrap">
+     <button className="topIcon notificationTrigger" title="Notificações" onClick={()=>{setNotifOpen(!notifOpen);setProfile(false)}}><V8Icon name="bell"/>{unread>0&&<span className="notificationBadge">{unread>99?'99+':unread}</span>}</button>
+     {notifOpen&&<div className="notificationPanel notificationPanelV2">
+       <div className="notificationHead">
+         <div><small>CENTRAL</small><h3>Notificações</h3><span>{unread} não lida(s)</span></div>
+         <button onClick={readAll} disabled={!unread}>Marcar tudo como lido</button>
+       </div>
+       <div className="notificationTools">
+         <div><button className={notifFilter==='all'?'active':''} onClick={()=>setNotifFilter('all')}>Todas</button><button className={notifFilter==='unread'?'active':''} onClick={()=>setNotifFilter('unread')}>Não lidas</button></div>
+         <button className="notificationRefresh" onClick={()=>loadNotifications(true)} disabled={notifBusy}>{notifBusy?'...':'↻ Atualizar'}</button>
+       </div>
+       <div className="notificationList">{visibleNotifications.length?visibleNotifications.map(n=><button key={n.id} className={'notificationItem '+(!n.is_read?'unread':'')} onClick={()=>openNotification(n)}>
+         <div className={'notificationSource '+n.source}>{n.source==='mercadolivre'?'ML':n.source==='shopee'?'SH':n.source==='olx'?'OLX':'$'}</div>
+         <div><b>{n.title}</b><span>{n.message}</span><small>{n.created_at?new Date(n.created_at).toLocaleString('pt-BR'):'Agora'} · {n.source_label||'Sistema'}{n.sale_status?` · ${statusPt(n.sale_status)}`:''}{n.external_order_id?` · Pedido ${n.external_order_id}`:''}</small></div>
+         <strong>{Number(n.amount||0)>0?money(n.amount):''}</strong>
+       </button>):<div className="notificationEmpty">{notifFilter==='unread'?'Nenhuma notificação não lida.':'Nenhuma notificação por enquanto.'}</div>}</div>
+       <div className="notificationFoot">Notificações de vendas são atualizadas automaticamente a cada 20 segundos.</div>
+     </div>}
    </div>
    <button className="topIcon" title="Compras" onClick={()=>setTab('purchases')}><V8Icon name="cart"/></button>
    <div className="profileWrap"><button className="profileButton" title="Perfil" onClick={()=>{setProfile(!profile);setNotifOpen(false)}}><V8Icon name="user"/><span>⌄</span></button>
@@ -893,15 +943,92 @@ function LabelsModule({tab,products,company}){
   return <><section className="panel"><PanelHead eyebrow="ETIQUETAS" title={tab==='label-models'?'Modelo padrão CDM':'Gerar Etiquetas'} text="Selecione as peças e imprima etiquetas com Código QR, código grande e aplicação do veículo."/><div className="labelToolbar"><button className="labelBtn" onClick={printSelected} disabled={!selected.length}>▣ Imprimir selecionadas ({selected.length})</button><button className="ghost" onClick={()=>setSelected(selected.length===products.length?[]:products.map(p=>p.id))}>{selected.length===products.length&&products.length?'Limpar seleção':'Selecionar todas'}</button></div>{tab==='label-models'&&<div className="labelModelInfo"><b>Etiqueta CDM 100 × 50 mm</b><span>Empresa + Código QR + código grande + descrição + veículo/OEM + SKU.</span></div>}<div className="labelGrid">{products.slice(0,36).map(p=><label className={'labelPreview '+(selected.includes(p.id)?'selected':'')} key={p.id}><input type="checkbox" checked={selected.includes(p.id)} onChange={()=>toggle(p.id)}/><QRCodeSVG value={`${location.origin}/?produto=${p.id}&sku=${encodeURIComponent(p.sku||'')}`} size={62}/><div><small>#{p.id} · {p.sku}</small><b>{p.name}</b><strong>{p.brand} {p.model} {p.year||''}</strong></div></label>)}</div></section><LabelPrintOverlay products={printItems} company={company}/></>
 }
 
+// CDM PDV V2
 function Sales({products,sales,customers=[],refresh,notice}){
- const [cart,setCart]=useState([]),[pid,setPid]=useState(''),[qty,setQty]=useState(1),[method,setMethod]=useState('pix'),[customerId,setCustomerId]=useState('')
+ const [cart,setCart]=useState([]),[pid,setPid]=useState(''),[qty,setQty]=useState(1),[method,setMethod]=useState('pix'),[customerId,setCustomerId]=useState(''),[productSearch,setProductSearch]=useState(''),[busy,setBusy]=useState(false)
  const selected=products.find(p=>p.id===+pid)
- function add(){if(!selected)return;const q=Math.max(1,+qty||1);if(q>selected.stock)return notice('Quantidade maior que o estoque');setCart(c=>{const ex=c.find(x=>x.product_id===selected.id);return ex?c.map(x=>x.product_id===selected.id?{...x,quantity:Math.min(selected.stock,x.quantity+q)}:x):[...c,{product_id:selected.id,quantity:q,name:selected.name,sku:selected.sku,price:selected.price,stock:selected.stock}]});setPid('');setQty(1)}
+ const availableProducts=useMemo(()=>{
+   const q=productSearch.trim().toLowerCase()
+   return products.filter(p=>Number(p.stock||0)>0&&(!q||`${p.sku} ${p.name} ${p.brand||''} ${p.model||''}`.toLowerCase().includes(q))).slice(0,120)
+ },[products,productSearch])
+
+ function add(){
+   if(!selected)return
+   const q=Math.max(1,+qty||1)
+   const existing=cart.find(x=>x.product_id===selected.id)
+   const finalQty=(existing?.quantity||0)+q
+   if(finalQty>Number(selected.stock||0))return notice(`Só existem ${selected.stock} unidade(s) desta peça no estoque`)
+   setCart(c=>existing?c.map(x=>x.product_id===selected.id?{...x,quantity:finalQty}:x):[...c,{product_id:selected.id,quantity:q,name:selected.name,sku:selected.sku,price:selected.price,stock:selected.stock}])
+   setPid('');setQty(1);setProductSearch('')
+ }
+
+ function changeQty(id,value){
+   setCart(c=>c.map(x=>x.product_id===id?{...x,quantity:Math.max(1,Math.min(Number(x.stock||1),Number(value||1)))}:x))
+ }
+
  function remove(id){setCart(c=>c.filter(x=>x.product_id!==id))}
  const total=cart.reduce((a,x)=>a+Number(x.price||0)*x.quantity,0)
- async function sell(){if(!cart.length)return notice('Adicione pelo menos uma peça');try{const r=await api.post('/sales',{customer_id:customerId?+customerId:null,payment_method:method,items:cart.map(({product_id,quantity})=>({product_id,quantity}))});setCart([]);await refresh();notice(`Venda #${r.data.id} finalizada, estoque baixado e canais sincronizados`)}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro na venda')}}
- return <div className="twoCols saleLayout"><section className="panel"><PanelHead eyebrow="PDV" title="Nova Venda" text="Carrinho com vários itens, registro financeiro e baixa automática no estoque."/><div className="saleAddRow"><Field label="Produto"><select value={pid} onChange={e=>setPid(e.target.value)}><option value="">Selecione...</option>{products.filter(p=>p.stock>0).map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name} ({p.stock})</option>)}</select></Field><Field label="Quantidade"><input type="number" min="1" max={selected?.stock||999} value={qty} onChange={e=>setQty(e.target.value)}/></Field><button className="ghost saleAddBtn" onClick={add} disabled={!pid}>+ Adicionar</button></div><div className="saleCart">{cart.length?cart.map(x=><div className="saleCartRow" key={x.product_id}><div><b>{x.name}</b><small>{x.sku}</small></div><span>{x.quantity} × {money(x.price)}</span><strong>{money(x.quantity*x.price)}</strong><button onClick={()=>remove(x.product_id)}>×</button></div>):<div className="emptyState compact">Carrinho vazio.</div>}</div><div className="formGrid"><Field label="Cliente"><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}{c.cpf_cnpj?` — ${c.cpf_cnpj}`:''}</option>)}</select></Field><Field label="Pagamento"><select value={method} onChange={e=>setMethod(e.target.value)}><option value="pix">PIX</option><option value="credit">Cartão</option><option value="cash">Dinheiro</option><option value="debit">Débito</option></select></Field></div><div className="saleTotal"><span>Total</span><strong>{money(total)}</strong></div><button className="primary bigBtn" disabled={!cart.length} onClick={sell}>Finalizar venda e baixar estoque →</button></section><section className="panel"><PanelHead eyebrow="HISTÓRICO" title="Últimas vendas" text={`${sales.length} vendas`}/><Table rows={sales.slice(0,10)} cols={['id','source','payment_method','total','status','created_at']} format={{total:money}}/></section></div>
+ const itemCount=cart.reduce((a,x)=>a+Number(x.quantity||0),0)
+ const selectedCustomer=customers.find(c=>c.id===+customerId)
+
+ async function sell(){
+   if(!cart.length)return notice('Adicione pelo menos uma peça')
+   setBusy(true)
+   try{
+     const r=await api.post('/sales',{customer_id:customerId?+customerId:null,payment_method:method,items:cart.map(({product_id,quantity})=>({product_id,quantity}))})
+     setCart([]);setCustomerId('');setMethod('pix')
+     await refresh()
+     notice(`Venda #${r.data.id} finalizada, estoque baixado e canais sincronizados`)
+   }catch(e){
+     notice(erroPt(e.response?.data?.detail)||'Erro na venda')
+   }finally{
+     setBusy(false)
+   }
+ }
+
+ return <div className="twoCols saleLayout pdvV2">
+   <section className="panel">
+     <PanelHead eyebrow="PDV" title="Nova Venda" text="Venda rápida com conferência de estoque, cliente, pagamento e baixa automática."/>
+     <div className="pdvQuickSummary">
+       <span><small>Itens no carrinho</small><b>{itemCount}</b></span>
+       <span><small>Produtos diferentes</small><b>{cart.length}</b></span>
+       <span><small>Cliente</small><b>{selectedCustomer?.name||'Consumidor final'}</b></span>
+       <span><small>Total</small><b>{money(total)}</b></span>
+     </div>
+
+     <div className="pdvProductSearch"><Field label="Buscar peça"><input value={productSearch} onChange={e=>setProductSearch(e.target.value)} placeholder="SKU, nome, marca ou modelo..."/></Field></div>
+     <div className="saleAddRow">
+       <Field label="Produto"><select value={pid} onChange={e=>setPid(e.target.value)}><option value="">Selecione...</option>{availableProducts.map(p=><option key={p.id} value={p.id}>{p.sku} — {p.name} ({p.stock} un.)</option>)}</select></Field>
+       <Field label="Quantidade"><input type="number" min="1" max={selected?.stock||999} value={qty} onChange={e=>setQty(e.target.value)}/></Field>
+       <button className="ghost saleAddBtn" onClick={add} disabled={!pid}>+ Adicionar</button>
+     </div>
+
+     {selected&&<div className="pdvSelectedInfo"><span>Estoque disponível: <b>{selected.stock}</b></span><span>Preço unitário: <b>{money(selected.price)}</b></span><span>SKU: <b>{selected.sku}</b></span></div>}
+
+     <div className="saleCart">{cart.length?cart.map(x=><div className="saleCartRow pdvCartRow" key={x.product_id}>
+       <div><b>{x.name}</b><small>{x.sku} · estoque {x.stock}</small></div>
+       <div className="pdvQty"><small>Qtd.</small><input type="number" min="1" max={x.stock} value={x.quantity} onChange={e=>changeQty(x.product_id,e.target.value)}/></div>
+       <span>{money(x.price)} cada</span>
+       <strong>{money(x.quantity*x.price)}</strong>
+       <button onClick={()=>remove(x.product_id)} title="Remover">×</button>
+     </div>):<div className="emptyState compact">Carrinho vazio.</div>}</div>
+
+     <div className="formGrid two pdvCheckout">
+       <Field label="Cliente"><select value={customerId} onChange={e=>setCustomerId(e.target.value)}><option value="">Consumidor não identificado</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}{c.cpf_cnpj?` — ${c.cpf_cnpj}`:''}</option>)}</select></Field>
+       <Field label="Pagamento"><select value={method} onChange={e=>setMethod(e.target.value)}><option value="pix">PIX</option><option value="credit">Cartão de crédito</option><option value="debit">Cartão de débito</option><option value="cash">Dinheiro</option></select></Field>
+     </div>
+
+     <div className="saleTotal"><div><span>Total da venda</span><small>{itemCount} item(ns) · {cart.length} produto(s)</small></div><strong>{money(total)}</strong></div>
+     <div className="pdvActions"><button className="ghost" disabled={!cart.length||busy} onClick={()=>setCart([])}>Limpar carrinho</button><button className="primary bigBtn" disabled={!cart.length||busy} onClick={sell}>{busy?'Finalizando...':'Finalizar venda e baixar estoque →'}</button></div>
+   </section>
+
+   <section className="panel">
+     <PanelHead eyebrow="HISTÓRICO" title="Últimas vendas" text={`${sales.length} vendas registradas`}/>
+     <Table rows={sales.slice(0,10)} cols={['id','source','payment_method','total','status','created_at']} format={{source:v=>valuePt('source',v),payment_method:v=>valuePt('payment_method',v),status:v=>statusPt(v),total:money,created_at:v=>v?new Date(v).toLocaleString('pt-BR'):'—'}}/>
+   </section>
+ </div>
 }
+
 function SalesHistory({sales}){return <section className="panel"><PanelHead eyebrow="VENDAS" title="Vendas Realizadas" text="Consulte as vendas registradas em todos os canais."/><Table rows={sales} cols={['id','source','payment_method','total','status','created_at']} format={{source:v=>valuePt('source',v),payment_method:v=>valuePt('payment_method',v),status:v=>valuePt('status',v),total:money,created_at:v=>v?new Date(v).toLocaleString('pt-BR'):'—'}}/></section>}
 
 // CDM INTEGRATION CENTER V1
@@ -1237,9 +1364,159 @@ function SaleProtection({sales=[],products=[],notice}){
 }
 
 
-function Finance({data,refresh,notice}){const [form,setForm]=useState({kind:'income',description:'',amount:0,status:'paid',due_date:''});async function add(){await api.post('/finance',form);setForm({...form,description:'',amount:0});await refresh();notice('Lançamento salvo')}return <section className="panel"><PanelHead eyebrow="FINANCEIRO" title="Financeiro" text="Controle entradas e saídas."/><div className="formGrid"><Field label="Tipo"><select value={form.kind} onChange={e=>setForm({...form,kind:e.target.value})}><option value="income">Entrada</option><option value="expense">Saída</option></select></Field><Field label="Descrição"><input value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></Field><Field label="Valor"><input type="number" value={form.amount} onChange={e=>setForm({...form,amount:+e.target.value})}/></Field><Field label="Vencimento"><input value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/></Field></div><button className="primary" onClick={add}>Salvar lançamento</button><Table rows={data} cols={['id','kind','description','amount','status','due_date']} format={{kind:v=>valuePt('kind',v),status:v=>valuePt('status',v),amount:money}}/></section>}
-function CashFlow({data}){const income=data.filter(x=>x.kind==='income').reduce((a,x)=>a+Number(x.amount||0),0),expense=data.filter(x=>x.kind==='expense').reduce((a,x)=>a+Number(x.amount||0),0);return <><div className="grid three"><Card icon="↑" title="Entradas" value={money(income)} sub="Receitas"/><Card icon="↓" title="Saídas" value={money(expense)} sub="Despesas"/><Card icon="=" title="Saldo" value={money(income-expense)} sub="Posição atual"/></div><section className="panel"><PanelHead eyebrow="CAIXA" title="Fluxo de Caixa" text="Movimentações consolidadas."/><Table rows={data} cols={['id','kind','description','amount','status','due_date']} format={{kind:v=>valuePt('kind',v),status:v=>valuePt('status',v),amount:money}}/></section></>}
-function Reports({products,sales,finance,vehicles}){const stockValue=products.reduce((a,p)=>a+Number(p.cost||0)*Number(p.stock||0),0),revenue=sales.reduce((a,s)=>a+Number(s.total||0),0),low=products.filter(p=>p.stock<=1).length;return <><div className="grid metrics"><Card icon="R$" title="Vendas acumuladas" value={money(revenue)} sub={`${sales.length} vendas`}/><Card icon="▤" title="Custo em estoque" value={money(stockValue)} sub={`${products.length} SKUs`}/><Card icon="!" title="Estoque baixo" value={low} sub="1 unidade ou menos"/><Card icon="🚗" title="Sucatas" value={vehicles.length} sub="Veículos"/></div><section className="panel"><PanelHead eyebrow="RELATÓRIOS" title="Estoque baixo" text="Itens que merecem atenção."/><Table rows={products.filter(p=>p.stock<=1)} cols={['sku','name','stock','price']} format={{price:money}}/></section></>}
+// CDM OPERATIONS PACK V1
+function Finance({data,refresh,notice}){
+ const empty={kind:'income',description:'',amount:0,status:'paid',due_date:''}
+ const [form,setForm]=useState(empty),[editingId,setEditingId]=useState(null),[search,setSearch]=useState(''),[kindFilter,setKindFilter]=useState('all'),[statusFilter,setStatusFilter]=useState('all'),[busy,setBusy]=useState(false)
+
+ const paidIncome=data.filter(x=>x.kind==='income'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const paidExpense=data.filter(x=>x.kind==='expense'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const pending=data.filter(x=>x.status!=='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const filtered=useMemo(()=>data.filter(x=>{
+   const q=search.trim().toLowerCase()
+   return (!q||`${x.description||''} ${x.id||''}`.toLowerCase().includes(q))&&(kindFilter==='all'||x.kind===kindFilter)&&(statusFilter==='all'||x.status===statusFilter)
+ }),[data,search,kindFilter,statusFilter])
+
+ function edit(row){
+   if(String(row.description||'').trim().toLowerCase().startsWith('venda #'))return notice('Lançamentos automáticos de venda são controlados pela própria venda')
+   setEditingId(row.id)
+   setForm({kind:row.kind||'income',description:row.description||'',amount:Number(row.amount||0),status:row.status||'paid',due_date:row.due_date||''})
+   window.scrollTo({top:0,behavior:'smooth'})
+ }
+
+ function cancel(){setEditingId(null);setForm(empty)}
+
+ async function save(){
+   if(!form.description.trim())return notice('Informe a descrição do lançamento')
+   if(Number(form.amount||0)<=0)return notice('Informe um valor maior que zero')
+   setBusy(true)
+   try{
+     if(editingId)await api.put(`/finance/${editingId}`,form)
+     else await api.post('/finance',form)
+     cancel();await refresh();notice(editingId?'Lançamento atualizado':'Lançamento salvo')
+   }catch(e){
+     notice(erroPt(e.response?.data?.detail)||'Não foi possível salvar o lançamento')
+   }finally{setBusy(false)}
+ }
+
+ async function remove(row){
+   if(String(row.description||'').trim().toLowerCase().startsWith('venda #'))return notice('Lançamentos automáticos de venda não podem ser excluídos aqui')
+   if(!confirm(`Excluir o lançamento "${row.description}"?`))return
+   try{await api.delete(`/finance/${row.id}`);await refresh();notice('Lançamento excluído')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível excluir')}
+ }
+
+ return <>
+   <div className="pageTitle financeTitle"><div><span>FINANCEIRO</span><h2>Controle financeiro</h2><p>Entradas, saídas, pendências e saldo realizado da empresa.</p></div><span className="financeBalance">Saldo realizado: <b>{money(paidIncome-paidExpense)}</b></span></div>
+   <div className="financeMetrics">
+     <div className="income"><small>Entradas pagas</small><strong>{money(paidIncome)}</strong></div>
+     <div className="expense"><small>Saídas pagas</small><strong>{money(paidExpense)}</strong></div>
+     <div><small>Saldo realizado</small><strong>{money(paidIncome-paidExpense)}</strong></div>
+     <div className={pending>0?'pending':''}><small>Valores pendentes</small><strong>{money(pending)}</strong></div>
+   </div>
+
+   <section className="panel financeEditor">
+     <PanelHead eyebrow={editingId?'EDIÇÃO':'NOVO LANÇAMENTO'} title={editingId?`Editar lançamento #${editingId}`:'Adicionar movimentação'} text="Lançamentos criados automaticamente por vendas ficam protegidos contra edição manual."/>
+     <div className="formGrid financeForm">
+       <Field label="Tipo"><select value={form.kind} onChange={e=>setForm({...form,kind:e.target.value})}><option value="income">Entrada</option><option value="expense">Saída</option></select></Field>
+       <Field label="Descrição"><input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Ex.: compra de embalagem"/></Field>
+       <Field label="Valor"><input type="number" min="0" step="0.01" value={form.amount} onChange={e=>setForm({...form,amount:+e.target.value})}/></Field>
+       <Field label="Situação"><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="paid">Pago</option><option value="pending">Pendente</option></select></Field>
+       <Field label="Vencimento"><input type="date" value={form.due_date||''} onChange={e=>setForm({...form,due_date:e.target.value})}/></Field>
+     </div>
+     <div className="financeEditActions">{editingId&&<button className="ghost" onClick={cancel}>Cancelar edição</button>}<button className="primary" disabled={busy} onClick={save}>{busy?'Salvando...':editingId?'Salvar alterações':'+ Salvar lançamento'}</button></div>
+   </section>
+
+   <section className="panel">
+     <div className="financeToolbar">
+       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar descrição ou código..."/>
+       <select value={kindFilter} onChange={e=>setKindFilter(e.target.value)}><option value="all">Todos os tipos</option><option value="income">Entradas</option><option value="expense">Saídas</option></select>
+       <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todas as situações</option><option value="paid">Pagos</option><option value="pending">Pendentes</option></select>
+     </div>
+     <div className="tableWrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Situação</th><th>Vencimento</th><th>Ações</th></tr></thead><tbody>
+       {filtered.length?filtered.map(row=>{const automatic=String(row.description||'').trim().toLowerCase().startsWith('venda #');return <tr key={row.id}><td>#{row.id}</td><td>{valuePt('kind',row.kind)}</td><td><b>{row.description}</b>{automatic&&<small className="block">Automático da venda</small>}</td><td>{money(row.amount)}</td><td><span className={row.status==='paid'?'pill success':'pill warn'}>{statusPt(row.status)}</span></td><td>{row.due_date||'—'}</td><td><div className="rowActions"><button className="ghost" disabled={automatic} onClick={()=>edit(row)}>Editar</button><button className="ghost dangerMini" disabled={automatic} onClick={()=>remove(row)}>Excluir</button></div></td></tr>}):<tr><td colSpan="7" className="empty">Nenhum lançamento encontrado.</td></tr>}
+     </tbody></table></div>
+   </section>
+ </>
+}
+
+function CashFlow({data}){
+ const paid=data.filter(x=>x.status==='paid')
+ const income=paid.filter(x=>x.kind==='income').reduce((a,x)=>a+Number(x.amount||0),0)
+ const expense=paid.filter(x=>x.kind==='expense').reduce((a,x)=>a+Number(x.amount||0),0)
+ const receivable=data.filter(x=>x.kind==='income'&&x.status!=='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const payable=data.filter(x=>x.kind==='expense'&&x.status!=='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ return <>
+   <div className="grid metrics cashFlowMetrics">
+     <Card icon="↑" title="Entradas realizadas" value={money(income)} sub="Valores pagos"/>
+     <Card icon="↓" title="Saídas realizadas" value={money(expense)} sub="Valores pagos"/>
+     <Card icon="=" title="Saldo realizado" value={money(income-expense)} sub="Entradas - saídas"/>
+     <Card icon="⌛" title="A receber / pagar" value={money(receivable-payable)} sub={`${money(receivable)} a receber · ${money(payable)} a pagar`}/>
+   </div>
+   <section className="panel"><PanelHead eyebrow="CAIXA" title="Fluxo de Caixa" text="Movimentações realizadas e pendentes, sem misturar previsão com dinheiro já recebido."/><Table rows={data} cols={['id','kind','description','amount','status','due_date']} format={{kind:v=>valuePt('kind',v),status:v=>statusPt(v),amount:money}}/></section>
+ </>
+}
+
+function Reports({products,sales,finance,vehicles}){
+ const [from,setFrom]=useState(''),[to,setTo]=useState('')
+ const inRange=v=>{
+   if(!from&&!to)return true
+   if(!v)return false
+   const d=new Date(String(v).length<=10?`${v}T12:00:00`:v)
+   if(Number.isNaN(d.getTime()))return false
+   const a=from?new Date(`${from}T00:00:00`):null,b=to?new Date(`${to}T23:59:59`):null
+   return (!a||d>=a)&&(!b||d<=b)
+ }
+ const reportSales=sales.filter(x=>inRange(x.created_at))
+ const reportFinance=finance.filter(x=>inRange(x.due_date||x.created_at))
+ const stockValue=products.reduce((a,p)=>a+Number(p.cost||0)*Number(p.stock||0),0)
+ const stockSaleValue=products.reduce((a,p)=>a+Number(p.price||0)*Number(p.stock||0),0)
+ const revenue=reportSales.reduce((a,s)=>a+Number(s.total||0),0)
+ const expenses=reportFinance.filter(x=>x.kind==='expense'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const low=products.filter(p=>Number(p.stock||0)<=1).length
+
+ function csvCell(v){return `"${String(v??'').replaceAll('"','""')}"`}
+ function exportExcel(){
+   const lines=[
+     ['RELATÓRIO CDM DESMONTES'],
+     ['Período',from||'início',to||'hoje'],
+     [],
+     ['RESUMO'],
+     ['Vendas',revenue],['Despesas pagas',expenses],['Resultado operacional simples',revenue-expenses],['Custo do estoque',stockValue],['Valor de venda do estoque',stockSaleValue],
+     [],
+     ['VENDAS'],['Código','Canal','Pagamento','Total','Situação','Data'],
+     ...reportSales.map(s=>[s.id,valuePt('source',s.source),valuePt('payment_method',s.payment_method),s.total,statusPt(s.status),s.created_at||'']),
+     [],
+     ['FINANCEIRO'],['Código','Tipo','Descrição','Valor','Situação','Vencimento'],
+     ...reportFinance.map(x=>[x.id,valuePt('kind',x.kind),x.description,x.amount,statusPt(x.status),x.due_date||'']),
+     [],
+     ['ESTOQUE BAIXO'],['SKU','Peça','Estoque','Preço'],
+     ...products.filter(p=>Number(p.stock||0)<=1).map(p=>[p.sku,p.name,p.stock,p.price])
+   ]
+   const csv='\ufeff'+lines.map(r=>r.map(csvCell).join(';')).join('\n')
+   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`relatorio-cdm-${new Date().toISOString().slice(0,10)}.csv`;a.click()
+ }
+ function printReport(){window.print()}
+
+ return <>
+   <div className="pageTitle reportTitle"><div><span>RELATÓRIOS</span><h2>Visão gerencial</h2><p>Filtre o período, acompanhe números e exporte o relatório.</p></div><div className="reportActions"><button className="ghost" onClick={printReport}>▤ Imprimir / Salvar PDF</button><button className="excelBtn" onClick={exportExcel}>↓ Exportar Excel (CSV)</button></div></div>
+   <section className="panel reportFilters"><div><Field label="De"><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></Field><Field label="Até"><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></Field><button className="ghost" onClick={()=>{setFrom('');setTo('')}}>Limpar período</button></div><span>{reportSales.length} venda(s) no período</span></section>
+
+   <div className="grid metrics">
+     <Card icon="R$" title="Vendas no período" value={money(revenue)} sub={`${reportSales.length} vendas`}/>
+     <Card icon="↓" title="Despesas pagas" value={money(expenses)} sub="No período selecionado"/>
+     <Card icon="=" title="Resultado simples" value={money(revenue-expenses)} sub="Vendas - despesas"/>
+     <Card icon="▤" title="Venda potencial em estoque" value={money(stockSaleValue)} sub={`${products.length} SKUs · custo ${money(stockValue)}`}/>
+   </div>
+
+   <div className="twoCols reportTables">
+     <section className="panel"><PanelHead eyebrow="VENDAS" title="Vendas do período" text={`${reportSales.length} registro(s)`}/><Table rows={reportSales.slice(0,40)} cols={['id','source','payment_method','total','status','created_at']} format={{source:v=>valuePt('source',v),payment_method:v=>valuePt('payment_method',v),total:money,status:v=>statusPt(v),created_at:v=>v?new Date(v).toLocaleString('pt-BR'):'—'}}/></section>
+     <section className="panel"><PanelHead eyebrow="FINANCEIRO" title="Movimentações do período" text={`${reportFinance.length} registro(s)`}/><Table rows={reportFinance.slice(0,40)} cols={['id','kind','description','amount','status','due_date']} format={{kind:v=>valuePt('kind',v),amount:money,status:v=>statusPt(v)}}/></section>
+   </div>
+   <section className="panel"><PanelHead eyebrow="ESTOQUE" title={`Estoque baixo · ${low} item(ns)`} text="Peças com uma unidade ou menos."/><Table rows={products.filter(p=>Number(p.stock||0)<=1)} cols={['sku','name','stock','price']} format={{price:money}}/></section>
+   <section className="panel reportVehicleMini"><span>Sucatas cadastradas</span><strong>{vehicles.length}</strong><small>veículos no sistema</small></section>
+ </>
+}
+
 function Gamification({sales,products}){const points=sales.length*10+products.length*2;return <section className="panel"><PanelHead eyebrow="EQUIPE" title="Gamificação" text="Metas e produtividade da equipe."/><div className="scoreHero"><small>PONTOS DA OPERAÇÃO</small><strong>{points}</strong><span>Nível {Math.max(1,Math.floor(points/100)+1)}</span><div className="progress"><i style={{width:`${Math.min(100,points%100)}%`}}/></div></div></section>}
 
 function PlatformAdmin({notice}){const [rows,setRows]=useState([]),[busy,setBusy]=useState(true);async function load(){setBusy(true);try{setRows((await api.get('/admin/companies')).data||[])}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível carregar clientes')}finally{setBusy(false)}}useEffect(()=>{load()},[]);async function toggle(c){try{await api.put(`/admin/companies/${c.id}/active`,{active:!c.active});await load();notice('Empresa atualizada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro')}}async function status(c,value){try{await api.put(`/admin/companies/${c.id}/subscription`,{status:value,days:31});await load();notice('Assinatura atualizada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro')}}async function backup(){try{const r=await api.get('/admin/backup',{responseType:'blob'});const a=document.createElement('a');a.href=URL.createObjectURL(r.data);a.download=`cdm-backup-${new Date().toISOString().slice(0,10)}.json.gz`;a.click();notice('Cópia de segurança gerada')}catch(e){notice('Não foi possível gerar a cópia de segurança')}}return <><div className="pageTitle"><div><span>ADMINISTRAÇÃO DA PLATAFORMA</span><h2>Clientes e empresas</h2><p>Controle central das empresas assinantes do CDM.</p></div><button className="primary" onClick={backup}>↓ Baixar cópia de segurança agora</button></div><section className="panel"><PanelHead eyebrow="CLIENTES" title={busy?'Carregando...':`${rows.length} empresas cadastradas`} text="Ative/desative empresas e acompanhe assinatura, produtos e vendas."/><div className="adminCompanyGrid">{rows.map(c=><article className="adminCompany" key={c.id}><div><small>EMPRESA #{c.id}</small><h3>{c.trade_name||'Sem nome'}</h3><p>{c.email||'sem e-mail'} · {c.cnpj||'sem CNPJ'}</p></div><div className="adminStats"><span><b>{c.products}</b> peças</span><span><b>{c.sales}</b> vendas</span><span><b>{c.users}</b> usuários</span><span><b>{c.connections}</b> canais</span></div><div className="adminActions"><span className={c.active?'pill success':'pill warn'}>{c.active?'Empresa ativa':'Empresa bloqueada'}</span><span className={['active','trial'].includes(c.subscription_status)?'pill success':'pill warn'}>{statusPt(c.subscription_status)}</span><button className="ghost" onClick={()=>toggle(c)}>{c.active?'Bloquear':'Ativar'}</button><select value={c.subscription_status} onChange={e=>status(c,e.target.value)}><option value="trial">Teste</option><option value="active">Ativa</option><option value="pending">Pendente</option><option value="past_due">Atrasada</option><option value="canceled">Cancelada</option><option value="inactive">Inativa</option></select></div></article>)}</div></section></>}

@@ -936,3 +936,83 @@ table{font-size:12px}
   .integrationCardActions{grid-template-columns:1fr!important}
   .integrationStats{grid-template-columns:1fr 1fr 1fr!important}
 }
+
+
+/* CDM OPERATIONS PACK V1 */
+
+/* PDV */
+.pdvQuickSummary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:-2px 0 14px}
+.pdvQuickSummary>span{display:grid;gap:3px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--soft)}
+.pdvQuickSummary small{font-size:8px;color:var(--muted);text-transform:uppercase}
+.pdvQuickSummary b{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdvProductSearch{margin-bottom:9px}
+.pdvSelectedInfo{display:flex;gap:14px;flex-wrap:wrap;padding:8px 10px;margin:-4px 0 10px;border-radius:8px;background:var(--soft);font-size:9px;color:var(--muted)}
+.pdvSelectedInfo b{color:var(--text)}
+.pdvCartRow{grid-template-columns:minmax(150px,1fr) 72px 100px 100px 30px!important;align-items:center}
+.pdvQty{display:grid;gap:3px}
+.pdvQty small{font-size:8px;color:var(--muted)}
+.pdvQty input{padding:6px 7px;text-align:center}
+.pdvCheckout{margin-top:12px}
+.saleTotal>div{display:grid;gap:2px}.saleTotal>div small{font-size:8px;color:var(--muted)}
+.pdvActions{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.pdvActions .bigBtn{margin-top:0}
+
+/* Financeiro */
+.financeTitle{align-items:center}
+.financeBalance{display:flex!important;gap:6px;align-items:center;color:#dfe7f3!important;background:#ffffff0c;border:1px solid #ffffff1f;border-radius:9px;padding:9px 12px}
+.financeBalance b{font-size:13px}
+.financeMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.financeMetrics>div{padding:15px;border:1px solid var(--line);border-radius:11px;background:var(--panel);display:grid;gap:5px}
+.financeMetrics small{font-size:9px;color:var(--muted)}
+.financeMetrics strong{font-size:18px}
+.financeMetrics .income{border-left:4px solid #2ca86b}
+.financeMetrics .expense{border-left:4px solid #d05252}
+.financeMetrics .pending{border-left:4px solid #d99b27}
+.financeForm{grid-template-columns:120px minmax(220px,2fr) 150px 140px 160px!important}
+.financeEditActions{display:flex;gap:8px;justify-content:flex-end}
+.financeToolbar{display:grid;grid-template-columns:minmax(260px,1fr) 190px 190px;gap:9px;margin-bottom:10px}
+.rowActions{display:flex;gap:5px}.rowActions .ghost{padding:6px 8px}.dangerMini{color:#bc3434!important}
+.cashFlowMetrics .metric:last-child strong{font-size:15px}
+
+/* Relatórios */
+.reportTitle{align-items:center}
+.reportActions{display:flex;gap:8px;flex-wrap:wrap}
+.reportFilters{display:flex;align-items:end;justify-content:space-between;gap:14px}
+.reportFilters>div{display:grid;grid-template-columns:180px 180px auto;gap:9px;align-items:end}
+.reportFilters>span{font-size:10px;color:var(--muted)}
+.reportTables{grid-template-columns:1fr 1fr}
+.reportVehicleMini{display:flex;align-items:center;gap:12px}.reportVehicleMini span{font-size:11px}.reportVehicleMini strong{font-size:22px}.reportVehicleMini small{font-size:9px;color:var(--muted)}
+
+/* Notificações */
+.notificationPanelV2{width:min(520px,94vw)!important}
+.notificationHead>div>span{display:block;font-size:9px;color:#8f99a8;margin-top:3px}
+.notificationTools{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid #2d3440}
+.notificationTools>div{display:flex;gap:5px}
+.notificationTools button{border-radius:6px;padding:6px 9px;background:#242b36;color:#b8c0cc;font-size:9px}
+.notificationTools button.active{background:#3a4658;color:white}
+.notificationRefresh{margin-left:auto}
+.notificationFoot{padding:8px 12px;border-top:1px solid #2d3440;color:#7f8997;font-size:8px;text-align:center}
+
+@media(max-width:1200px){
+ .financeForm{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ .financeMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .pdvQuickSummary{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:900px){
+ .financeToolbar{grid-template-columns:1fr}
+ .reportTables{grid-template-columns:1fr}
+ .pdvCartRow{grid-template-columns:minmax(130px,1fr) 70px 90px 30px!important}
+ .pdvCartRow>span{display:none}
+}
+@media(max-width:680px){
+ .financeMetrics,.pdvQuickSummary{grid-template-columns:1fr 1fr}
+ .financeForm{grid-template-columns:1fr!important}
+ .reportFilters{align-items:stretch;flex-direction:column}
+ .reportFilters>div{grid-template-columns:1fr}
+ .reportActions{width:100%}.reportActions button{flex:1}
+ .pdvCartRow{grid-template-columns:1fr 64px 30px!important}
+ .pdvCartRow>strong{grid-column:1/3}
+}
+@media print{
+ .reportActions,.reportFilters button,.financeEditActions,.rowActions,.notificationPanelV2{display:none!important}
+}
