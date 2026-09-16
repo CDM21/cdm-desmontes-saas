@@ -694,3 +694,54 @@ table{font-size:12px}
 @media(max-width:760px){.catalogManageRow,.catalogEditableRow,.locationRow.catalogEditableRow{grid-template-columns:1fr !important}.catalogManageRow .editRegisterBtn,.catalogEditableRow .editRegisterBtn{width:100%}.partGroupIcon,.locationCode{justify-self:start}}
 /* CDM CATALOG EDIT V1 - END */
 
+
+/* CDM PRODUCT PHOTO AI V1 - START */
+.productAiPhoto{margin-bottom:16px;padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--soft)}
+.productAiPhotoHead{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.productAiPhotoHead>div{display:grid;gap:4px}
+.productAiPhotoHead h4{margin:0;font-size:15px}
+.productAiPhotoHead p{margin:0;color:var(--muted);font-size:11px}
+.aiNewBadge{width:max-content;padding:3px 7px;border-radius:999px;background:rgba(99,102,241,.12);font-size:9px;font-weight:800;letter-spacing:.08em}
+.aiPhotoButton{position:relative;overflow:hidden;white-space:nowrap;cursor:pointer}
+.aiPhotoButton input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.aiPhotoButton.disabled{opacity:.65;pointer-events:none}
+.aiPrivacyNote{display:block;margin-top:9px;color:var(--muted);font-size:9px}
+.aiPhotoResult{display:grid;gap:10px;margin-top:13px;padding-top:13px;border-top:1px solid var(--line)}
+.aiPhotoResultTop{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.aiPhotoResultTop>div{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.aiPhotoResultTop b{font-size:13px}
+.aiConfidence{padding:3px 7px;border:1px solid var(--line);border-radius:999px;font-size:9px;text-transform:capitalize}
+.aiConfidence.alta{font-weight:800}
+.aiSuggestionGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.aiSuggestionGrid>div{display:grid;gap:3px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.aiSuggestionGrid small,.aiTextSuggestion small{font-size:8px;color:var(--muted);letter-spacing:.06em}
+.aiSuggestionGrid b{font-size:10px;overflow-wrap:anywhere}
+.aiTextSuggestion{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.aiTextSuggestion p{margin:4px 0 0;font-size:10px;line-height:1.45}
+.aiKeywords{display:flex;gap:5px;flex-wrap:wrap}
+.aiKeywords span{padding:4px 7px;border:1px solid var(--line);border-radius:999px;font-size:9px}
+.aiWarnings{display:grid;gap:3px;padding:10px;border:1px dashed var(--line);border-radius:9px;font-size:9px}
+.aiWarnings b{font-size:10px}
+@media(max-width:800px){.productAiPhotoHead,.aiPhotoResultTop{align-items:flex-start;flex-direction:column}.aiPhotoButton,.aiPhotoResultTop button{width:100%;text-align:center}.aiSuggestionGrid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.aiSuggestionGrid{grid-template-columns:1fr}}
+/* CDM PRODUCT PHOTO AI V1 - END */
+
+
+
+/* CDM DUPLICATE DETECTION V1 */
+.duplicateDetector{margin:0 0 18px;padding:14px 16px;border:1px solid var(--line,#dfe5ec);border-radius:14px;background:rgba(120,130,145,.06)}
+.duplicateDetector.strong{border-color:#d49a34;background:rgba(212,154,52,.08)}
+.duplicateDetectorHead{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.duplicateDetectorHead>div{display:flex;flex-direction:column;gap:3px}
+.duplicateDetectorHead b{font-size:14px}
+.duplicateDetectorHead small,.duplicateMatch small{opacity:.72}
+.duplicateMatches{margin-top:12px;display:grid;gap:8px}
+.duplicateWarning{padding:9px 11px;border-radius:9px;background:rgba(212,154,52,.12);font-size:13px;font-weight:700}
+.duplicateMatch{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:10px 12px;border:1px solid var(--line,#dfe5ec);border-radius:10px;background:var(--panel,#fff)}
+.duplicateMatch>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.duplicateScore{display:grid;text-align:right;white-space:nowrap}
+.duplicateScore strong{font-size:18px}
+.duplicateScore small{font-weight:700}
+.duplicateScore em{font-size:11px;font-style:normal;opacity:.7}
+.duplicateClear{margin-top:10px;font-size:12px;font-weight:700;opacity:.75}
+@media(max-width:720px){.duplicateDetectorHead,.duplicateMatch{align-items:stretch;flex-direction:column}.duplicateScore{text-align:left;display:flex;align-items:center;gap:8px}}

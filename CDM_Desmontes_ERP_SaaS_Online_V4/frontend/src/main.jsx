@@ -444,8 +444,81 @@ function ProductImages({form,setForm,notice}){
 }
 
 function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[],initialProduct=null,onClose=null}){
-  const editing=!!initialProduct,[form,setForm]=useState({...productEmpty,...(initialProduct||{}),auto_publish:false}),[mlSuggestions,setMlSuggestions]=useState([]),[findingCategory,setFindingCategory]=useState(false),[marketModal,setMarketModal]=useState(null),[step,setStep]=useState('cadastro'),[categoryOpen,setCategoryOpen]=useState(false),[categoryQuery,setCategoryQuery]=useState(''),[categoryResults,setCategoryResults]=useState([]),[categoryBusy,setCategoryBusy]=useState(false)
+  // CDM DUPLICATE DETECTION V1
+  const [duplicateCheck,setDuplicateCheck]=useState({loading:false,items:[],checked:false})
+  const editing=!!initialProduct,[form,setForm]=useState({...productEmpty,...(initialProduct||{}),auto_publish:false}),[mlSuggestions,setMlSuggestions]=useState([]),[findingCategory,setFindingCategory]=useState(false),[marketModal,setMarketModal]=useState(null),[step,setStep]=useState('cadastro'),[categoryOpen,setCategoryOpen]=useState(false),[categoryQuery,setCategoryQuery]=useState(''),[categoryResults,setCategoryResults]=useState([]),[categoryBusy,setCategoryBusy]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState(null)
   useEffect(()=>{setForm({...productEmpty,...(initialProduct||{}),auto_publish:false});setStep('cadastro');if(!initialProduct)loadNextSku()},[initialProduct?.id])
+  async function analyzeProductPhotos(files){
+    if(!files?.length||aiBusy)return
+    setAiBusy(true);setAiResult(null)
+    try{
+      const prepared=[]
+      for(const f of Array.from(files).slice(0,3)){
+        if(!f.type?.startsWith('image/'))continue
+        prepared.push(await prepareProductImage(f,false))
+      }
+      if(!prepared.length){notice('Selecione pelo menos uma foto da peça');return}
+      const current=imageList(form.image_urls)
+      setForm(f=>({...f,image_urls:[...prepared,...current].slice(0,8).join('\n')}))
+      const r=await api.post('/intelligence/product-photo-analysis',{
+        images:prepared,
+        vehicle_id:form.vehicle_id?Number(form.vehicle_id):null,
+        context:{name:form.name||'',brand:form.brand||'',model:form.model||'',year:form.year||'',groups:groups.map(g=>g.name)}
+      })
+      setAiResult(r.data)
+      notice('IA analisou a peça. Revise as sugestões antes de aplicar')
+    }catch(e){
+      notice(erroPt(e.response?.data?.detail)||'Não foi possível analisar a peça por foto')
+    }finally{setAiBusy(false)}
+  }
+  function applyAiProductSuggestions(){
+    if(!aiResult)return
+    const groupExists=groups.some(g=>(g.name||'').trim().toLowerCase()===(aiResult.part_group||'').trim().toLowerCase())
+    setForm(f=>({...f,
+      name:aiResult.name||f.name,
+      category:aiResult.category||f.category,
+      part_group:groupExists?aiResult.part_group:f.part_group,
+      side:aiResult.side||f.side,
+      position:aiResult.position||f.position,
+      condition:aiResult.condition||f.condition,
+      oem:aiResult.oem||f.oem,
+      brand:aiResult.brand||f.brand,
+      model:aiResult.model||f.model,
+      year:aiResult.year||f.year,
+      compatibility:aiResult.compatibility||f.compatibility,
+      description:aiResult.description||f.description,
+      quality_notes:aiResult.quality_notes||f.quality_notes
+    }))
+    notice('Sugestões da IA aplicadas. Confira os dados antes de salvar')
+  }
+  async function checkDuplicates(silent=false){
+    const name=String(form.name||'').trim(),oem=String(form.oem||'').trim()
+    if(name.length<3&&oem.length<3){setDuplicateCheck({loading:false,items:[],checked:false});return}
+    setDuplicateCheck(v=>({...v,loading:true}))
+    try{
+      const r=await api.get('/products/duplicates',{params:{
+        name,oem,
+        brand:String(form.brand||'').trim(),
+        model:String(form.model||'').trim(),
+        year:form.year?Number(form.year):undefined,
+        vehicle_id:form.vehicle_id?Number(form.vehicle_id):undefined,
+        exclude_id:editing?initialProduct?.id:undefined
+      }})
+      const items=r.data?.items||[]
+      setDuplicateCheck({loading:false,items,checked:true})
+      if(!silent)notice(items.length?`${items.length} possível(is) duplicidade(s) encontrada(s)`:'Nenhuma peça duplicada encontrada')
+    }catch(e){
+      setDuplicateCheck(v=>({...v,loading:false}))
+      if(!silent)notice('Não foi possível verificar duplicidade agora')
+    }
+  }
+  useEffect(()=>{
+    const name=String(form.name||'').trim(),oem=String(form.oem||'').trim()
+    if(name.length<3&&oem.length<3){setDuplicateCheck({loading:false,items:[],checked:false});return}
+    const timer=setTimeout(()=>checkDuplicates(true),700)
+    return()=>clearTimeout(timer)
+  },[form.name,form.oem,form.brand,form.model,form.year,form.vehicle_id,initialProduct?.id])
+
   async function suggestMl(){if(!form.name.trim())return notice('Informe o nome da peça primeiro');setFindingCategory(true);try{const r=await api.get('/marketplaces/mercadolivre/category-suggestions',{params:{q:`${form.name} ${form.brand} ${form.model}`.trim(),limit:3}});setMlSuggestions(r.data||[]);if(r.data?.[0])setForm(f=>({...f,ml_category_id:r.data[0].category_id}));notice(r.data?.length?'Categoria sugerida pelo Mercado Livre':'Nenhuma categoria encontrada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Conecte o Mercado Livre para sugerir categoria')}finally{setFindingCategory(false)}}
   function chooseVehicle(id){const v=vehicles.find(x=>x.id===+id);if(!v){setForm({...form,vehicle_id:null});return}setForm({...form,vehicle_id:v.id,brand:v.brand||'',model:v.model||'',year:v.year||'',compatibility:form.compatibility||`${v.brand||''} ${v.model||''} ${v.year||''}`.trim()})}
   async function loadNextSku(){if(editing)return;try{const r=await api.get('/products/next-sku');setForm(f=>({...f,sku:String(r.data?.sku||'')}))}catch(e){notice('Não foi possível gerar o próximo SKU automaticamente')}}
@@ -461,7 +534,37 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     <div className="productRegisterShell">
       <div className="productRegisterMain">
         {step==='cadastro'&&<>
-          <div className="productSectionCard"><div className="productSectionHead"><div><span>PASSO 1</span><h3>Cadastro da peça</h3><p>Preencha primeiro os dados que você usa no dia a dia.</p></div></div><div className="productSectionBody"><div className="productCoreGrid">
+          <div className="productSectionCard"><div className="productSectionHead"><div><span>PASSO 1</span><h3>Cadastro da peça</h3><p>Preencha primeiro os dados que você usa no dia a dia.</p></div></div><div className="productSectionBody"><div className="productAiPhoto" data-feature="CDM_AI_PHOTO_PANEL">
+            <div className="productAiPhotoHead"><div><span className="aiNewBadge">NOVO · IA</span><h4>Cadastro de peça por foto</h4><p>Tire ou envie até 3 fotos. A IA sugere os dados e você escolhe quando aplicar.</p></div><label className={'primary aiPhotoButton '+(aiBusy?'disabled':'')}>{aiBusy?'Analisando...':'📷 Tirar ou enviar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={aiBusy} onChange={e=>{analyzeProductPhotos(e.target.files);e.target.value=''}}/></label></div>
+            <small className="aiPrivacyNote">Somente as fotos escolhidas aqui são enviadas para análise. Sempre confira aplicação e código OEM antes de publicar.</small>
+            {aiResult&&<div className="aiPhotoResult">
+              <div className="aiPhotoResultTop"><div><b>{aiResult.name||'Peça identificada parcialmente'}</b><span className={'aiConfidence '+(aiResult.confidence||'baixa')}>Confiança: {aiResult.confidence||'baixa'}</span></div><button type="button" className="primary" onClick={applyAiProductSuggestions}>✓ Aplicar sugestões</button></div>
+              <div className="aiSuggestionGrid">
+                <div><small>Categoria</small><b>{aiResult.category||'—'}</b></div>
+                <div><small>Lado / posição</small><b>{[aiResult.side,aiResult.position].filter(Boolean).join(' · ')||'—'}</b></div>
+                <div><small>OEM visível</small><b>{aiResult.oem||'Não identificado'}</b></div>
+                <div><small>Marca / modelo</small><b>{[aiResult.brand,aiResult.model,aiResult.year].filter(Boolean).join(' ')||'Não confirmado'}</b></div>
+              </div>
+              {aiResult.marketplace_title&&<div className="aiTextSuggestion"><small>TÍTULO SUGERIDO PARA ANÚNCIO</small><p>{aiResult.marketplace_title}</p></div>}
+              {aiResult.compatibility&&<div className="aiTextSuggestion"><small>APLICAÇÕES POSSÍVEIS</small><p>{aiResult.compatibility}</p></div>}
+              {!!aiResult.keywords?.length&&<div className="aiKeywords">{aiResult.keywords.map((x,i)=><span key={i}>{x}</span>)}</div>}
+              {!!aiResult.warnings?.length&&<div className="aiWarnings"><b>Confira antes de salvar:</b>{aiResult.warnings.map((x,i)=><span key={i}>• {x}</span>)}</div>}
+            </div>}
+          </div><div className={'duplicateDetector '+(duplicateCheck.items.some(x=>x.strong)?'strong':'')}>
+              <div className="duplicateDetectorHead">
+                <div><b>Detector de peça duplicada</b><small>Compara nome, OEM, marca, modelo, ano e veículo dentro da sua empresa.</small></div>
+                <button type="button" className="ghost" onClick={()=>checkDuplicates(false)} disabled={duplicateCheck.loading}>{duplicateCheck.loading?'Verificando...':'Verificar agora'}</button>
+              </div>
+              {duplicateCheck.items.length>0&&<div className="duplicateMatches">
+                <div className="duplicateWarning">Aviso: encontramos peça(s) parecida(s). Confira antes de cadastrar outra.</div>
+                {duplicateCheck.items.map(x=><div className="duplicateMatch" key={x.id}>
+                  <div><b>SKU {x.sku||'—'} · {x.name}</b><small>{[x.brand,x.model,x.year].filter(Boolean).join(' ')}{x.oem?` · OEM ${x.oem}`:''}</small><small>{(x.reasons||[]).join(' · ')}</small></div>
+                  <div className="duplicateScore"><strong>{x.score}%</strong><small>{x.strong?'Alta chance':'Possível'}</small><em>Estoque: {x.stock||0}</em></div>
+                </div>)}
+              </div>}
+              {duplicateCheck.checked&&!duplicateCheck.loading&&duplicateCheck.items.length===0&&<div className="duplicateClear">Nenhuma duplicidade encontrada com os dados atuais.</div>}
+            </div>
+            <div className="productCoreGrid">
             <div className="span2"><Field label="Sucata / veículo de origem"><select value={form.vehicle_id||''} onChange={e=>chooseVehicle(e.target.value)}><option value="">Sem vínculo / peça avulsa</option>{vehicles.map(v=><option key={v.id} value={v.id}>#{v.id} · {v.plate||'sem placa'} · {v.brand} {v.model} {v.year||''}</option>)}</select></Field></div>
             <div className="span2"><Field label="Nome do produto *"><input value={form.name||''} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex.: Farol dianteiro direito"/></Field></div>
             <Field label="SKU sequencial"><input className="skuSequentialInput" value={form.sku||''} readOnly placeholder="Automático"/></Field>

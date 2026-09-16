@@ -1,5 +1,7 @@
 import base64
 import re
+import unicodedata
+from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -77,6 +79,113 @@ def list_products(db:Session=Depends(get_db),user=Depends(active_user)):
 @router.get("/next-sku")
 def get_next_sku(db:Session=Depends(get_db),user=Depends(active_user)):
     return {"sku":next_sequential_sku(db,user.company_id)}
+
+
+# CDM DUPLICATE DETECTION V1
+def _dup_norm(value):
+    text = str(value or "").strip().lower()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+@router.get("/duplicates")
+def find_product_duplicates(
+    name: str = "",
+    oem: str = "",
+    brand: str = "",
+    model: str = "",
+    year: int | None = None,
+    vehicle_id: int | None = None,
+    exclude_id: int | None = None,
+    db: Session = Depends(get_db),
+    user = Depends(active_user),
+):
+    q_name = _dup_norm(name)
+    q_oem = _dup_norm(oem)
+    q_brand = _dup_norm(brand)
+    q_model = _dup_norm(model)
+
+    if len(q_name) < 3 and len(q_oem) < 3:
+        return {"items": [], "strong_count": 0}
+
+    rows = db.query(Product).filter(
+        Product.company_id == user.company_id,
+        Product.active == True,
+    )
+    if exclude_id:
+        rows = rows.filter(Product.id != exclude_id)
+
+    candidates = []
+    for p in rows.order_by(Product.id.desc()).limit(500).all():
+        score = 0
+        reasons = []
+        p_name = _dup_norm(p.name)
+        p_oem = _dup_norm(p.oem)
+        p_brand = _dup_norm(p.brand)
+        p_model = _dup_norm(p.model)
+
+        if q_oem and p_oem and q_oem == p_oem:
+            score += 75
+            reasons.append("Mesmo OEM")
+
+        if q_name and p_name:
+            if q_name == p_name:
+                score += 40
+                reasons.append("Mesmo nome")
+            else:
+                similarity = SequenceMatcher(None, q_name, p_name).ratio()
+                if similarity >= 0.88:
+                    score += 28
+                    reasons.append(f"Nome muito parecido ({round(similarity * 100)}%)")
+                elif similarity >= 0.78:
+                    score += 18
+                    reasons.append(f"Nome parecido ({round(similarity * 100)}%)")
+
+        if q_brand and p_brand and q_brand == p_brand:
+            score += 8
+            reasons.append("Mesma marca")
+        if q_model and p_model and q_model == p_model:
+            score += 12
+            reasons.append("Mesmo modelo")
+        if year and p.year and int(year) == int(p.year):
+            score += 8
+            reasons.append("Mesmo ano")
+        if vehicle_id and p.vehicle_id and int(vehicle_id) == int(p.vehicle_id):
+            score += 15
+            reasons.append("Mesmo veículo de origem")
+
+        if score >= 38:
+            candidates.append({
+                "id": p.id,
+                "sku": p.sku,
+                "name": p.name,
+                "oem": p.oem,
+                "brand": p.brand,
+                "model": p.model,
+                "year": p.year,
+                "stock": p.stock,
+                "location_id": p.location_id,
+                "vehicle_id": p.vehicle_id,
+                "score": min(score, 100),
+                "strong": score >= 70,
+                "reasons": reasons,
+            })
+
+    candidates.sort(key=lambda x: (x["score"], x["id"]), reverse=True)
+    items = candidates[:8]
+    return {
+        "items": items,
+        "strong_count": sum(1 for x in items if x["strong"]),
+        "checked": {
+            "name": name,
+            "oem": oem,
+            "brand": brand,
+            "model": model,
+            "year": year,
+            "vehicle_id": vehicle_id,
+        },
+    }
+
 
 @router.post("")
 def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(active_user)):
