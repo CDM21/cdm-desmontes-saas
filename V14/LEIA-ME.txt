@@ -1,0 +1,42 @@
+CDM DESMONTES V14 — PACOTE DE ATUALIZAÇÃO
+
+O pacote adiciona:
+- Regra dos 10 clientes fundadores.
+- Fundadores pagam somente R$ 350/mês.
+- A partir do 11º cliente: R$ 1.500 de implantação (uma vez) + R$ 350/mês.
+- Estrutura de checkout pronta para receber Mercado Pago depois.
+- Desmonte Inteligente funcional no menu já existente.
+- Sugestões de peças priorizadas pelo histórico da própria empresa.
+- Controle de início/conclusão da desmontagem com auditoria.
+- Melhorias do Portal do Dono: fundadores, segurança, backup e diagnóstico.
+- Monitoramento de banco, auditoria, credenciais e integrações.
+- Mantém Visão 360 já existente.
+
+COMO APLICAR
+
+1) Extraia este ZIP dentro de:
+   C:\CDM_DEPLOY
+
+2) Abra o PowerShell em C:\CDM_DEPLOY
+
+3) Execute:
+   python .\APLICAR_CDM_V14.py
+
+O aplicador faz backup em memória e, se algo falhar, restaura os arquivos anteriores.
+
+4) Se aparecer:
+   CDM V14 APLICADA E VALIDADA.
+
+Rode:
+   git add .
+   git commit -m "V14 fundadores desmonte inteligente monitoramento"
+   git push
+
+5) Depois do deploy do Render, abra o site e teste:
+- Portal do Dono > Receita
+- Portal do Dono > Sistema
+- Inteligência > Desmonte Inteligente
+- Veículos > Visão 360
+
+OBSERVAÇÃO
+Mercado Pago real, Mercado Livre, Shopee, OLX e fiscal homologado continuam para a etapa de credenciais/homologação.

@@ -193,15 +193,24 @@ function OwnerPortal({session,onPreview}){
  const [busy,setBusy]=useState(false)
  const [toast,setToast]=useState('')
  const [lastUpdate,setLastUpdate]=useState(null)
+ const [readiness,setReadiness]=useState(null)
+ const [founders,setFounders]=useState(null)
  const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
+ const founderMap=new Map((founders?.founders||[]).map(x=>[Number(x.company_id),Number(x.slot)]))
  const statusMeta={active:['Ativa','success'],trial:['Teste','info'],past_due:['Atrasada','danger'],blocked:['Bloqueada','dark'],canceled:['Cancelada','muted'],inactive:['Inativa','muted']}
  const pop=t=>{setToast(t);setTimeout(()=>setToast(''),3200)}
 
  async function load(silent=false){
    if(!silent)setBusy(true)
    try{
-     const r=await api.get('/admin/dashboard-v2')
+     const [r,readinessR,foundersR]=await Promise.all([
+       api.get('/admin/dashboard-v2'),
+       api.get('/v14/admin/platform-readiness').catch(()=>({data:null})),
+       api.get('/v14/admin/founders').catch(()=>({data:null}))
+     ])
      setData(r.data||{})
+     setReadiness(readinessR.data||null)
+     setFounders(foundersR.data||null)
      setLastUpdate(new Date())
    }catch(e){pop(erroPt(e.response?.data?.detail)||'Erro ao carregar o Portal do Dono')}
    finally{if(!silent)setBusy(false)}
@@ -312,7 +321,7 @@ function OwnerPortal({session,onPreview}){
        <section className="ownerTableCard">
          <div className="ownerCompanyRow head"><span>Empresa</span><span>Status</span><span>Vencimento</span><span>Uso</span><span>Ações</span></div>
          {shown.map(c=><div className="ownerCompanyRow" key={c.id}>
-           <div className="ownerCompanyIdentity"><b>{c.trade_name}</b><span>{c.email||c.cnpj||'Sem contato'}</span><small>Empresa #{c.id} · criada {c.created_at?new Date(c.created_at).toLocaleDateString('pt-BR'):'—'}</small></div>
+           <div className="ownerCompanyIdentity"><b>{c.trade_name}</b><span>{c.email||c.cnpj||'Sem contato'}</span><small>Empresa #{c.id} · criada {c.created_at?new Date(c.created_at).toLocaleDateString('pt-BR'):'—'}{founderMap.has(Number(c.id))?` · Fundador #${founderMap.get(Number(c.id))}`:''}</small></div>
            <div>{badge(c)}</div>
            <div className="ownerExpiry"><b>{expiry(c)}</b><small>{c.provider||c.subscription_status||'manual'}</small></div>
            <div className="ownerUsage"><span><b>{c.users}</b> usuários</span><span><b>{c.products}</b> peças</span><span><b>{c.sales}</b> vendas</span></div>
@@ -336,6 +345,19 @@ function OwnerPortal({session,onPreview}){
        </section>
      </>}
 
+
+     {section==='revenue'&&founders&&<section className="ownerCard v14FounderCard">
+       <div className="ownerCardHead"><div><span>PROGRAMA FUNDADORES</span><h3>Regra dos 10 primeiros clientes</h3></div><span className="pill neutral">{founders.assigned||0}/{founders.limit||10} vagas usadas</span></div>
+       <div className="v14FounderStats">
+         <div><small>FUNDADORES</small><b>{founders.assigned||0}</b></div>
+         <div><small>VAGAS RESTANTES</small><b>{founders.remaining||0}</b></div>
+         <div><small>MENSALIDADE</small><b>{money(founders.monthly_price||350)}</b></div>
+         <div><small>IMPLANTAÇÃO APÓS 10</small><b>{money(founders.implementation_fee_after_founders||1500)}</b></div>
+       </div>
+       <div className="v14FounderNames">{(founders.founders||[]).map(x=><span key={x.company_id}>#{x.slot} · {x.company_name}</span>)}</div>
+       <div className="ownerInfoNote">Os fundadores ficam isentos da implantação. A partir do 11º cliente, o CDM prepara a cobrança única de implantação + a mensalidade recorrente.</div>
+     </section>}
+
      {section==='system'&&<>
        <section className="ownerSectionIntro"><div><span>SAÚDE DA PLATAFORMA</span><h2>Sistema e monitoramento</h2><p>Uso geral, automações e últimas ações administrativas.</p></div></section>
        <div className="ownerKpis">
@@ -349,6 +371,21 @@ function OwnerPortal({session,onPreview}){
          <section className="ownerCard"><div className="ownerCardHead"><div><span>LOGS</span><h3>Atividades recentes</h3></div></div><div className="ownerLogs">{logs.slice(0,20).map(x=><div key={x.id}><div><b>{x.action}</b><span>{x.entity||'sistema'} {x.entity_id||''}</span></div><small>{x.created_at?new Date(x.created_at).toLocaleString('pt-BR'):'—'}</small></div>)}{!logs.length&&<div className="ownerEmpty">Nenhuma atividade recente.</div>}</div></section>
        </div>
      </>}
+
+
+     {section==='system'&&readiness&&<section className="ownerCard v14ReadinessCard">
+       <div className="ownerCardHead"><div><span>DIAGNÓSTICO V14</span><h3>Segurança, backup e integrações</h3></div><span className="pill neutral">{readiness.database?.latency_ms??'—'} ms DB</span></div>
+       <div className="v14ReadinessGrid">
+         <div><small>BANCO DE DADOS</small><b className={readiness.database?.online?'v14ReadyYes':'v14ReadyNo'}>{readiness.database?.online?'Online':'Atenção'}</b></div>
+         <div><small>AUDITORIA</small><b className={readiness.audit?.enabled?'v14ReadyYes':'v14ReadyNo'}>{readiness.audit?.events||0} eventos</b></div>
+         <div><small>BACKUP</small><b>{readiness.backup?.last_download_at?new Date(readiness.backup.last_download_at).toLocaleDateString('pt-BR'):'Ainda não baixado'}</b></div>
+         <div><small>MERCADO PAGO</small><b className={readiness.billing?.mercadopago_configured?'v14ReadyYes':'v14ReadyNo'}>{readiness.billing?.mercadopago_configured?'Credencial pronta':'Aguardando credencial'}</b></div>
+         <div><small>WEBHOOK SEGURO</small><b className={readiness.security?.billing_webhook_secret?'v14ReadyYes':'v14ReadyNo'}>{readiness.security?.billing_webhook_secret?'Configurado':'Pendente'}</b></div>
+         <div><small>CRIPTOGRAFIA</small><b className={readiness.security?.app_encryption_key?'v14ReadyYes':'v14ReadyNo'}>{readiness.security?.app_encryption_key?'Configurada':'Revisar ambiente'}</b></div>
+         <div><small>MARKETPLACES ATIVOS</small><b>{readiness.integrations?.active_marketplace_connections||0}</b></div>
+         <div><small>FUNDADORES</small><b>{readiness.founders?.assigned||0}/{readiness.founders?.limit||10}</b></div>
+       </div>
+     </section>}
 
      {toast&&<div className="toast">✓ {toast}</div>}
    </main>
