@@ -130,10 +130,21 @@ def add_vehicle_gallery_photo(vehicle_id:int,data:VehiclePhotoIn,db:Session=Depe
     vehicle=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
     if not vehicle:
         raise HTTPException(404,"Veiculo nao encontrado")
-    count=db.query(VehiclePhoto).filter(
+    photo_query=db.query(VehiclePhoto).filter(
         VehiclePhoto.vehicle_id==vehicle_id,
         VehiclePhoto.company_id==user.company_id
-    ).count()
+    )
+    count=photo_query.count()
+    if count==0 and vehicle.photo_data:
+        legacy=VehiclePhoto(
+            company_id=user.company_id,
+            vehicle_id=vehicle_id,
+            photo_data=vehicle.photo_data,
+            position=0
+        )
+        db.add(legacy)
+        db.flush()
+        count=1
     if count>=MAX_VEHICLE_PHOTOS:
         raise HTTPException(400,f"Limite de {MAX_VEHICLE_PHOTOS} fotos por sucata atingido")
     photo=_clean_vehicle_photo(data.photo_data)

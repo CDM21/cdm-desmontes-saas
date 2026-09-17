@@ -672,8 +672,8 @@ function CadastrosHome({setTab}){const cards=[['▰','Cadastro de Sucatas','vehi
 function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=useState([]),[customModel,setCustomModel]=useState(false);const availableBrands=brands?.length?brands:FALLBACK_VEHICLE_BRANDS;useEffect(()=>{let active=true;setModels([]);if(!form.brand){return}api.get('/vehicle-catalog/models',{params:{brand:form.brand}}).then(r=>{if(active){setModels(r.data.models||[]);if(form.model&&!(r.data.models||[]).includes(form.model))setCustomModel(true)}}).catch(()=>{if(active)setModels([])});return()=>{active=false}},[form.brand]);return <><Field label="Marca"><select value={form.brand||''} onChange={e=>{setForm({...form,brand:e.target.value,model:''});setCustomModel(false)}}><option value="">Selecione a marca...</option>{availableBrands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Modelo">{customModel?<div className="inlineInput"><input autoFocus value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Digite o modelo"/><button type="button" className="ghost mini" onClick={()=>{setCustomModel(false);setForm({...form,model:''})}}>Lista</button></div>:<select value={form.model||''} disabled={!form.brand} onChange={e=>{if(e.target.value==='__custom__'){setCustomModel(true);setForm({...form,model:''})}else setForm({...form,model:e.target.value})}}><option value="">{form.brand?'Selecione o modelo...':'Escolha a marca primeiro'}</option>{models.map(m=><option key={m} value={m}>{m}</option>)}<option value="__custom__">Outro / digitar manualmente...</option></select>}</Field></>}
 
 
-function Vehicle360({vehicle,listings=[],onClose}){
- const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(''),[photos,setPhotos]=useState([])
+function Vehicle360({vehicle,listings=[],onClose,refresh,notice}){
+ const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(''),[photos,setPhotos]=useState([]),[photoBusy,setPhotoBusy]=useState(false)
  const [expenseForm,setExpenseForm]=useState({category:'Guincho',description:'',amount:'',expense_date:''}),[expenseBusy,setExpenseBusy]=useState(false),[expenseError,setExpenseError]=useState('')
  useEffect(()=>{
    let active=true
@@ -684,6 +684,72 @@ function Vehicle360({vehicle,listings=[],onClose}){
  },[vehicle.id])
  async function reloadOverview(){
   const r=await api.get(`/vehicles/${vehicle.id}/overview`);setInfo(r.data)
+ }
+ async function reloadVehiclePhotos(){
+  const r=await api.get(`/vehicles/${vehicle.id}/photos`)
+  setPhotos(r.data||[])
+ }
+ async function addVehiclePhotos(e){
+  const files=Array.from(e.target.files||[])
+  e.target.value=''
+  if(!files.length)return
+  const currentCount=photos.length||(vehicle.photo_data?1:0)
+  const slots=Math.max(0,15-currentCount)
+  if(slots<=0){notice?.('Limite de 15 fotos por sucata atingido');return}
+  if(files.length>slots)notice?.(`So cabem mais ${slots} foto(s).`)
+  setPhotoBusy(true)
+  try{
+   const selected=files.slice(0,slots)
+   let added=0
+   for(const file of selected){
+    if(!String(file.type||'').startsWith('image/'))continue
+    const prepared=await prepareVehiclePhoto(file)
+    await api.post(`/vehicles/${vehicle.id}/photos`,{photo_data:prepared})
+    added++
+   }
+   await reloadVehiclePhotos()
+   await reloadOverview()
+   if(refresh)await refresh()
+   notice?.(added===1?'1 foto adicionada à sucata':`${added} fotos adicionadas à sucata`)
+  }catch(e){
+   notice?.(erroPt(e.response?.data?.detail)||'Não foi possível adicionar as fotos')
+  }finally{
+   setPhotoBusy(false)
+  }
+ }
+ async function removeSavedVehiclePhoto(photo){
+  if(!confirm('Excluir esta foto da sucata?'))return
+  setPhotoBusy(true)
+  try{
+   if(photo.legacy||!photo.id){
+    await api.put(`/vehicles/${vehicle.id}/photo`,{photo_data:''})
+   }else{
+    await api.delete(`/vehicles/${vehicle.id}/photos/${photo.id}`)
+   }
+   await reloadVehiclePhotos()
+   await reloadOverview()
+   if(refresh)await refresh()
+   notice?.('Foto excluída')
+  }catch(e){
+   notice?.(erroPt(e.response?.data?.detail)||'Não foi possível excluir a foto')
+  }finally{
+   setPhotoBusy(false)
+  }
+ }
+ async function makeSavedVehiclePhotoPrimary(photo){
+  if(photo.is_primary||photo.legacy||!photo.id)return
+  setPhotoBusy(true)
+  try{
+   await api.put(`/vehicles/${vehicle.id}/photos/${photo.id}/primary`)
+   await reloadVehiclePhotos()
+   await reloadOverview()
+   if(refresh)await refresh()
+   notice?.('Foto principal atualizada')
+  }catch(e){
+   notice?.(erroPt(e.response?.data?.detail)||'Não foi possível definir a foto principal')
+  }finally{
+   setPhotoBusy(false)
+  }
  }
  async function addVehicleExpense(){
   const amount=Number(expenseForm.amount||0)
@@ -705,6 +771,7 @@ function Vehicle360({vehicle,listings=[],onClose}){
  }
  const r=info?.result||{},p=info?.parts||{},i=info?.investment||{},v=info?.vehicle||vehicle
  const gallery=photos.length?photos:(v.photo_data?[{id:0,photo_data:v.photo_data,is_primary:true,legacy:true}]:[])
+ const primaryPhoto=gallery.find(x=>x.is_primary)?.photo_data||v.photo_data||gallery[0]?.photo_data||''
  const resultClass=Number(r.realized_result||0)>=0?'positive':'negative'
  const potentialClass=Number(r.potential_profit||0)>=0?'positive':'negative'
  const productIds=new Set((info?.products||[]).map(x=>Number(x.id)))
@@ -723,18 +790,33 @@ function Vehicle360({vehicle,listings=[],onClose}){
  ]
  return <div className="modalBackdrop vehicle360Backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
   <div className="v8Modal vehicle360Modal">
-   <div className="modalHead vehicle360Head"><div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>{v.photo_data&&<img src={v.photo_data} alt="Foto da sucata" style={{width:96,height:70,objectFit:'cover',borderRadius:12,border:'1px solid var(--border)'}}/>}<div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div></div><button className="iconClose" onClick={onClose}>×</button></div>
+   <div className="modalHead vehicle360Head"><div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>{primaryPhoto&&<img src={primaryPhoto} alt="Foto da sucata" style={{width:96,height:70,objectFit:'cover',borderRadius:12,border:'1px solid var(--border)'}}/>}<div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div></div><button className="iconClose" onClick={onClose}>×</button></div>
    <div className="modalBody vehicle360Body">
     {busy?<div className="vehicle360Loading">Calculando investimento, vendas e estoque...</div>:error?<div className="error">{error}</div>:<>
-     {!!gallery.length&&<section style={{display:'grid',gap:10}}>
-      <div className="vehicle360SectionTitle"><div><small>FOTOS DA SUCATA</small><h3>Galeria do veiculo</h3></div><span>{gallery.length} foto(s)</span></div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:10}}>
-       {gallery.map((photo,index)=><div key={photo.id||`legacy-${index}`} style={{position:'relative',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',background:'var(--panel)'}}>
-        <img src={photo.photo_data} alt={`Foto ${index+1} da sucata`} style={{width:'100%',height:105,objectFit:'cover',display:'block'}}/>
-        <small style={{display:'block',padding:'7px 8px',fontWeight:800}}>{photo.is_primary?'PRINCIPAL':`FOTO ${index+1}`}</small>
-       </div>)}
+     <section style={{display:'grid',gap:10}}>
+      <div className="vehicle360SectionTitle">
+       <div><small>FOTOS DA SUCATA</small><h3>Gerenciar galeria</h3></div>
+       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <span>{gallery.length}/15 fotos</span>
+        {gallery.length<15&&<label className="primary" style={{cursor:photoBusy?'wait':'pointer',padding:'9px 12px',display:'inline-flex',alignItems:'center',gap:6,opacity:photoBusy?.65:1}}>
+         + Adicionar fotos
+         <input type="file" accept="image/*" multiple disabled={photoBusy} onChange={addVehiclePhotos} style={{display:'none'}}/>
+        </label>}
+       </div>
       </div>
-     </section>}
+      {gallery.length?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))',gap:10}}>
+       {gallery.map((photo,index)=><div key={photo.id||`legacy-${index}`} style={{position:'relative',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',background:'var(--panel)'}}>
+        <img src={photo.photo_data} alt={`Foto ${index+1} da sucata`} style={{width:'100%',height:115,objectFit:'cover',display:'block'}}/>
+        <div style={{padding:8,display:'grid',gap:6}}>
+         <small style={{fontWeight:800}}>{photo.is_primary?'★ PRINCIPAL':`FOTO ${index+1}`}</small>
+         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {!photo.is_primary&&!photo.legacy&&<button type="button" className="ghost mini" disabled={photoBusy} onClick={()=>makeSavedVehiclePhotoPrimary(photo)}>★ Principal</button>}
+          <button type="button" className="ghost mini dangerOutline" disabled={photoBusy} onClick={()=>removeSavedVehiclePhoto(photo)}>Excluir</button>
+         </div>
+        </div>
+       </div>)}
+      </div>:<div className="emptyState">Nenhuma foto cadastrada. Use “Adicionar fotos” para incluir imagens da sucata.</div>}
+     </section>
      <div className="vehicle360Status">
       <div><small>SITUAÇÃO DO VEÍCULO</small><b>{info.vehicle.status_label}</b></div>
       <div><small>DESMONTAGEM</small><b>{info.dismantling.status_label}</b></div>
