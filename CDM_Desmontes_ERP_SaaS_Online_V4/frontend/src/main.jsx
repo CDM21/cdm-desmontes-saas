@@ -673,11 +673,12 @@ function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=us
 
 
 function Vehicle360({vehicle,listings=[],onClose}){
- const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('')
+ const [info,setInfo]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(''),[photos,setPhotos]=useState([])
  const [expenseForm,setExpenseForm]=useState({category:'Guincho',description:'',amount:'',expense_date:''}),[expenseBusy,setExpenseBusy]=useState(false),[expenseError,setExpenseError]=useState('')
  useEffect(()=>{
    let active=true
-   setBusy(true);setError('')
+   setBusy(true);setError('');setPhotos([])
+   api.get(`/vehicles/${vehicle.id}/photos`).then(r=>{if(active)setPhotos(r.data||[])}).catch(()=>{})
    api.get(`/vehicles/${vehicle.id}/overview`).then(r=>{if(active)setInfo(r.data)}).catch(e=>{if(active)setError(erroPt(e.response?.data?.detail)||'Não foi possível carregar a visão 360')}).finally(()=>{if(active)setBusy(false)})
    return()=>{active=false}
  },[vehicle.id])
@@ -703,6 +704,7 @@ function Vehicle360({vehicle,listings=[],onClose}){
   finally{setExpenseBusy(false)}
  }
  const r=info?.result||{},p=info?.parts||{},i=info?.investment||{},v=info?.vehicle||vehicle
+ const gallery=photos.length?photos:(v.photo_data?[{id:0,photo_data:v.photo_data,is_primary:true,legacy:true}]:[])
  const resultClass=Number(r.realized_result||0)>=0?'positive':'negative'
  const potentialClass=Number(r.potential_profit||0)>=0?'positive':'negative'
  const productIds=new Set((info?.products||[]).map(x=>Number(x.id)))
@@ -724,6 +726,15 @@ function Vehicle360({vehicle,listings=[],onClose}){
    <div className="modalHead vehicle360Head"><div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>{v.photo_data&&<img src={v.photo_data} alt="Foto da sucata" style={{width:96,height:70,objectFit:'cover',borderRadius:12,border:'1px solid var(--border)'}}/>}<div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div></div><button className="iconClose" onClick={onClose}>×</button></div>
    <div className="modalBody vehicle360Body">
     {busy?<div className="vehicle360Loading">Calculando investimento, vendas e estoque...</div>:error?<div className="error">{error}</div>:<>
+     {!!gallery.length&&<section style={{display:'grid',gap:10}}>
+      <div className="vehicle360SectionTitle"><div><small>FOTOS DA SUCATA</small><h3>Galeria do veiculo</h3></div><span>{gallery.length} foto(s)</span></div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:10}}>
+       {gallery.map((photo,index)=><div key={photo.id||`legacy-${index}`} style={{position:'relative',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',background:'var(--panel)'}}>
+        <img src={photo.photo_data} alt={`Foto ${index+1} da sucata`} style={{width:'100%',height:105,objectFit:'cover',display:'block'}}/>
+        <small style={{display:'block',padding:'7px 8px',fontWeight:800}}>{photo.is_primary?'PRINCIPAL':`FOTO ${index+1}`}</small>
+       </div>)}
+      </div>
+     </section>}
      <div className="vehicle360Status">
       <div><small>SITUAÇÃO DO VEÍCULO</small><b>{info.vehicle.status_label}</b></div>
       <div><small>DESMONTAGEM</small><b>{info.dismantling.status_label}</b></div>
@@ -851,23 +862,35 @@ async function prepareVehiclePhoto(file){
 
 function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
  const empty={plate:'',brand:'',model:'',year:new Date().getFullYear(),vin:'',renavam:'',fuel:'Flex',transmission:'Automático',color:'',acquisition_value:'',other_costs:''}
- const [form,setForm]=useState(empty),[overview,setOverview]=useState(null),[search,setSearch]=useState(''),[editVehicle,setEditVehicle]=useState(null),[saving,setSaving]=useState(false),[photoData,setPhotoData]=useState(''),[photoBusy,setPhotoBusy]=useState(false)
+ const [form,setForm]=useState(empty),[overview,setOverview]=useState(null),[search,setSearch]=useState(''),[editVehicle,setEditVehicle]=useState(null),[saving,setSaving]=useState(false),[photoData,setPhotoData]=useState([]),[photoBusy,setPhotoBusy]=useState(false)
  const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return data;return data.filter(v=>[v.plate,v.brand,v.model,v.year,v.status].some(x=>String(x||'').toLowerCase().includes(q)))},[data,search])
 
  async function chooseVehiclePhoto(e){
-  const file=e.target.files?.[0]
-  if(!file)return
-  if(!String(file.type||'').startsWith('image/')){notice('Escolha uma imagem valida');return}
+  const files=Array.from(e.target.files||[])
+  e.target.value=''
+  if(!files.length)return
+  const slots=15-photoData.length
+  if(slots<=0){notice('Voce ja adicionou o limite de 15 fotos');return}
+  if(files.length>slots)notice(`So cabem mais ${slots} foto(s). As demais nao serao adicionadas.`)
+  const selected=files.slice(0,slots)
   setPhotoBusy(true)
   try{
-   const prepared=await prepareVehiclePhoto(file)
-   if(prepared.length>1500000){notice('Essa foto ficou muito grande. Escolha outra.');return}
-   setPhotoData(prepared)
+   const prepared=[]
+   for(const file of selected){
+    if(!String(file.type||'').startsWith('image/'))continue
+    const data=await prepareVehiclePhoto(file)
+    if(data.length<=1500000)prepared.push(data)
+   }
+   setPhotoData(current=>[...current,...prepared].slice(0,15))
+   if(!prepared.length)notice('Nenhuma imagem valida foi adicionada')
   }catch(err){
-   notice(err?.message||'Nao foi possivel preparar a foto')
+   notice(err?.message||'Nao foi possivel preparar as fotos')
   }finally{
    setPhotoBusy(false)
   }
+ }
+ function removeVehiclePhoto(index){
+  setPhotoData(current=>current.filter((_,i)=>i!==index))
  }
  async function add(){
   if(saving)return
@@ -876,10 +899,12 @@ function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
   setSaving(true)
   try{
    const created=await api.post('/vehicles',{...form,year:form.year?Number(form.year):null,acquisition_value:Number(form.acquisition_value||0),other_costs:Number(form.other_costs||0)})
-   if(photoData&&created?.data?.id){
-    await api.put(`/vehicles/${created.data.id}/photo`,{photo_data:photoData})
+   if(photoData.length&&created?.data?.id){
+    for(const photo of photoData){
+     await api.post(`/vehicles/${created.data.id}/photos`,{photo_data:photo})
+    }
    }
-   setForm({...empty,year:new Date().getFullYear()});setPhotoData('')
+   setForm({...empty,year:new Date().getFullYear()});setPhotoData([])
    await refresh()
    notice('Sucata cadastrada com sucesso')
   }catch(e){
@@ -890,29 +915,31 @@ function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
  }
  return <>
   <section className="panel"><PanelHead eyebrow="DESMONTAGEM" title="Cadastro de Sucata / Veículo" text="Registre o veículo de origem. Marca e modelo já vêm organizados para acelerar o cadastro."/><div className="formGrid"><Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/><Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:+e.target.value})}/></Field><Field label="Chassi/VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field><Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field><Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field><Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field></div><div style={{marginTop:14}}>
-   <small style={{display:'block',marginBottom:8,fontWeight:800}}>FOTO PRINCIPAL DA SUCATA</small>
+   <div style={{display:'flex',justifyContent:'space-between',alignItems:'end',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+    <div><small style={{display:'block',fontWeight:800}}>FOTOS DA SUCATA</small><small>A primeira foto sera usada como principal. Voce pode cadastrar ate 15 fotos.</small></div>
+    <b style={{fontSize:12}}>{photoData.length}/15 fotos</b>
+   </div>
    <div style={{padding:14,border:'1px dashed var(--border)',borderRadius:14,background:'rgba(255,255,255,.02)',display:'grid',gap:12}}>
-    {!photoData&&<label style={{cursor:'pointer',display:'grid',placeItems:'center',minHeight:150,borderRadius:12,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.06)',textAlign:'center',padding:18}}>
-      <input type="file" accept="image/*" capture="environment" onChange={chooseVehiclePhoto} style={{display:'none'}}/>
-      <div style={{display:'grid',gap:8}}>
-       <div style={{fontSize:30,lineHeight:1}}>📷</div>
-       <b>Escolher foto da sucata</b>
-       <small>Envie a imagem principal do veiculo para identificar melhor a sucata.</small>
+    {photoData.length<15&&<label style={{cursor:'pointer',display:'grid',placeItems:'center',minHeight:110,borderRadius:12,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.06)',textAlign:'center',padding:16}}>
+      <input type="file" accept="image/*" multiple onChange={chooseVehiclePhoto} style={{display:'none'}}/>
+      <div style={{display:'grid',gap:7}}>
+       <div style={{fontSize:28,lineHeight:1}}>📷</div>
+       <b>{photoData.length?'Adicionar mais fotos':'Escolher fotos da sucata'}</b>
+       <small>Selecione varias de uma vez. Suporta pelo menos 10 e aceita ate 15 fotos.</small>
       </div>
     </label>}
-    {photoBusy&&<small>Preparando foto...</small>}
-    {photoData&&<div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
-      <img src={photoData} alt="Preview da sucata" style={{width:180,height:125,objectFit:'cover',borderRadius:14,border:'1px solid var(--border)'}}/>
-      <div style={{display:'grid',gap:8}}>
-       <label className="ghost" style={{cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'10px 14px'}}>
-        📷 Trocar foto
-        <input type="file" accept="image/*" capture="environment" onChange={chooseVehiclePhoto} style={{display:'none'}}/>
-       </label>
-       <button type="button" className="ghost" onClick={()=>setPhotoData('')}>🗑 Remover foto</button>
-      </div>
+    {photoBusy&&<small>Preparando fotos...</small>}
+    {!!photoData.length&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(125px,1fr))',gap:10}}>
+      {photoData.map((src,index)=><div key={index} style={{position:'relative',border:'1px solid var(--border)',borderRadius:12,overflow:'hidden',background:'var(--panel)'}}>
+       <img src={src} alt={`Foto ${index+1} da sucata`} style={{width:'100%',height:100,objectFit:'cover',display:'block'}}/>
+       <div style={{padding:'7px 8px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}}>
+        <small style={{fontWeight:800}}>{index===0?'PRINCIPAL':`FOTO ${index+1}`}</small>
+        <button type="button" className="ghost mini" onClick={()=>removeVehiclePhoto(index)}>×</button>
+       </div>
+      </div>)}
     </div>}
    </div>
-  </div><button className="primary" disabled={saving} onClick={add}>{saving?'Salvando...':'+ Cadastrar veículo'}</button></section>
+  </div><button className="primary" disabled={saving||photoBusy} onClick={add}>{saving?'Salvando...':'+ Cadastrar veículo'}</button></section>
   {!createOnly&&<section className="panel vehicleManagementPanel">
    <div className="vehicleManagementHead"><div><small>SUCATAS</small><h2>Veículos cadastrados</h2><p>Acompanhe cada veículo desde a compra até o retorno das peças.</p></div><div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar placa, marca ou modelo..."/><span>{filtered.length} de {data.length}</span></div></div>
    {filtered.length?<div className="vehicleRows">{filtered.map(v=><div className="vehicleRow360" key={v.id}>

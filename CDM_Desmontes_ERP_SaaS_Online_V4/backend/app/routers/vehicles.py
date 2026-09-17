@@ -4,10 +4,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from ..db import get_db
-from ..models import Vehicle,Dismantling,Product,SaleItem,Sale,VehicleExpense
+from ..models import Vehicle,VehiclePhoto,Dismantling,Product,SaleItem,Sale,VehicleExpense
 from ..deps import current_user, active_user, require_roles
 
 router=APIRouter()
+
+MAX_VEHICLE_PHOTOS = 15
 
 class VehicleIn(BaseModel):
     plate:str=""
@@ -89,6 +91,112 @@ def save_vehicle_photo(vehicle_id:int,data:VehiclePhotoIn,db:Session=Depends(get
     db.commit()
     db.refresh(row)
     return {"ok":True,"vehicle_id":row.id,"has_photo":bool(row.photo_data)}
+
+
+def _clean_vehicle_photo(photo_data:str):
+    photo=(photo_data or "").strip()
+    if not photo:
+        raise HTTPException(400,"Foto vazia")
+    allowed=("data:image/jpeg;base64,","data:image/jpg;base64,","data:image/png;base64,","data:image/webp;base64,")
+    if not photo.lower().startswith(allowed):
+        raise HTTPException(400,"Formato de foto invalido. Use JPG, PNG ou WEBP")
+    if len(photo)>1500000:
+        raise HTTPException(400,"A foto ficou muito grande. Escolha outra imagem.")
+    return photo
+
+
+@router.get("/{vehicle_id}/photos")
+def list_vehicle_photos(vehicle_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
+    vehicle=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not vehicle:
+        raise HTTPException(404,"Veiculo nao encontrado")
+    rows=db.query(VehiclePhoto).filter(
+        VehiclePhoto.vehicle_id==vehicle_id,
+        VehiclePhoto.company_id==user.company_id
+    ).order_by(VehiclePhoto.position.asc(),VehiclePhoto.id.asc()).all()
+    if not rows and vehicle.photo_data:
+        return [{"id":0,"photo_data":vehicle.photo_data,"position":0,"is_primary":True,"legacy":True}]
+    return [{
+        "id":row.id,
+        "photo_data":row.photo_data,
+        "position":row.position,
+        "is_primary":bool(vehicle.photo_data and row.photo_data==vehicle.photo_data),
+        "legacy":False
+    } for row in rows]
+
+
+@router.post("/{vehicle_id}/photos")
+def add_vehicle_gallery_photo(vehicle_id:int,data:VehiclePhotoIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
+    vehicle=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not vehicle:
+        raise HTTPException(404,"Veiculo nao encontrado")
+    count=db.query(VehiclePhoto).filter(
+        VehiclePhoto.vehicle_id==vehicle_id,
+        VehiclePhoto.company_id==user.company_id
+    ).count()
+    if count>=MAX_VEHICLE_PHOTOS:
+        raise HTTPException(400,f"Limite de {MAX_VEHICLE_PHOTOS} fotos por sucata atingido")
+    photo=_clean_vehicle_photo(data.photo_data)
+    row=VehiclePhoto(
+        company_id=user.company_id,
+        vehicle_id=vehicle_id,
+        photo_data=photo,
+        position=count
+    )
+    db.add(row)
+    if not vehicle.photo_data:
+        vehicle.photo_data=photo
+    db.commit()
+    db.refresh(row)
+    return {
+        "id":row.id,
+        "photo_data":row.photo_data,
+        "position":row.position,
+        "is_primary":bool(vehicle.photo_data==row.photo_data)
+    }
+
+
+@router.delete("/{vehicle_id}/photos/{photo_id}")
+def delete_vehicle_gallery_photo(vehicle_id:int,photo_id:int,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
+    vehicle=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not vehicle:
+        raise HTTPException(404,"Veiculo nao encontrado")
+    row=db.query(VehiclePhoto).filter(
+        VehiclePhoto.id==photo_id,
+        VehiclePhoto.vehicle_id==vehicle_id,
+        VehiclePhoto.company_id==user.company_id
+    ).first()
+    if not row:
+        raise HTTPException(404,"Foto nao encontrada")
+    was_primary=bool(vehicle.photo_data and vehicle.photo_data==row.photo_data)
+    db.delete(row)
+    db.flush()
+    if was_primary:
+        next_row=db.query(VehiclePhoto).filter(
+            VehiclePhoto.vehicle_id==vehicle_id,
+            VehiclePhoto.company_id==user.company_id,
+            VehiclePhoto.id!=photo_id
+        ).order_by(VehiclePhoto.position.asc(),VehiclePhoto.id.asc()).first()
+        vehicle.photo_data=next_row.photo_data if next_row else ""
+    db.commit()
+    return {"ok":True}
+
+
+@router.put("/{vehicle_id}/photos/{photo_id}/primary")
+def set_vehicle_primary_photo(vehicle_id:int,photo_id:int,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
+    vehicle=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not vehicle:
+        raise HTTPException(404,"Veiculo nao encontrado")
+    row=db.query(VehiclePhoto).filter(
+        VehiclePhoto.id==photo_id,
+        VehiclePhoto.vehicle_id==vehicle_id,
+        VehiclePhoto.company_id==user.company_id
+    ).first()
+    if not row:
+        raise HTTPException(404,"Foto nao encontrada")
+    vehicle.photo_data=row.photo_data
+    db.commit()
+    return {"ok":True,"photo_id":row.id}
 
 
 @router.put("/{vehicle_id}")
