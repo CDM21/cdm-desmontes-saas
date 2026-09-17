@@ -14,6 +14,21 @@ def ensure_v8_schema():
     """Migração leve para instalações V4/V5/V6/V7 já existentes no Render."""
     additions={
         "users":{"token_version":"INTEGER DEFAULT 0","last_login_at":"TIMESTAMP NULL"},
+        "vehicles":{
+            "plate":"VARCHAR(20) DEFAULT ''",
+            "vin":"VARCHAR(80) DEFAULT ''",
+            "renavam":"VARCHAR(40) DEFAULT ''",
+            "brand":"VARCHAR(80) DEFAULT ''",
+            "model":"VARCHAR(120) DEFAULT ''",
+            "year":"INTEGER NULL",
+            "fuel":"VARCHAR(30) DEFAULT ''",
+            "transmission":"VARCHAR(30) DEFAULT ''",
+            "color":"VARCHAR(40) DEFAULT ''",
+            "acquisition_value":"FLOAT DEFAULT 0",
+            "other_costs":"FLOAT DEFAULT 0",
+            "status":"VARCHAR(30) DEFAULT 'received'",
+            "created_at":"TIMESTAMP NULL"
+        },
         "products":{"publish_mercadolivre":"BOOLEAN DEFAULT TRUE","publish_shopee":"BOOLEAN DEFAULT TRUE","publish_olx":"BOOLEAN DEFAULT TRUE","ml_has_warranty":"BOOLEAN DEFAULT FALSE","ml_warranty_text":"VARCHAR(180) DEFAULT ''","ml_shipping_mode":"VARCHAR(60) DEFAULT ''","ml_free_shipping":"BOOLEAN DEFAULT FALSE","ml_local_pickup":"BOOLEAN DEFAULT TRUE","ml_attributes_json":"TEXT DEFAULT '{}'","ml_store_id":"VARCHAR(80) DEFAULT ''","ml_network_node_id":"VARCHAR(120) DEFAULT ''","quality_grade":"VARCHAR(10) DEFAULT 'B'","quality_notes":"TEXT DEFAULT ''","warranty_days":"INTEGER DEFAULT 90","public_catalog":"BOOLEAN DEFAULT TRUE"},
         "sales":{"source":"VARCHAR(40) DEFAULT 'manual'","external_order_id":"VARCHAR(180) DEFAULT ''"},
         "locations":{"code":"VARCHAR(40) DEFAULT ''","description":"VARCHAR(180) DEFAULT ''","max_quantity":"INTEGER DEFAULT 0","auto_generate":"BOOLEAN DEFAULT FALSE","active":"BOOLEAN DEFAULT TRUE"},

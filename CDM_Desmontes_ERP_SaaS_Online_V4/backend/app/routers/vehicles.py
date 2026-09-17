@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from ..db import get_db
 from ..models import Vehicle,Dismantling,Product,SaleItem,Sale,VehicleExpense
 from ..deps import current_user, active_user, require_roles
@@ -33,7 +35,38 @@ def list_vehicles(db:Session=Depends(get_db), user=Depends(active_user)):
 
 @router.post("")
 def create_vehicle(data:VehicleIn, db:Session=Depends(get_db), user=Depends(require_roles("owner","admin","manager","stock"))):
-    v=Vehicle(company_id=user.company_id,**data.model_dump()); db.add(v); db.commit(); db.refresh(v); return v
+    payload=data.model_dump()
+    payload["plate"]=(payload.get("plate") or "").strip().upper()
+    payload["vin"]=(payload.get("vin") or "").strip().upper()
+    payload["renavam"]=(payload.get("renavam") or "").strip()
+    payload["brand"]=(payload.get("brand") or "").strip()
+    payload["model"]=(payload.get("model") or "").strip()
+    payload["fuel"]=(payload.get("fuel") or "").strip()
+    payload["transmission"]=(payload.get("transmission") or "").strip()
+    payload["color"]=(payload.get("color") or "").strip()
+    payload["acquisition_value"]=round(float(payload.get("acquisition_value") or 0),2)
+    payload["other_costs"]=round(float(payload.get("other_costs") or 0),2)
+
+    if not payload["brand"]:
+        raise HTTPException(400,"Selecione a marca do veículo")
+    if not payload["model"]:
+        raise HTTPException(400,"Selecione ou informe o modelo do veículo")
+    year=payload.get("year")
+    if year is not None and (int(year)<1971 or int(year)>datetime.utcnow().year+1):
+        raise HTTPException(400,"Ano do veículo inválido")
+
+    try:
+        v=Vehicle(company_id=user.company_id,**payload)
+        db.add(v)
+        db.commit()
+        db.refresh(v)
+        return v
+    except SQLAlchemyError as exc:
+        db.rollback()
+        message=str(getattr(exc,"orig",exc))
+        if "other_costs" in message.lower() or "column" in message.lower():
+            raise HTTPException(500,"O banco de dados do cadastro de sucatas precisa ser atualizado. Aguarde o novo deploy e tente novamente.")
+        raise HTTPException(500,"Não foi possível salvar a sucata no banco de dados")
 
 
 @router.put("/{vehicle_id}")
