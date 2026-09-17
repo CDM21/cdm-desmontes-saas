@@ -7,6 +7,7 @@ import './styles.css'
 const API=import.meta.env.VITE_API_URL || ((location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:8000/api':'/api')
 const api=axios.create({baseURL:API})
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+const FALLBACK_VEHICLE_BRANDS=['Agrale','Alfa Romeo','Audi','BMW','BYD','CAOA Chery','Chery','Chevrolet','Chrysler','Citroën','Dodge','Fiat','Ford','Geely','GWM','Honda','Hyundai','Iveco','JAC','Jaguar','Jeep','Kia','Land Rover','Lexus','Mercedes-Benz','Mini','Mitsubishi','Nissan','Peugeot','Porsche','RAM','Renault','Subaru','Suzuki','Toyota','Volkswagen','Volvo']
 const fmtDate=v=>v?new Date(v).toLocaleDateString('pt-BR'):'—'
 const statusPt=v=>({trial:'Teste',active:'Ativa',pending:'Pendente',past_due:'Atrasada',canceled:'Cancelada',inactive:'Inativa',paid:'Pago',published:'Publicado',processing:'Processando',queued:'Na fila',draft:'Rascunho',authorized:'Autorizada',approved:'Aprovada',rejected:'Rejeitada',cancelled:'Cancelada',disconnected:'Desconectado',connected:'Conectado',needs_connection:'Conectar conta',needs_product_data:'Completar produto',sold_out:'Sem estoque',sync_error:'Erro de sincronização',error:'Erro',paused:'Pausado',closed:'Encerrado',open:'Aberto',normal:'Normal',received:'Recebido',available:'Disponível',sold:'Vendido',completed:'Concluído',finished:'Finalizado',blocked:'Bloqueado',cancelled_by_user:'Cancelada pelo usuário',rascunho:'Rascunho',autorizada:'Autorizada',rejeitada:'Rejeitada',processando:'Processando'}[String(v||'').toLowerCase()]||v||'—')
 const valuePt=(key,v)=>key==='kind'?({income:'Entrada',expense:'Saída'}[v]||v):key==='status'?statusPt(v):key==='source'?({manual:'Venda local',mercadolivre:'Mercado Livre',shopee:'Shopee',olx:'OLX',system:'Sistema'}[v]||v):key==='payment_method'?({pix:'PIX',cash:'Dinheiro',card:'Cartão',credit:'Cartão de crédito',debit:'Cartão de débito',mercadolivre:'Mercado Livre',shopee:'Shopee',olx:'OLX'}[v]||v):key==='condition'?({new:'Novo',used:'Usado',reconditioned:'Recondicionado'}[v]||v):key==='role'?({owner:'Administrador principal',admin:'Administrador',user:'Usuário'}[v]||v):key==='active'?(v?'Sim':'Não'):v
@@ -102,7 +103,7 @@ function App(){
  const [theme,setTheme]=useState(localStorage.getItem('theme')||'dark')
  const [session,setSession]=useState(null)
  const [vehicles,setVehicles]=useState([]),[products,setProducts]=useState([]),[sales,setSales]=useState([]),[finance,setFinance]=useState([]),[marketplaces,setMarketplaces]=useState([]),[listings,setListings]=useState([])
- const [vehicleBrands,setVehicleBrands]=useState([]),[billing,setBilling]=useState({monthly_price:350,checkout_provider_configured:false})
+ const [vehicleBrands,setVehicleBrands]=useState(FALLBACK_VEHICLE_BRANDS),[billing,setBilling]=useState({monthly_price:350,checkout_provider_configured:false})
  const [catalog,setCatalog]=useState({customers:[],suppliers:[],carriers:[],sellers:[],partGroups:[],locations:[],users:[],tax:null})
  const [toast,setToast]=useState('')
  const [mobileNav,setMobileNav]=useState(false)
@@ -123,10 +124,10 @@ function App(){
      }
      const [v,p,s,f,m,l,cu,su,ca,se,pg,lo,us,tx,vb]=await Promise.all([
        api.get('/vehicles'),api.get('/products'),api.get('/sales'),canFinance?api.get('/finance'):Promise.resolve({data:[]}),api.get('/marketplaces/status'),api.get('/marketplaces/listings'),
-       api.get('/catalog/customers'),api.get('/catalog/suppliers'),api.get('/catalog/carriers'),api.get('/catalog/sellers'),api.get('/catalog/part-groups'),api.get('/catalog/locations'),canUsers?api.get('/catalog/users'):Promise.resolve({data:[]}),api.get('/catalog/tax'),api.get('/vehicle-catalog/brands')
+       api.get('/catalog/customers'),api.get('/catalog/suppliers'),api.get('/catalog/carriers'),api.get('/catalog/sellers'),api.get('/catalog/part-groups'),api.get('/catalog/locations'),canUsers?api.get('/catalog/users'):Promise.resolve({data:[]}),api.get('/catalog/tax'),api.get('/vehicle-catalog/brands').catch(()=>({data:{brands:FALLBACK_VEHICLE_BRANDS}}))
      ])
      setVehicles(v.data);setProducts(p.data);setSales(s.data);setFinance(f.data);setMarketplaces(m.data);setListings(l.data)
-     setVehicleBrands(vb.data.brands||[])
+     setVehicleBrands((vb.data?.brands||[]).length?vb.data.brands:FALLBACK_VEHICLE_BRANDS)
      setCatalog({customers:cu.data,suppliers:su.data,carriers:ca.data,sellers:se.data,partGroups:pg.data,locations:lo.data,users:us.data,tax:tx.data})
    }catch(e){if(e.response?.status===401){logout()}else if(e.response?.status===402){setBilling(b=>({...b,active:false}))}else console.error(e)}
  }
@@ -391,7 +392,7 @@ function OwnerPortal({session,onPreview}){
 
      {section==='system'&&<section className="ownerCard v14ReadinessCard">
        <div className="ownerCardHead">
-         <div><span>DIAGNÓSTICO V14.1</span><h3>Segurança, backup e integrações</h3></div>
+         <div><span>DIAGNÓSTICO V14.2</span><h3>Segurança, backup e integrações</h3></div>
          <span className="pill neutral">{readiness?.database?.latency_ms!=null?`${readiness.database.latency_ms} ms DB`:'Verificando API'}</span>
        </div>
        {v14Errors.readiness&&<div className="ownerInfoNote"><b>API V14:</b> {v14Errors.readiness}. Agora o erro não fica mais escondido.</div>}
@@ -667,7 +668,7 @@ function QRCodeModule({products=[],locations=[]}){
 
 function CadastrosHome({setTab}){const cards=[['▰','Cadastro de Sucatas','vehicle-create'],['⚙','Cadastro de Peças','product-create'],['◆','Grupo de peças','part-groups'],['♣','Clientes','customers'],['●','Localizações','locations'],['▰','Transportadoras','carriers'],['♟','Vendedores','sellers'],['♙','Fornecedores','suppliers'],['⌁','Configuração Tributária','tax']];return <><div className="pageTitle"><div><span>BASE CADASTRAL</span><h2>Cadastros</h2><p>Organize todos os dados essenciais da operação.</p></div></div><div className="moduleCards">{cards.map(([i,t,k])=><button className="moduleCard clickable" key={k} onClick={()=>setTab(k)}><div className="moduleIcon">{i}</div><div><h3>{t}</h3><p>Abrir cadastro e gerenciamento.</p><span className="pill neutral">Acessar</span></div></button>)}</div></>}
 
-function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=useState([]),[customModel,setCustomModel]=useState(false);useEffect(()=>{let active=true;setModels([]);if(!form.brand){return}api.get('/vehicle-catalog/models',{params:{brand:form.brand}}).then(r=>{if(active){setModels(r.data.models||[]);if(form.model&&!(r.data.models||[]).includes(form.model))setCustomModel(true)}}).catch(()=>setModels([]));return()=>{active=false}},[form.brand]);return <><Field label="Marca"><select value={form.brand||''} onChange={e=>{setForm({...form,brand:e.target.value,model:''});setCustomModel(false)}}><option value="">Selecione a marca...</option>{brands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Modelo">{customModel?<div className="inlineInput"><input autoFocus value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Digite o modelo"/><button type="button" className="ghost mini" onClick={()=>{setCustomModel(false);setForm({...form,model:''})}}>Lista</button></div>:<select value={form.model||''} disabled={!form.brand} onChange={e=>{if(e.target.value==='__custom__'){setCustomModel(true);setForm({...form,model:''})}else setForm({...form,model:e.target.value})}}><option value="">{form.brand?'Selecione o modelo...':'Escolha a marca primeiro'}</option>{models.map(m=><option key={m} value={m}>{m}</option>)}<option value="__custom__">Outro / digitar manualmente...</option></select>}</Field></>}
+function VehicleBrandModel({form,setForm,brands=[]}){const [models,setModels]=useState([]),[customModel,setCustomModel]=useState(false);const availableBrands=brands?.length?brands:FALLBACK_VEHICLE_BRANDS;useEffect(()=>{let active=true;setModels([]);if(!form.brand){return}api.get('/vehicle-catalog/models',{params:{brand:form.brand}}).then(r=>{if(active){setModels(r.data.models||[]);if(form.model&&!(r.data.models||[]).includes(form.model))setCustomModel(true)}}).catch(()=>{if(active)setModels([])});return()=>{active=false}},[form.brand]);return <><Field label="Marca"><select value={form.brand||''} onChange={e=>{setForm({...form,brand:e.target.value,model:''});setCustomModel(false)}}><option value="">Selecione a marca...</option>{availableBrands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Modelo">{customModel?<div className="inlineInput"><input autoFocus value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Digite o modelo"/><button type="button" className="ghost mini" onClick={()=>{setCustomModel(false);setForm({...form,model:''})}}>Lista</button></div>:<select value={form.model||''} disabled={!form.brand} onChange={e=>{if(e.target.value==='__custom__'){setCustomModel(true);setForm({...form,model:''})}else setForm({...form,model:e.target.value})}}><option value="">{form.brand?'Selecione o modelo...':'Escolha a marca primeiro'}</option>{models.map(m=><option key={m} value={m}>{m}</option>)}<option value="__custom__">Outro / digitar manualmente...</option></select>}</Field></>}
 
 
 function Vehicle360({vehicle,listings=[],onClose}){
