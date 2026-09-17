@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react'
+import React,{useEffect,useMemo,useRef,useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import axios from 'axios'
 import {QRCodeSVG} from 'qrcode.react'
@@ -97,6 +97,86 @@ function canAccessTab(r,k,isPlatformAdmin=false){if(k==='platform-admin')return 
 const TITLE_MAP={company:'Informações da Empresa'}
 MENU.forEach(item=>{TITLE_MAP[item.key]=item.label;(item.children||[]).forEach(c=>TITLE_MAP[c.key]=c.label)})
 
+
+function OwnerPreviewReturnButton({onReturn}){
+ const [pos,setPos]=useState(()=>{
+  try{
+   const saved=JSON.parse(localStorage.getItem('ownerPreviewReturnPos')||'null')
+   return saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)?saved:null
+  }catch{return null}
+ })
+ const drag=useRef(null)
+ const moved=useRef(false)
+
+ function clampPosition(x,y,w,h){
+  const pad=8
+  return {
+   x:Math.max(pad,Math.min(x,window.innerWidth-w-pad)),
+   y:Math.max(pad,Math.min(y,window.innerHeight-h-pad))
+  }
+ }
+
+ function startDrag(e){
+  if(e.button!==0)return
+  const rect=e.currentTarget.getBoundingClientRect()
+  drag.current={dx:e.clientX-rect.left,dy:e.clientY-rect.top,w:rect.width,h:rect.height,sx:e.clientX,sy:e.clientY}
+  moved.current=false
+  e.currentTarget.setPointerCapture?.(e.pointerId)
+ }
+
+ function moveDrag(e){
+  if(!drag.current)return
+  const d=drag.current
+  if(Math.abs(e.clientX-d.sx)>4||Math.abs(e.clientY-d.sy)>4)moved.current=true
+  setPos(clampPosition(e.clientX-d.dx,e.clientY-d.dy,d.w,d.h))
+ }
+
+ function endDrag(e){
+  if(!drag.current)return
+  drag.current=null
+  e.currentTarget.releasePointerCapture?.(e.pointerId)
+ }
+
+ function handleClick(e){
+  if(moved.current){
+   e.preventDefault()
+   e.stopPropagation()
+   moved.current=false
+   return
+  }
+  onReturn()
+ }
+
+ useEffect(()=>{
+  if(!pos)return
+  localStorage.setItem('ownerPreviewReturnPos',JSON.stringify(pos))
+ },[pos])
+
+ useEffect(()=>{
+  if(!pos)return
+  const fit=()=>{
+   const el=document.querySelector('.ownerPreviewFloat')
+   if(!el)return
+   const rect=el.getBoundingClientRect()
+   setPos(p=>p?clampPosition(p.x,p.y,rect.width,rect.height):p)
+  }
+  window.addEventListener('resize',fit)
+  return()=>window.removeEventListener('resize',fit)
+ },[])
+
+ return <button
+  className="ownerPreviewFloat"
+  title="Arraste para mover"
+  onPointerDown={startDrag}
+  onPointerMove={moveDrag}
+  onPointerUp={endDrag}
+  onPointerCancel={endDrag}
+  onClick={handleClick}
+  style={pos?{left:pos.x,top:pos.y,right:'auto',bottom:'auto',touchAction:'none',cursor:'grab',userSelect:'none'}:{touchAction:'none',cursor:'grab',userSelect:'none'}}
+ >↕ Arraste · ← Voltar ao Portal do Dono</button>
+}
+
+
 function App(){
  const [logged,setLogged]=useState(!!localStorage.getItem('token'))
  const [tab,setTab]=useState('dashboard')
@@ -182,7 +262,7 @@ function App(){
        </>}
      </div>
    </main>
-   {session?.is_platform_admin&&ownerPreview&&<button className="ownerPreviewFloat" onClick={()=>setOwnerPreview(false)}>← Voltar ao Portal do Dono</button>}
+   {session?.is_platform_admin&&ownerPreview&&<OwnerPreviewReturnButton onReturn={()=>setOwnerPreview(false)}/>}
    {toast&&<div className="toast">✓ {toast}</div>}
  </div>
 }
