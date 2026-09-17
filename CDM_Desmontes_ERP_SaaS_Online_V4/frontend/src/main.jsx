@@ -106,12 +106,16 @@ function App(){
  const [catalog,setCatalog]=useState({customers:[],suppliers:[],carriers:[],sellers:[],partGroups:[],locations:[],users:[],tax:null})
  const [toast,setToast]=useState('')
  const [mobileNav,setMobileNav]=useState(false)
+ const [ownerPreview,setOwnerPreview]=useState(false)
  useEffect(()=>{document.body.dataset.theme=theme;localStorage.setItem('theme',theme)},[theme])
  useEffect(()=>{const t=localStorage.getItem('token');if(t)api.defaults.headers.common.Authorization=`Bearer ${t}`},[])
  async function load(){
    try{
-     const [me,bi]=await Promise.all([api.get('/auth/me'),api.get('/billing/status')])
-     setSession(me.data);setBilling(bi.data||{})
+     const me=await api.get('/auth/me')
+     setSession(me.data)
+     if(me.data?.is_platform_admin){setBilling({active:true});return}
+     const bi=await api.get('/billing/status')
+     setBilling(bi.data||{})
      const role=me.data?.user?.role||'user';const canFinance=['owner','admin','manager'].includes(role);const canUsers=['owner','admin'].includes(role)
      if(bi.data?.active===false){
        setVehicles([]);setProducts([]);setSales([]);setFinance([]);setMarketplaces([]);setListings([])
@@ -135,6 +139,8 @@ function App(){
  if(publicStore)return <PublicCatalog companyId={+publicStore}/>
  if(warrantyToken)return <PublicWarranty token={warrantyToken}/>
  if(!logged)return <Login onLogin={r=>{setToken(r.access_token);setSession(r);setLogged(true)}}/>
+ if(logged&&!session)return <div className="ownerLoading">Carregando CDM...</div>
+ if(session?.is_platform_admin&&!ownerPreview)return <OwnerPortal session={session} onPreview={()=>{setOwnerPreview(true);setTab('dashboard')}}/>
  const accessBlocked=!!session&&billing?.active===false
  return <div className="appShell">
    <Sidebar tab={tab} setTab={setTab} company={session?.company} role={session?.user?.role} isAdmin={session?.is_platform_admin} openMobile={mobileNav} onClose={()=>setMobileNav(false)}/>
@@ -174,7 +180,178 @@ function App(){
        </>}
      </div>
    </main>
+   {session?.is_platform_admin&&ownerPreview&&<button className="ownerPreviewFloat" onClick={()=>setOwnerPreview(false)}>← Voltar ao Portal do Dono</button>}
    {toast&&<div className="toast">✓ {toast}</div>}
+ </div>
+}
+
+function OwnerPortal({session,onPreview}){
+ const [section,setSection]=useState('overview')
+ const [data,setData]=useState({summary:{},companies:[],recent_logs:[],automation:{}})
+ const [filter,setFilter]=useState('all')
+ const [query,setQuery]=useState('')
+ const [busy,setBusy]=useState(false)
+ const [toast,setToast]=useState('')
+ const [lastUpdate,setLastUpdate]=useState(null)
+ const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
+ const statusMeta={active:['Ativa','success'],trial:['Teste','info'],past_due:['Atrasada','danger'],blocked:['Bloqueada','dark'],canceled:['Cancelada','muted'],inactive:['Inativa','muted']}
+ const pop=t=>{setToast(t);setTimeout(()=>setToast(''),3200)}
+
+ async function load(silent=false){
+   if(!silent)setBusy(true)
+   try{
+     const r=await api.get('/admin/dashboard-v2')
+     setData(r.data||{})
+     setLastUpdate(new Date())
+   }catch(e){pop(erroPt(e.response?.data?.detail)||'Erro ao carregar o Portal do Dono')}
+   finally{if(!silent)setBusy(false)}
+ }
+ useEffect(()=>{load();const t=setInterval(()=>load(true),60000);return()=>clearInterval(t)},[])
+
+ async function act(c,action){
+   try{
+     if(action==='trial')await api.post(`/admin/companies/${c.id}/trial?days=7`)
+     if(action==='active')await api.post(`/admin/companies/${c.id}/activate?days=31`)
+     if(action==='past_due')await api.post(`/admin/companies/${c.id}/past-due`)
+     if(action==='cancel')await api.post(`/admin/companies/${c.id}/cancel`)
+     if(action==='block')await api.post(`/admin/companies/${c.id}/block`)
+     if(action==='unblock')await api.post(`/admin/companies/${c.id}/unblock`)
+     pop('Empresa atualizada');await load(true)
+   }catch(e){pop(erroPt(e.response?.data?.detail)||'Não foi possível atualizar a empresa')}
+ }
+ async function removeCompany(c){
+   if(!confirm(`Excluir ${c.trade_name}?\n\nSó será permitido se a empresa não possuir dados operacionais.`))return
+   try{await api.delete(`/admin/companies/${c.id}`);pop('Empresa excluída');await load(true)}
+   catch(e){pop(erroPt(e.response?.data?.detail)||'Não foi possível excluir a empresa')}
+ }
+
+ const shown=rows.filter(c=>{
+   const byStatus=filter==='all'||c.visual_status===filter
+   const q=query.trim().toLowerCase()
+   const byText=!q||[c.trade_name,c.legal_name,c.cnpj,c.email].some(v=>(v||'').toLowerCase().includes(q))
+   return byStatus&&byText
+ })
+ const newClients=Number(s.new_this_month||0)
+ const mrr=Number(s.projected_mrr||0)
+ const arr=Number(s.projected_arr||mrr*12)
+ const attention=Number(s.past_due||0)+Number(s.blocked||0)
+ const activeRate=Number(s.companies_total||0)?Math.round((Number(s.active||0)/Number(s.companies_total))*100):0
+ const latest=[...rows].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,5)
+
+ function badge(c){const [label,kind]=statusMeta[c.visual_status]||[statusPt(c.visual_status),'muted'];return <span className={`ownerStatus ${kind}`}><i/>{label}</span>}
+ function expiry(c){
+   if(!c.expires_at)return 'Sem vencimento'
+   const d=new Date(c.expires_at).toLocaleDateString('pt-BR')
+   if(c.visual_status==='past_due')return `Venceu em ${d}`
+   if(c.days_remaining===0)return `Vence hoje · ${d}`
+   if(c.days_remaining!=null&&c.days_remaining>0)return `${c.days_remaining} dia(s) · ${d}`
+   return d
+ }
+
+ return <div className="ownerPortal">
+   <aside className="ownerSide">
+     <div className="ownerBrand"><div>CDM</div><span><b>ADMIN</b><small>Portal do Dono</small></span></div>
+     <nav>
+       {[['overview','▦','Visão geral'],['clients','♟','Clientes'],['revenue','R$','Receita'],['system','◉','Sistema']].map(([k,i,l])=><button key={k} className={section===k?'active':''} onClick={()=>setSection(k)}><span>{i}</span>{l}</button>)}
+     </nav>
+     <div className="ownerSideBottom">
+       <button className="ownerPreviewBtn" onClick={onPreview}>◫ Visualizar ERP</button>
+       <div className="ownerIdentity"><b>{session?.user?.name||'Administrador'}</b><span>{session?.user?.email}</span></div>
+       <button className="ownerLogout" onClick={logout}>Sair</button>
+     </div>
+   </aside>
+
+   <main className="ownerMain">
+     <header className="ownerTop">
+       <div><span>CDM DESMONTES · ADMINISTRAÇÃO</span><h1>{section==='overview'?'Visão geral':section==='clients'?'Clientes':section==='revenue'?'Receita':'Sistema'}</h1></div>
+       <div className="ownerTopActions"><span className="ownerLive"><i/> Online</span><button onClick={()=>load()} disabled={busy}>{busy?'Atualizando...':'↻ Atualizar'}</button></div>
+     </header>
+
+     {section==='overview'&&<>
+       <section className="ownerWelcome">
+         <div><span>PAINEL EXECUTIVO</span><h2>Olá, Caio.</h2><p>Acompanhe clientes, receita recorrente e saúde da plataforma sem entrar na operação do desmanche.</p></div>
+         <div className="ownerDate"><small>Última atualização</small><b>{lastUpdate?lastUpdate.toLocaleTimeString('pt-BR'):'—'}</b></div>
+       </section>
+       <div className="ownerKpis">
+         <article className="main"><span>MRR PREVISTO</span><b>{money(mrr)}</b><small>Receita recorrente mensal das assinaturas ativas</small></article>
+         <article><span>ASSINANTES ATIVOS</span><b>{s.active||0}</b><small>{activeRate}% da base cadastrada</small></article>
+         <article><span>NOVOS ESTE MÊS</span><b>{newClients}</b><small>Empresas cadastradas no mês atual</small></article>
+         <article className={attention?'attention':''}><span>PRECISAM ATENÇÃO</span><b>{attention}</b><small>{s.past_due||0} atrasadas · {s.blocked||0} bloqueadas</small></article>
+       </div>
+       <div className="ownerOverviewGrid">
+         <section className="ownerCard ownerRevenueCard">
+           <div className="ownerCardHead"><div><span>RECEITA</span><h3>Visão financeira</h3></div><button onClick={()=>setSection('revenue')}>Ver detalhes →</button></div>
+           <div className="ownerRevenueBig"><small>Projeção anual</small><b>{money(arr)}</b></div>
+           <div className="ownerRevenueLine"><span>Mensalidade padrão</span><b>{money(s.monthly_price||350)}</b></div>
+           <div className="ownerRevenueLine"><span>Assinaturas em teste</span><b>{s.trial||0}</b></div>
+           <div className="ownerRevenueLine"><span>Assinaturas atrasadas</span><b>{s.past_due||0}</b></div>
+           <div className="ownerInfoNote">O valor acima é projeção de recorrência. Receita efetivamente recebida será contabilizada quando os pagamentos do Mercado Pago forem registrados individualmente.</div>
+         </section>
+         <section className="ownerCard">
+           <div className="ownerCardHead"><div><span>BASE DE CLIENTES</span><h3>Status das assinaturas</h3></div></div>
+           <div className="ownerStatusBars">
+             {[['Ativas',s.active,'good'],['Teste',s.trial,'info'],['Atrasadas',s.past_due,'bad'],['Bloqueadas',s.blocked,'dark'],['Canceladas',s.canceled,'muted']].map(([l,n,k])=><div key={l}><div><span>{l}</span><b>{n||0}</b></div><em><i className={k} style={{width:`${Math.max(3,Math.min(100,Number(s.companies_total||0)?Number(n||0)/Number(s.companies_total)*100:0))}%`}}/></em></div>)}
+           </div>
+         </section>
+       </div>
+       <div className="ownerOverviewGrid">
+         <section className="ownerCard">
+           <div className="ownerCardHead"><div><span>CLIENTES RECENTES</span><h3>Últimas empresas</h3></div><button onClick={()=>setSection('clients')}>Gerenciar →</button></div>
+           <div className="ownerRecent">{latest.map(c=><div key={c.id}><div><b>{c.trade_name}</b><span>{c.created_at?new Date(c.created_at).toLocaleDateString('pt-BR'):'—'} · {c.email||'sem e-mail'}</span></div>{badge(c)}</div>)}{!latest.length&&<p className="ownerEmpty">Nenhuma empresa cadastrada.</p>}</div>
+         </section>
+         <section className="ownerCard">
+           <div className="ownerCardHead"><div><span>PLATAFORMA</span><h3>Uso geral</h3></div><button onClick={()=>setSection('system')}>Monitorar →</button></div>
+           <div className="ownerMiniStats"><div><b>{s.users_total||0}</b><span>usuários</span></div><div><b>{s.products_total||0}</b><span>peças</span></div><div><b>{s.sales_total||0}</b><span>vendas</span></div><div><b>{s.companies_total||0}</b><span>empresas</span></div></div>
+         </section>
+       </div>
+     </>}
+
+     {section==='clients'&&<>
+       <section className="ownerSectionIntro"><div><span>CLIENTES SaaS</span><h2>Empresas e assinaturas</h2><p>Busque, acompanhe e controle o acesso de cada cliente.</p></div><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar empresa, CNPJ ou e-mail..."/></section>
+       <div className="ownerFilters">{[['all','Todas',s.companies_total],['active','Ativas',s.active],['trial','Teste',s.trial],['past_due','Atrasadas',s.past_due],['blocked','Bloqueadas',s.blocked],['canceled','Canceladas',s.canceled]].map(([k,l,n])=><button key={k} className={filter===k?'active':''} onClick={()=>setFilter(k)}>{l}<b>{n||0}</b></button>)}</div>
+       <section className="ownerTableCard">
+         <div className="ownerCompanyRow head"><span>Empresa</span><span>Status</span><span>Vencimento</span><span>Uso</span><span>Ações</span></div>
+         {shown.map(c=><div className="ownerCompanyRow" key={c.id}>
+           <div className="ownerCompanyIdentity"><b>{c.trade_name}</b><span>{c.email||c.cnpj||'Sem contato'}</span><small>Empresa #{c.id} · criada {c.created_at?new Date(c.created_at).toLocaleDateString('pt-BR'):'—'}</small></div>
+           <div>{badge(c)}</div>
+           <div className="ownerExpiry"><b>{expiry(c)}</b><small>{c.provider||c.subscription_status||'manual'}</small></div>
+           <div className="ownerUsage"><span><b>{c.users}</b> usuários</span><span><b>{c.products}</b> peças</span><span><b>{c.sales}</b> vendas</span></div>
+           <div className="ownerActions"><select defaultValue="" onChange={e=>{const v=e.target.value;e.target.value='';if(v)act(c,v)}}><option value="">Alterar situação...</option><option value="trial">Dar teste · 7 dias</option><option value="active">Ativar · 31 dias</option><option value="past_due">Marcar atrasada</option><option value="cancel">Cancelar assinatura</option>{c.active?<option value="block">Bloquear acesso</option>:<option value="unblock">Liberar acesso</option>}</select><button onClick={()=>removeCompany(c)}>Excluir</button></div>
+         </div>)}
+         {!shown.length&&<div className="ownerEmpty">Nenhuma empresa encontrada.</div>}
+       </section>
+     </>}
+
+     {section==='revenue'&&<>
+       <section className="ownerSectionIntro"><div><span>FINANCEIRO DO SaaS</span><h2>Receita e recorrência</h2><p>Indicadores comerciais da plataforma, separados do financeiro dos clientes.</p></div></section>
+       <div className="ownerKpis">
+         <article className="main"><span>MRR PREVISTO</span><b>{money(mrr)}</b><small>{s.active||0} assinaturas ativas</small></article>
+         <article><span>ARR PREVISTO</span><b>{money(arr)}</b><small>MRR × 12 meses</small></article>
+         <article><span>MENSALIDADE</span><b>{money(s.monthly_price||350)}</b><small>Plano profissional</small></article>
+         <article><span>BASE EM TESTE</span><b>{s.trial||0}</b><small>Potenciais novos assinantes</small></article>
+       </div>
+       <section className="ownerCard ownerRevenueExplain">
+         <div><span>RECEITA RECEBIDA NO MÊS</span><h3>Aguardando conciliação de pagamentos</h3><p>O sistema já controla assinatura, vencimento e status. Para mostrar exatamente quanto dinheiro caiu no mês, cada cobrança aprovada precisa ser registrada pelo Mercado Pago. Até essa etapa ficar concluída, o painel usa MRR previsto e não apresenta projeção como dinheiro recebido.</p></div>
+         <div className="ownerRevenueSteps"><span className="done">✓ Assinaturas</span><span className="done">✓ Vencimentos</span><span className="done">✓ Bloqueio manual</span><span>○ Conciliação financeira Mercado Pago</span></div>
+       </section>
+     </>}
+
+     {section==='system'&&<>
+       <section className="ownerSectionIntro"><div><span>SAÚDE DA PLATAFORMA</span><h2>Sistema e monitoramento</h2><p>Uso geral, automações e últimas ações administrativas.</p></div></section>
+       <div className="ownerKpis">
+         <article><span>EMPRESAS</span><b>{s.companies_total||0}</b><small>cadastradas</small></article>
+         <article><span>USUÁRIOS</span><b>{s.users_total||0}</b><small>na plataforma</small></article>
+         <article><span>PEÇAS</span><b>{s.products_total||0}</b><small>cadastradas pelos clientes</small></article>
+         <article><span>VENDAS</span><b>{s.sales_total||0}</b><small>registradas pelos clientes</small></article>
+       </div>
+       <div className="ownerOverviewGrid">
+         <section className="ownerCard"><div className="ownerCardHead"><div><span>AUTOMAÇÃO</span><h3>Status do SaaS</h3></div></div><div className="ownerAutomationList"><div><i/>Vencimento automático habilitado</div><div><i/>Atualização do painel a cada 60 segundos</div><div><i/>Isolamento por empresa ativo</div><div className="pending"><i/>Conciliação de pagamentos em evolução</div></div></section>
+         <section className="ownerCard"><div className="ownerCardHead"><div><span>LOGS</span><h3>Atividades recentes</h3></div></div><div className="ownerLogs">{logs.slice(0,20).map(x=><div key={x.id}><div><b>{x.action}</b><span>{x.entity||'sistema'} {x.entity_id||''}</span></div><small>{x.created_at?new Date(x.created_at).toLocaleString('pt-BR'):'—'}</small></div>)}{!logs.length&&<div className="ownerEmpty">Nenhuma atividade recente.</div>}</div></section>
+       </div>
+     </>}
+
+     {toast&&<div className="toast">✓ {toast}</div>}
+   </main>
  </div>
 }
 

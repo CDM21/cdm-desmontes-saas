@@ -1,3 +1,4 @@
+import os
 import gzip
 import json
 from datetime import datetime, timedelta
@@ -172,8 +173,12 @@ def _v122_company_payload(db, company):
         "cnpj": getattr(company, "cnpj", "") or "",
         "email": getattr(company, "email", "") or "",
         "phone": getattr(company, "phone", "") or "",
+        "created_at": company.created_at.isoformat() if getattr(company, "created_at", None) else None,
         "active": bool(getattr(company, "active", True)),
         "subscription_status": status,
+        "provider": getattr(sub, "provider", "") if sub else "",
+        "last_login_at": (lambda x: x.isoformat() if x else None)(db.query(func.max(User.last_login_at)).filter(User.company_id == company.id).scalar()),
+        "connections": db.query(MarketplaceConnection).filter(MarketplaceConnection.company_id == company.id, MarketplaceConnection.active == True).count(),
         "visual_status": visual_status,
         "expires_at": exp.isoformat() if exp else None,
         "days_remaining": days,
@@ -197,7 +202,11 @@ def admin_dashboard_v2(db: Session = Depends(get_db), user: User = Depends(_v122
     overdue = sum(1 for x in rows if x["visual_status"] == "past_due")
     blocked = sum(1 for x in rows if x["visual_status"] == "blocked")
     canceled = sum(1 for x in rows if x["visual_status"] == "canceled")
-    monthly_price = float(os.getenv("MONTHLY_PRICE", "350") or 350)
+    monthly_price = float(os.getenv("CDM_MONTHLY_PRICE", os.getenv("MONTHLY_PRICE", "350")) or 350)
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+    new_this_month = sum(1 for x in companies if getattr(x, "created_at", None) and x.created_at >= month_start)
+    new_last_30_days = sum(1 for x in companies if getattr(x, "created_at", None) and x.created_at >= now - timedelta(days=30))
     logs = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(60).all()
     recent_logs = [{
         "id": x.id,
@@ -220,8 +229,12 @@ def admin_dashboard_v2(db: Session = Depends(get_db), user: User = Depends(_v122
             "users_total": db.query(User).count(),
             "products_total": db.query(Product).count(),
             "sales_total": db.query(Sale).count(),
-            "projected_mrr": active * monthly_price,
+            "projected_mrr": round(active * monthly_price, 2),
+            "projected_arr": round(active * monthly_price * 12, 2),
             "monthly_price": monthly_price,
+            "new_this_month": new_this_month,
+            "new_last_30_days": new_last_30_days,
+            "attention": overdue + blocked,
             "synced_now": synced,
         },
         "companies": rows,
