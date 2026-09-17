@@ -64,7 +64,7 @@ _ensure_v14_tables()
 def v14_ping():
     return {
         "ok": True,
-        "version": "14.1",
+        "version": "14.2",
         "founder_limit": FOUNDER_LIMIT,
         "monthly_price": _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE),
         "implementation_fee": _money_env("CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE),
@@ -101,15 +101,10 @@ def _sync_founders(db: Session):
     return rows
 
 def _founder_for_company(db: Session, company_id: int):
-    _sync_founders(db)
-    row = db.execute(
-        text(
-            "SELECT company_id, slot, assigned_at "
-            "FROM founder_program WHERE company_id=:company_id"
-        ),
-        {"company_id": company_id},
-    ).mappings().first()
-    return dict(row) if row else None
+    for row in _sync_founders(db):
+        if int(row["company_id"]) == int(company_id):
+            return dict(row)
+    return None
 
 
 def _setup_fee(db: Session, company_id: int, founder: bool):
@@ -126,7 +121,19 @@ def _setup_fee(db: Session, company_id: int, founder: bool):
         {"company_id": company_id},
     ).mappings().first()
     if row:
-        return dict(row)
+        current = dict(row)
+        if founder and str(current.get("status") or "") != "paid":
+            db.execute(
+                text(
+                    "UPDATE setup_fee_ledger SET amount=0,status='waived' "
+                    "WHERE company_id=:company_id"
+                ),
+                {"company_id": company_id},
+            )
+            db.commit()
+            current["amount"] = 0.0
+            current["status"] = "waived"
+        return current
 
     status = "waived" if founder else "pending"
     db.execute(
