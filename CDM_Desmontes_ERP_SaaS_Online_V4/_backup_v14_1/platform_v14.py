@@ -60,16 +60,6 @@ def _ensure_v14_tables():
 
 _ensure_v14_tables()
 
-@router.get("/ping")
-def v14_ping():
-    return {
-        "ok": True,
-        "version": "14.1",
-        "founder_limit": FOUNDER_LIMIT,
-        "monthly_price": _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE),
-        "implementation_fee": _money_env("CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE),
-    }
-
 
 def _platform_admin_company_ids(db: Session):
     emails = platform_admin_emails()
@@ -84,21 +74,56 @@ def _platform_admin_company_ids(db: Session):
 
 
 def _sync_founders(db: Session):
-    # Regra determinística: os 10 primeiros clientes reais são fundadores.
-    # A empresa usada pelo administrador da plataforma é excluída.
     admin_company_ids = _platform_admin_company_ids(db)
     companies = db.query(Company).order_by(
         Company.created_at.asc(), Company.id.asc()
     ).all()
     eligible = [c for c in companies if c.id not in admin_company_ids][:FOUNDER_LIMIT]
-    rows = []
-    for slot, company in enumerate(eligible, start=1):
-        rows.append({
-            "company_id": int(company.id),
-            "slot": slot,
-            "assigned_at": getattr(company, "created_at", None),
-        })
-    return rows
+
+    existing = db.execute(
+        text("SELECT company_id, slot FROM founder_program ORDER BY slot")
+    ).mappings().all()
+    existing_by_company = {int(r["company_id"]): int(r["slot"]) for r in existing}
+    used_slots = {
+        int(r["slot"]) for r in existing
+        if 1 <= int(r["slot"]) <= FOUNDER_LIMIT
+    }
+
+    changed = 0
+    for company in eligible:
+        if company.id in existing_by_company:
+            continue
+        free_slot = next(
+            (n for n in range(1, FOUNDER_LIMIT + 1) if n not in used_slots),
+            None,
+        )
+        if free_slot is None:
+            break
+        db.execute(
+            text(
+                "INSERT INTO founder_program (company_id, slot, assigned_at) "
+                "VALUES (:company_id, :slot, :assigned_at)"
+            ),
+            {
+                "company_id": company.id,
+                "slot": free_slot,
+                "assigned_at": datetime.utcnow(),
+            },
+        )
+        used_slots.add(free_slot)
+        changed += 1
+
+    if changed:
+        db.commit()
+
+    rows = db.execute(
+        text(
+            "SELECT company_id, slot, assigned_at "
+            "FROM founder_program ORDER BY slot"
+        )
+    ).mappings().all()
+    return [dict(r) for r in rows]
+
 
 def _founder_for_company(db: Session, company_id: int):
     _sync_founders(db)

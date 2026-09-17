@@ -195,7 +195,6 @@ function OwnerPortal({session,onPreview}){
  const [lastUpdate,setLastUpdate]=useState(null)
  const [readiness,setReadiness]=useState(null)
  const [founders,setFounders]=useState(null)
- const [v14Errors,setV14Errors]=useState({founders:'',readiness:''})
  const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
  const founderMap=new Map((founders?.founders||[]).map(x=>[Number(x.company_id),Number(x.slot)]))
  const statusMeta={active:['Ativa','success'],trial:['Teste','info'],past_due:['Atrasada','danger'],blocked:['Bloqueada','dark'],canceled:['Cancelada','muted'],inactive:['Inativa','muted']}
@@ -204,22 +203,14 @@ function OwnerPortal({session,onPreview}){
  async function load(silent=false){
    if(!silent)setBusy(true)
    try{
-     const r=await api.get('/admin/dashboard-v2')
-     setData(r.data||{})
-     const [readinessR,foundersR]=await Promise.all([
-       api.get('/v14/admin/platform-readiness')
-         .then(x=>({ok:true,data:x.data}))
-         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`})),
-       api.get('/v14/admin/founders')
-         .then(x=>({ok:true,data:x.data}))
-         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`}))
+     const [r,readinessR,foundersR]=await Promise.all([
+       api.get('/admin/dashboard-v2'),
+       api.get('/v14/admin/platform-readiness').catch(()=>({data:null})),
+       api.get('/v14/admin/founders').catch(()=>({data:null}))
      ])
-     setReadiness(readinessR.ok?readinessR.data:null)
-     setFounders(foundersR.ok?foundersR.data:null)
-     setV14Errors({
-       readiness:readinessR.ok?'':readinessR.error,
-       founders:foundersR.ok?'':foundersR.error
-     })
+     setData(r.data||{})
+     setReadiness(readinessR.data||null)
+     setFounders(foundersR.data||null)
      setLastUpdate(new Date())
    }catch(e){pop(erroPt(e.response?.data?.detail)||'Erro ao carregar o Portal do Dono')}
    finally{if(!silent)setBusy(false)}
@@ -355,23 +346,16 @@ function OwnerPortal({session,onPreview}){
      </>}
 
 
-     {section==='revenue'&&<section className="ownerCard v14FounderCard">
-       <div className="ownerCardHead">
-         <div><span>PROGRAMA FUNDADORES</span><h3>Regra dos 10 primeiros clientes</h3></div>
-         <span className="pill neutral">{founders?`${founders.assigned||0}/${founders.limit||10} vagas usadas`:'V14.1'}</span>
-       </div>
+     {section==='revenue'&&founders&&<section className="ownerCard v14FounderCard">
+       <div className="ownerCardHead"><div><span>PROGRAMA FUNDADORES</span><h3>Regra dos 10 primeiros clientes</h3></div><span className="pill neutral">{founders.assigned||0}/{founders.limit||10} vagas usadas</span></div>
        <div className="v14FounderStats">
-         <div><small>FUNDADORES</small><b>{founders?.assigned??'-'}</b></div>
-         <div><small>VAGAS RESTANTES</small><b>{founders?.remaining??'-'}</b></div>
-         <div><small>MENSALIDADE</small><b>{money(founders?.monthly_price||350)}</b></div>
-         <div><small>IMPLANTAÇÃO APÓS 10</small><b>{money(founders?.implementation_fee_after_founders||1500)}</b></div>
+         <div><small>FUNDADORES</small><b>{founders.assigned||0}</b></div>
+         <div><small>VAGAS RESTANTES</small><b>{founders.remaining||0}</b></div>
+         <div><small>MENSALIDADE</small><b>{money(founders.monthly_price||350)}</b></div>
+         <div><small>IMPLANTAÇÃO APÓS 10</small><b>{money(founders.implementation_fee_after_founders||1500)}</b></div>
        </div>
-       {founders?.founders?.length>0&&<div className="v14FounderNames">
-         {founders.founders.map(x=><span key={x.company_id}>#{x.slot} · {x.company_name}</span>)}
-       </div>}
-       {v14Errors.founders
-         ?<div className="ownerInfoNote"><b>Diagnóstico da API:</b> {v14Errors.founders}. O bloco permanece visível para facilitar a correção.</div>
-         :<div className="ownerInfoNote">Os 10 primeiros clientes reais ficam isentos da implantação. A partir do 11º cliente, a implantação é cobrada uma única vez, além da mensalidade recorrente.</div>}
+       <div className="v14FounderNames">{(founders.founders||[]).map(x=><span key={x.company_id}>#{x.slot} · {x.company_name}</span>)}</div>
+       <div className="ownerInfoNote">Os fundadores ficam isentos da implantação. A partir do 11º cliente, o CDM prepara a cobrança única de implantação + a mensalidade recorrente.</div>
      </section>}
 
      {section==='system'&&<>
@@ -389,21 +373,17 @@ function OwnerPortal({session,onPreview}){
      </>}
 
 
-     {section==='system'&&<section className="ownerCard v14ReadinessCard">
-       <div className="ownerCardHead">
-         <div><span>DIAGNÓSTICO V14.1</span><h3>Segurança, backup e integrações</h3></div>
-         <span className="pill neutral">{readiness?.database?.latency_ms!=null?`${readiness.database.latency_ms} ms DB`:'Verificando API'}</span>
-       </div>
-       {v14Errors.readiness&&<div className="ownerInfoNote"><b>API V14:</b> {v14Errors.readiness}. Agora o erro não fica mais escondido.</div>}
+     {section==='system'&&readiness&&<section className="ownerCard v14ReadinessCard">
+       <div className="ownerCardHead"><div><span>DIAGNÓSTICO V14</span><h3>Segurança, backup e integrações</h3></div><span className="pill neutral">{readiness.database?.latency_ms??'—'} ms DB</span></div>
        <div className="v14ReadinessGrid">
-         <div><small>BANCO DE DADOS</small><b className={readiness?.database?.online?'v14ReadyYes':'v14ReadyNo'}>{readiness?readiness.database?.online?'Online':'Atenção':'Aguardando'}</b></div>
-         <div><small>AUDITORIA</small><b>{readiness?`${readiness.audit?.events||0} eventos`:'-'}</b></div>
-         <div><small>BACKUP</small><b>{readiness?.backup?.last_download_at?new Date(readiness.backup.last_download_at).toLocaleDateString('pt-BR'):'Ainda não confirmado'}</b></div>
-         <div><small>MERCADO PAGO</small><b className={readiness?.billing?.mercadopago_configured?'v14ReadyYes':'v14ReadyNo'}>{readiness?.billing?.mercadopago_configured?'Credencial pronta':'Aguardando credencial'}</b></div>
-         <div><small>WEBHOOK SEGURO</small><b className={readiness?.security?.billing_webhook_secret?'v14ReadyYes':'v14ReadyNo'}>{readiness?.security?.billing_webhook_secret?'Configurado':'Pendente'}</b></div>
-         <div><small>CRIPTOGRAFIA</small><b className={readiness?.security?.app_encryption_key?'v14ReadyYes':'v14ReadyNo'}>{readiness?.security?.app_encryption_key?'Configurada':'Revisar ambiente'}</b></div>
-         <div><small>MARKETPLACES ATIVOS</small><b>{readiness?.integrations?.active_marketplace_connections??'-'}</b></div>
-         <div><small>FUNDADORES</small><b>{readiness?`${readiness.founders?.assigned||0}/${readiness.founders?.limit||10}`:'-/10'}</b></div>
+         <div><small>BANCO DE DADOS</small><b className={readiness.database?.online?'v14ReadyYes':'v14ReadyNo'}>{readiness.database?.online?'Online':'Atenção'}</b></div>
+         <div><small>AUDITORIA</small><b className={readiness.audit?.enabled?'v14ReadyYes':'v14ReadyNo'}>{readiness.audit?.events||0} eventos</b></div>
+         <div><small>BACKUP</small><b>{readiness.backup?.last_download_at?new Date(readiness.backup.last_download_at).toLocaleDateString('pt-BR'):'Ainda não baixado'}</b></div>
+         <div><small>MERCADO PAGO</small><b className={readiness.billing?.mercadopago_configured?'v14ReadyYes':'v14ReadyNo'}>{readiness.billing?.mercadopago_configured?'Credencial pronta':'Aguardando credencial'}</b></div>
+         <div><small>WEBHOOK SEGURO</small><b className={readiness.security?.billing_webhook_secret?'v14ReadyYes':'v14ReadyNo'}>{readiness.security?.billing_webhook_secret?'Configurado':'Pendente'}</b></div>
+         <div><small>CRIPTOGRAFIA</small><b className={readiness.security?.app_encryption_key?'v14ReadyYes':'v14ReadyNo'}>{readiness.security?.app_encryption_key?'Configurada':'Revisar ambiente'}</b></div>
+         <div><small>MARKETPLACES ATIVOS</small><b>{readiness.integrations?.active_marketplace_connections||0}</b></div>
+         <div><small>FUNDADORES</small><b>{readiness.founders?.assigned||0}/{readiness.founders?.limit||10}</b></div>
        </div>
      </section>}
 
