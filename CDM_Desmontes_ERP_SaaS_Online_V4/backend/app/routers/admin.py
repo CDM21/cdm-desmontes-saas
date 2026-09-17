@@ -149,7 +149,7 @@ def _v122_log(db, user, action, entity="company", entity_id=None, details=None):
             action=action,
             entity=entity,
             entity_id=entity_id,
-            details_json=details or {},
+            details_json=json.dumps(details or {}, ensure_ascii=False, default=str)[:8000],
         ))
     except Exception:
         pass
