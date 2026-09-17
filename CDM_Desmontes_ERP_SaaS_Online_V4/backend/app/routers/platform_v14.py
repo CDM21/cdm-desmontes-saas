@@ -638,8 +638,18 @@ def platform_readiness(
             "last_download_by_user": last_backup.user_id if last_backup else None,
             "age_hours": backup_age_hours,
             "fresh_24h": bool(backup_age_hours is not None and backup_age_hours <= 24),
-            "offsite_storage": False,
-            "note": "Exportação íntegra pronta; armazenamento externo automático será a próxima etapa.",
+            "offsite_storage": bool(
+                (os.getenv("BACKUP_S3_ENDPOINT") or "").strip()
+                and (os.getenv("BACKUP_S3_ACCESS_KEY") or "").strip()
+                and (os.getenv("BACKUP_S3_SECRET_KEY") or "").strip()
+                and (os.getenv("BACKUP_S3_BUCKET") or "").strip()
+            ),
+            "automatic_enabled": (
+                (os.getenv("AUTO_BACKUP_ENABLED") or "").strip().lower()
+                not in {"0","false","no","off"}
+            ),
+            "interval_hours": int(os.getenv("AUTO_BACKUP_INTERVAL_HOURS","24") or 24),
+            "note": "Backup externo compatível com S3/R2; ativa quando as credenciais forem configuradas.",
         },
         "audit": {
             "enabled": True,

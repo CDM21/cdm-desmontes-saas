@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .db import Base, engine
+from .backup_scheduler import start_backup_scheduler
 from sqlalchemy import inspect, text
 from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence, platform_v14
 
@@ -50,6 +51,11 @@ ensure_v8_schema()
 
 
 app = FastAPI(title="CDM Desmontes ERP API", version="14.0.0")
+
+@app.on_event("startup")
+def _start_cdm_backup_scheduler():
+    start_backup_scheduler()
+
 
 frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
 origins = {"http://localhost:5173", "http://127.0.0.1:5173", frontend_url}

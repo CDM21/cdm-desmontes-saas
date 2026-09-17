@@ -13,6 +13,7 @@ from ..db import get_db, engine
 from ..deps import current_user
 from ..models import Company, User, Subscription, Product, Sale, SaleItem, Vehicle, VehicleExpense, StockMovement, MarketplaceConnection, MarketplaceListing, AuditLog
 from ..admin import require_platform_admin, audit
+from ..backup_service import offsite_config, upload_offsite, list_offsite
 
 router=APIRouter()
 
@@ -111,6 +112,44 @@ def backup(db:Session=Depends(get_db),user=Depends(current_user)):
         "X-CDM-Backup-Id":payload["backup_id"],
         "X-CDM-Backup-SHA256":digest,
     })
+
+@router.get("/backup/offsite/status")
+def offsite_backup_status(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_platform_admin(user)
+    cfg=offsite_config()
+    try:
+        recent=list_offsite(10).get("items",[]) if cfg["configured"] else []
+        error=""
+    except Exception as exc:
+        recent=[]
+        error=str(exc)[:1000]
+    return {
+        "configured":cfg["configured"],
+        "automatic_enabled":cfg["automatic_enabled"],
+        "interval_hours":cfg["interval_hours"],
+        "bucket":cfg["bucket"] if cfg["configured"] else "",
+        "prefix":cfg["prefix"],
+        "recent":recent,
+        "error":error,
+    }
+
+@router.post("/backup/offsite/run")
+def offsite_backup_run(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_platform_admin(user)
+    try:
+        result=upload_offsite()
+    except Exception as exc:
+        audit(db,user,"backup.offsite.error","database","",{"error":str(exc)[:1000]})
+        db.commit()
+        raise HTTPException(503,f"Não foi possível salvar o backup externo: {exc}")
+    audit(db,user,"backup.offsite.success","database","",{
+        "backup_id":result["backup_id"],
+        "sha256":result["sha256"],
+        "bytes":result["bytes"],
+        "key":result["key"],
+    })
+    db.commit()
+    return result
 
 @router.get("/overview")
 def overview(db:Session=Depends(get_db),user=Depends(current_user)):
