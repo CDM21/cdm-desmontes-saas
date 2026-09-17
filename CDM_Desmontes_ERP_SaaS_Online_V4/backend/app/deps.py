@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import User, Company
 from .security import SECRET_KEY, ALGORITHM
+from .admin import is_platform_admin
 
 bearer=HTTPBearer()
 

@@ -114,8 +114,9 @@ function App(){
    try{
      const me=await api.get('/auth/me')
      setSession(me.data)
-     if(me.data?.is_platform_admin){setBilling({active:true});return}
-     const bi=await api.get('/billing/status')
+     const platformAdmin=!!me.data?.is_platform_admin
+     if(platformAdmin&&!ownerPreview){setBilling({active:true});return}
+     const bi=platformAdmin?{data:{active:true}}:await api.get('/billing/status')
      setBilling(bi.data||{})
      const role=me.data?.user?.role||'user';const canFinance=['owner','admin','manager'].includes(role);const canUsers=['owner','admin'].includes(role)
      if(bi.data?.active===false){
@@ -131,7 +132,7 @@ function App(){
      setCatalog({customers:cu.data,suppliers:su.data,carriers:ca.data,sellers:se.data,partGroups:pg.data,locations:lo.data,users:us.data,tax:tx.data})
    }catch(e){if(e.response?.status===401){logout()}else if(e.response?.status===402){setBilling(b=>({...b,active:false}))}else console.error(e)}
  }
- useEffect(()=>{if(logged)load()},[logged])
+ useEffect(()=>{if(logged)load()},[logged,ownerPreview])
  useEffect(()=>{if(session&&!canAccessTab(session?.user?.role,tab,session?.is_platform_admin))setTab('dashboard')},[tab,session])
  useEffect(()=>{const q=new URLSearchParams(location.search);const integration=q.get('integration');const status=q.get('status');if(integration){setTab('marketplaces');setTimeout(()=>notice(status==='connected'?`${marketName(integration)} conectado com sucesso`:`Não foi possível conectar ${marketName(integration)}`),300);history.replaceState({},'',location.pathname)}},[])
  function notice(t){setToast(t);setTimeout(()=>setToast(''),3800)}
