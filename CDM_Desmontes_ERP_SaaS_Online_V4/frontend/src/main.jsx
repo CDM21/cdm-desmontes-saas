@@ -721,7 +721,7 @@ function Vehicle360({vehicle,listings=[],onClose}){
  ]
  return <div className="modalBackdrop vehicle360Backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
   <div className="v8Modal vehicle360Modal">
-   <div className="modalHead vehicle360Head"><div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
+   <div className="modalHead vehicle360Head"><div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>{v.photo_data&&<img src={v.photo_data} alt="Foto da sucata" style={{width:96,height:70,objectFit:'cover',borderRadius:12,border:'1px solid var(--border)'}}/>}<div><small>VISÃO 360 DO VEÍCULO</small><h2>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||`Veículo #${v.id}`}</h2><p>{v.plate?`Placa ${v.plate} · `:''}{info?.vehicle?.status_label||statusPt(v.status)}</p></div></div><button className="iconClose" onClick={onClose}>×</button></div>
    <div className="modalBody vehicle360Body">
     {busy?<div className="vehicle360Loading">Calculando investimento, vendas e estoque...</div>:error?<div className="error">{error}</div>:<>
      <div className="vehicle360Status">
@@ -889,21 +889,34 @@ function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
   }finally{setSaving(false)}
  }
  return <>
-  <section className="panel"><PanelHead eyebrow="DESMONTAGEM" title="Cadastro de Sucata / Veículo" text="Registre o veículo de origem. Marca e modelo já vêm organizados para acelerar o cadastro."/><div className="formGrid"><Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/><Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:+e.target.value})}/></Field><Field label="Chassi/VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field><Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field><Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field><Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field></div><div style={{marginTop:14,display:'grid',gap:8}}>
-   <div>
-    <small style={{display:'block',marginBottom:6,fontWeight:800}}>FOTO PRINCIPAL DA SUCATA</small>
-    <input type="file" accept="image/*" capture="environment" onChange={chooseVehiclePhoto}/>
+  <section className="panel"><PanelHead eyebrow="DESMONTAGEM" title="Cadastro de Sucata / Veículo" text="Registre o veículo de origem. Marca e modelo já vêm organizados para acelerar o cadastro."/><div className="formGrid"><Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/><Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:+e.target.value})}/></Field><Field label="Chassi/VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field><Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field><Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field><Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field></div><div style={{marginTop:14}}>
+   <small style={{display:'block',marginBottom:8,fontWeight:800}}>FOTO PRINCIPAL DA SUCATA</small>
+   <div style={{padding:14,border:'1px dashed var(--border)',borderRadius:14,background:'rgba(255,255,255,.02)',display:'grid',gap:12}}>
+    {!photoData&&<label style={{cursor:'pointer',display:'grid',placeItems:'center',minHeight:150,borderRadius:12,background:'rgba(255,255,255,.02)',border:'1px solid rgba(255,255,255,.06)',textAlign:'center',padding:18}}>
+      <input type="file" accept="image/*" capture="environment" onChange={chooseVehiclePhoto} style={{display:'none'}}/>
+      <div style={{display:'grid',gap:8}}>
+       <div style={{fontSize:30,lineHeight:1}}>📷</div>
+       <b>Escolher foto da sucata</b>
+       <small>Envie a imagem principal do veiculo para identificar melhor a sucata.</small>
+      </div>
+    </label>}
+    {photoBusy&&<small>Preparando foto...</small>}
+    {photoData&&<div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+      <img src={photoData} alt="Preview da sucata" style={{width:180,height:125,objectFit:'cover',borderRadius:14,border:'1px solid var(--border)'}}/>
+      <div style={{display:'grid',gap:8}}>
+       <label className="ghost" style={{cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'10px 14px'}}>
+        📷 Trocar foto
+        <input type="file" accept="image/*" capture="environment" onChange={chooseVehiclePhoto} style={{display:'none'}}/>
+       </label>
+       <button type="button" className="ghost" onClick={()=>setPhotoData('')}>🗑 Remover foto</button>
+      </div>
+    </div>}
    </div>
-   {photoBusy&&<small>Preparando foto...</small>}
-   {photoData&&<div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-    <img src={photoData} alt="Preview da sucata" style={{width:150,height:105,objectFit:'cover',borderRadius:12,border:'1px solid var(--border)'}}/>
-    <button type="button" className="ghost" onClick={()=>setPhotoData('')}>Remover foto</button>
-   </div>}
   </div><button className="primary" disabled={saving} onClick={add}>{saving?'Salvando...':'+ Cadastrar veículo'}</button></section>
   {!createOnly&&<section className="panel vehicleManagementPanel">
    <div className="vehicleManagementHead"><div><small>SUCATAS</small><h2>Veículos cadastrados</h2><p>Acompanhe cada veículo desde a compra até o retorno das peças.</p></div><div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar placa, marca ou modelo..."/><span>{filtered.length} de {data.length}</span></div></div>
    {filtered.length?<div className="vehicleRows">{filtered.map(v=><div className="vehicleRow360" key={v.id}>
-    <div className="vehicleIdentity"><div className="vehicleBadge">#{v.id}</div><div><b>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||'Veículo sem identificação'}</b><small>{v.plate||'Sem placa'} · {v.fuel||'Combustível não informado'} · {v.transmission||'Câmbio não informado'}</small></div></div>
+    <div className="vehicleIdentity">{v.photo_data?<img src={v.photo_data} alt="Foto da sucata" style={{width:58,height:44,objectFit:'cover',borderRadius:12,border:'1px solid var(--border)',flex:'0 0 auto'}}/>:<div className="vehicleBadge">#{v.id}</div>}<div><b>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||'Veículo sem identificação'}</b><small>{v.plate||'Sem placa'} · {v.fuel||'Combustível não informado'} · {v.transmission||'Câmbio não informado'}</small></div></div>
     <div className="vehicleQuick"><small>Compra</small><b>{money(v.acquisition_value)}</b></div>
     <div className="vehicleQuick"><small>Custos</small><b>{money(v.other_costs)}</b></div>
     <div className="vehicleQuick"><small>Status</small><b>{statusPt(v.status)}</b></div>
