@@ -98,6 +98,7 @@ const TITLE_MAP={company:'Informações da Empresa'}
 MENU.forEach(item=>{TITLE_MAP[item.key]=item.label;(item.children||[]).forEach(c=>TITLE_MAP[c.key]=c.label)})
 
 
+
 function OwnerPreviewReturnButton({onReturn}){
  const [pos,setPos]=useState(()=>{
   try{
@@ -105,6 +106,7 @@ function OwnerPreviewReturnButton({onReturn}){
    return saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)?saved:null
   }catch{return null}
  })
+ const [open,setOpen]=useState(false)
  const drag=useRef(null)
  const moved=useRef(false)
 
@@ -121,6 +123,7 @@ function OwnerPreviewReturnButton({onReturn}){
   const rect=e.currentTarget.getBoundingClientRect()
   drag.current={dx:e.clientX-rect.left,dy:e.clientY-rect.top,w:rect.width,h:rect.height,sx:e.clientX,sy:e.clientY}
   moved.current=false
+  setOpen(true)
   e.currentTarget.setPointerCapture?.(e.pointerId)
  }
 
@@ -164,16 +167,26 @@ function OwnerPreviewReturnButton({onReturn}){
   return()=>window.removeEventListener('resize',fit)
  },[])
 
+ const expanded=open||!!drag.current
+ const style=pos?{left:pos.x,top:pos.y,right:'auto',bottom:'auto',touchAction:'none',cursor:drag.current?'grabbing':'grab',userSelect:'none'}:{touchAction:'none',cursor:drag.current?'grabbing':'grab',userSelect:'none'}
+
  return <button
-  className="ownerPreviewFloat"
-  title="Arraste para mover"
+  className={`ownerPreviewFloat ownerPreviewFloatCompact ${expanded?'open':''}`}
+  title={expanded?'Arraste para mover ou clique para voltar':'Voltar ao Portal do Dono'}
   onPointerDown={startDrag}
   onPointerMove={moveDrag}
   onPointerUp={endDrag}
   onPointerCancel={endDrag}
+  onMouseEnter={()=>setOpen(true)}
+  onMouseLeave={()=>{if(!drag.current)setOpen(false)}}
+  onFocus={()=>setOpen(true)}
+  onBlur={()=>{if(!drag.current)setOpen(false)}}
   onClick={handleClick}
-  style={pos?{left:pos.x,top:pos.y,right:'auto',bottom:'auto',touchAction:'none',cursor:'grab',userSelect:'none'}:{touchAction:'none',cursor:'grab',userSelect:'none'}}
- >↕ Arraste · ← Voltar ao Portal do Dono</button>
+  style={style}
+ >
+  <span className="ownerPreviewFloatIcon">↩</span>
+  <span className="ownerPreviewFloatText">Voltar ao Portal do Dono</span>
+ </button>
 }
 
 
