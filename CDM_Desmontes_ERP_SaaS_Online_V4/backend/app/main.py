@@ -3,11 +3,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .db import Base, engine, SessionLocal
+from .db import Base, engine
 from sqlalchemy import inspect, text
 from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence
-from .models import User
-from .security import hash_password
 
 Base.metadata.create_all(bind=engine)
 
@@ -34,36 +32,6 @@ def ensure_v8_schema():
 
 ensure_v8_schema()
 
-# CDM TEMP SAFE ADMIN PASSWORD RESET
-def apply_admin_password_reset():
-    email=(os.getenv("CDM_ADMIN_RESET_EMAIL") or "").strip().lower()
-    password=os.getenv("CDM_ADMIN_RESET_PASSWORD") or ""
-    if not email and not password:
-        return
-    if not email or not password:
-        print("CDM reset warning: informe EMAIL e PASSWORD juntos")
-        return
-    if len(password) < 8:
-        print("CDM reset warning: senha deve ter pelo menos 8 caracteres")
-        return
-
-    db=SessionLocal()
-    try:
-        user=db.query(User).filter(User.email==email).first()
-        if not user:
-            print(f"CDM reset warning: usuário não encontrado: {email}")
-            return
-        user.password_hash=hash_password(password)
-        user.token_version=int(getattr(user,"token_version",0) or 0)+1
-        db.commit()
-        print(f"CDM reset: senha redefinida para {email}; remova as variáveis CDM_ADMIN_RESET_*")
-    except Exception as exc:
-        db.rollback()
-        print("CDM reset error:", type(exc).__name__)
-    finally:
-        db.close()
-
-apply_admin_password_reset()
 
 app = FastAPI(title="CDM Desmontes ERP API", version="12.0.0")
 
