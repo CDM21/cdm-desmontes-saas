@@ -23,6 +23,10 @@ class VehicleIn(BaseModel):
     other_costs:float=0
 
 
+class VehiclePhotoIn(BaseModel):
+    photo_data:str=""
+
+
 class VehicleExpenseIn(BaseModel):
     category:str="Outros"
     description:str=""
@@ -67,6 +71,24 @@ def create_vehicle(data:VehicleIn, db:Session=Depends(get_db), user=Depends(requ
         if "other_costs" in message.lower() or "column" in message.lower():
             raise HTTPException(500,"O banco de dados do cadastro de sucatas precisa ser atualizado. Aguarde o novo deploy e tente novamente.")
         raise HTTPException(500,"Não foi possível salvar a sucata no banco de dados")
+
+
+@router.put("/{vehicle_id}/photo")
+def save_vehicle_photo(vehicle_id:int,data:VehiclePhotoIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):
+    row=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()
+    if not row:
+        raise HTTPException(404,"Veiculo nao encontrado")
+    photo=(data.photo_data or "").strip()
+    if photo:
+        allowed=("data:image/jpeg;base64,","data:image/jpg;base64,","data:image/png;base64,","data:image/webp;base64,")
+        if not photo.lower().startswith(allowed):
+            raise HTTPException(400,"Formato de foto invalido. Use JPG, PNG ou WEBP")
+        if len(photo)>1500000:
+            raise HTTPException(400,"A foto ficou muito grande. Escolha outra imagem.")
+    row.photo_data=photo
+    db.commit()
+    db.refresh(row)
+    return {"ok":True,"vehicle_id":row.id,"has_photo":bool(row.photo_data)}
 
 
 @router.put("/{vehicle_id}")

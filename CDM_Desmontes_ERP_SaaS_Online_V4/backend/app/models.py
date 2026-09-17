@@ -68,6 +68,7 @@ class Vehicle(Base):
     fuel = Column(String(30))
     transmission = Column(String(30))
     color = Column(String(40))
+    photo_data = Column(Text, default="")
     acquisition_value = Column(Float, default=0)
     other_costs = Column(Float, default=0)
     status = Column(String(30), default="received")

@@ -24,6 +24,7 @@ def ensure_v8_schema():
             "fuel":"VARCHAR(30) DEFAULT ''",
             "transmission":"VARCHAR(30) DEFAULT ''",
             "color":"VARCHAR(40) DEFAULT ''",
+            "photo_data":"TEXT DEFAULT ''",
             "acquisition_value":"FLOAT DEFAULT 0",
             "other_costs":"FLOAT DEFAULT 0",
             "status":"VARCHAR(30) DEFAULT 'received'",
