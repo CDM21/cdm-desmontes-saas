@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..admin import audit, platform_admin_emails, require_platform_admin
 from ..db import engine, get_db
 from ..deps import active_user, current_user, require_roles
+from ..security import secret_key_status, TOKEN_HOURS
 from ..models import (
     AuditLog, Company, Dismantling, MarketplaceConnection, Product,
     Sale, SaleItem, Subscription, User, Vehicle, VehicleExpense,
@@ -599,6 +600,10 @@ def platform_readiness(
     active_connections = db.query(MarketplaceConnection).filter(
         MarketplaceConnection.active == True
     ).count()
+    secret_status = secret_key_status()
+    backup_age_hours = None
+    if last_backup and last_backup.created_at:
+        backup_age_hours = round(max(0,(datetime.utcnow()-last_backup.created_at).total_seconds()/3600),1)
 
     return {
         "ok": True,
@@ -613,11 +618,28 @@ def platform_readiness(
                 (os.getenv("APP_ENCRYPTION_KEY") or "").strip()
             ),
             "cors_explicit": bool((os.getenv("CORS_ORIGINS") or "").strip()),
+            "secret_key_configured": secret_status["configured"],
+            "secret_key_strong": secret_status["strong"],
+            "secret_key_using_default": secret_status["using_default"],
+            "token_hours": TOKEN_HOURS,
+            "password_policy": "10+ caracteres e 3 grupos de caracteres",
+            "login_rate_limit": True,
+            "ready": bool(
+                secret_status["strong"]
+                and platform_admin_emails()
+                and (os.getenv("APP_ENCRYPTION_KEY") or "").strip()
+            ),
         },
         "backup": {
             "available": True,
+            "format": "cdm-logical-backup-v2",
+            "integrity": "sha256",
             "last_download_at": last_backup.created_at if last_backup else None,
             "last_download_by_user": last_backup.user_id if last_backup else None,
+            "age_hours": backup_age_hours,
+            "fresh_24h": bool(backup_age_hours is not None and backup_age_hours <= 24),
+            "offsite_storage": False,
+            "note": "Exportação íntegra pronta; armazenamento externo automático será a próxima etapa.",
         },
         "audit": {
             "enabled": True,

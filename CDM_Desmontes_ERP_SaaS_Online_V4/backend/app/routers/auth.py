@@ -5,30 +5,67 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import User, Company, Subscription
-from ..security import verify_password, hash_password, create_token
+from ..security import verify_password, hash_password, create_token, password_policy_error
 from ..deps import current_user
 from ..admin import is_platform_admin, audit
 
 router=APIRouter()
 
 
-# Limite simples por IP para reduzir tentativas automatizadas de login/cadastro.
-# Em produção com múltiplas instâncias, recomenda-se complementar com rate limit no proxy/WAF.
+# Proteção em memória contra tentativas automatizadas.
+# Em produção com múltiplas instâncias, complementar com rate limit no proxy/WAF.
 from collections import defaultdict, deque
 from threading import Lock
 import time
 _RATE=defaultdict(deque)
+_FAILED_LOGIN=defaultdict(deque)
 _RATE_LOCK=Lock()
 
+def _ip(request:Request):
+    return request.client.host if request.client else "unknown"
+
+def _trim_window(q, now, window):
+    while q and q[0] < now-window:
+        q.popleft()
+
 def _check_rate(request:Request, bucket:str):
-    ip=(request.client.host if request.client else "unknown")
+    ip=_ip(request)
     key=f"{bucket}:{ip}"
-    now=time.time(); window=300; limit=30 if bucket=="login" else 12
+    now=time.time()
+    window=300 if bucket=="login" else 900
+    limit=20 if bucket=="login" else 6
     with _RATE_LOCK:
         q=_RATE[key]
-        while q and q[0] < now-window: q.popleft()
-        if len(q)>=limit: raise HTTPException(429,"Muitas tentativas. Aguarde alguns minutos e tente novamente.")
+        _trim_window(q,now,window)
+        if len(q)>=limit:
+            raise HTTPException(429,"Muitas tentativas. Aguarde alguns minutos e tente novamente.")
         q.append(now)
+
+def _failed_key(request:Request,email:str):
+    return f"{_ip(request)}:{email.lower().strip()[:180]}"
+
+def _check_failed_logins(request:Request,email:str):
+    key=_failed_key(request,email)
+    now=time.time();window=900;limit=8
+    with _RATE_LOCK:
+        q=_FAILED_LOGIN[key]
+        _trim_window(q,now,window)
+        if len(q)>=limit:
+            wait=max(1,int((window-(now-q[0]))/60)+1)
+            raise HTTPException(429,f"Muitas senhas incorretas. Aguarde cerca de {wait} minuto(s) e tente novamente.")
+
+def _record_failed_login(request:Request,email:str):
+    key=_failed_key(request,email)
+    now=time.time()
+    with _RATE_LOCK:
+        q=_FAILED_LOGIN[key]
+        _trim_window(q,now,900)
+        q.append(now)
+
+def _clear_failed_logins(request:Request,email:str):
+    key=_failed_key(request,email)
+    with _RATE_LOCK:
+        _FAILED_LOGIN.pop(key,None)
 
 class Login(BaseModel):
     email:str
@@ -57,10 +94,13 @@ def session_payload(db:Session,user:User):
 @router.post("/login")
 def login(data:Login, request:Request, db:Session=Depends(get_db)):
     _check_rate(request,"login")
-    email=data.email.lower().strip()
+    email=data.email.lower().strip()[:180]
+    _check_failed_logins(request,email)
     user=db.query(User).filter(User.email==email).first()
     if not user or not verify_password(data.password,user.password_hash):
+        _record_failed_login(request,email)
         raise HTTPException(401,"E-mail ou senha inválidos")
+    _clear_failed_logins(request,email)
     if not user.active: raise HTTPException(403,"Usuário desativado")
     company=db.get(Company,user.company_id)
     if not company or not company.active: raise HTTPException(403,"Empresa desativada")
@@ -72,12 +112,20 @@ def login(data:Login, request:Request, db:Session=Depends(get_db)):
 @router.post("/register")
 def register(data:Register, request:Request, db:Session=Depends(get_db)):
     _check_rate(request,"register")
-    if len(data.password)<8: raise HTTPException(400,"A senha deve ter pelo menos 8 caracteres")
-    if db.query(User).filter(User.email==data.email.lower().strip()).first():
+    email=data.email.lower().strip()[:180]
+    company_name=data.company_name.strip()[:180]
+    name=data.name.strip()[:180]
+    if not company_name: raise HTTPException(400,"Informe o nome da empresa")
+    if not name: raise HTTPException(400,"Informe seu nome")
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(400,"Informe um e-mail válido")
+    password_error=password_policy_error(data.password)
+    if password_error: raise HTTPException(400,password_error)
+    if db.query(User).filter(User.email==email).first():
         raise HTTPException(409,"Já existe uma conta com este e-mail")
-    company=Company(trade_name=data.company_name.strip(),legal_name=data.company_name.strip(),cnpj=data.cnpj.strip(),phone=data.phone.strip(),email=data.email.lower().strip(),responsible_name=data.name.strip())
+    company=Company(trade_name=company_name,legal_name=company_name,cnpj=data.cnpj.strip()[:30],phone=data.phone.strip()[:40],email=email,responsible_name=name)
     db.add(company); db.flush()
-    user=User(company_id=company.id,email=data.email.lower().strip(),name=data.name.strip(),role="owner",password_hash=hash_password(data.password))
+    user=User(company_id=company.id,email=email,name=name,role="owner",password_hash=hash_password(data.password))
     db.add(user)
     # O SaaS já nasce pronto para onboarding. O gateway de pagamento pode trocar trial -> active via webhook.
     sub=Subscription(company_id=company.id,plan="mensal-350",status="trial",provider="onboarding",expires_at=datetime.utcnow()+timedelta(days=7))

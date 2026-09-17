@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import active_user, require_roles
 from ..models import Customer,Supplier,Carrier,Seller,PartGroup,Location,TaxConfig,User
-from ..security import hash_password
+from ..security import hash_password, password_policy_error
 from ..admin import audit
 
 router=APIRouter()
@@ -204,7 +204,8 @@ def add_user(data:UserIn,db:Session=Depends(get_db),user=Depends(require_roles("
     if role=="owner" and user.role!="owner": raise HTTPException(403,"Somente o dono pode criar outro dono")
     email=data.email.lower().strip()
     if db.query(User).filter(User.email==email).first(): raise HTTPException(409,"E-mail já cadastrado")
-    if len(data.password)<8: raise HTTPException(400,"Senha deve ter pelo menos 8 caracteres")
+    password_error=password_policy_error(data.password)
+    if password_error: raise HTTPException(400,password_error)
     row=User(company_id=user.company_id,name=data.name.strip(),email=email,role=role,password_hash=hash_password(data.password))
     db.add(row);db.flush();audit(db,user,"user.create","user",str(row.id),{"email":email,"role":role});db.commit();db.refresh(row)
     return {"id":row.id,"name":row.name,"email":row.email,"role":row.role,"active":row.active,"last_login_at":row.last_login_at}
@@ -231,7 +232,8 @@ def reset_password(user_id:int,data:UserPasswordIn,db:Session=Depends(get_db),us
     row=db.query(User).filter(User.id==user_id,User.company_id==user.company_id).first()
     if not row: raise HTTPException(404,"Usuário não encontrado")
     if row.role=="owner" and user.role!="owner": raise HTTPException(403,"Administrador não pode redefinir a senha do dono")
-    if len(data.password)<8: raise HTTPException(400,"Senha deve ter pelo menos 8 caracteres")
+    password_error=password_policy_error(data.password)
+    if password_error: raise HTTPException(400,password_error)
     row.password_hash=hash_password(data.password)
     row.token_version=int(getattr(row,"token_version",0) or 0)+1
     audit(db,user,"user.password_reset","user",str(row.id),{});db.commit()

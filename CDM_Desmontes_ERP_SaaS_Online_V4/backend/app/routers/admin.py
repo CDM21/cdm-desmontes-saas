@@ -1,6 +1,8 @@
 import os
 import gzip
 import json
+import hashlib
+import uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -68,9 +70,15 @@ def subscription(company_id:int,data:SubscriptionAdminIn,db:Session=Depends(get_
 @router.get("/backup")
 def backup(db:Session=Depends(get_db),user=Depends(current_user)):
     require_platform_admin(user)
-    # Backup lógico portátil: todas as tabelas em JSON gzip. Segredos de marketplace permanecem criptografados.
+    # Backup lógico portátil. O SHA-256 interno permite validar a integridade antes de uma futura restauração.
     inspector=inspect(engine)
-    payload={"format":"cdm-logical-backup-v1","created_at":datetime.utcnow().isoformat()+"Z","tables":{}}
+    payload={
+        "format":"cdm-logical-backup-v2",
+        "backup_id":uuid.uuid4().hex,
+        "created_at":datetime.utcnow().isoformat()+"Z",
+        "tables":{},
+        "table_counts":{},
+    }
     with engine.connect() as conn:
         for table in inspector.get_table_names():
             rows=conn.exec_driver_sql(f'SELECT * FROM "{table}"').mappings().all()
@@ -81,12 +89,28 @@ def backup(db:Session=Depends(get_db),user=Depends(current_user)):
                     item[k]=v.isoformat() if hasattr(v,"isoformat") else v
                 clean.append(item)
             payload["tables"][table]=clean
+            payload["table_counts"][table]=len(clean)
+    integrity_source=json.dumps(
+        {"tables":payload["tables"],"table_counts":payload["table_counts"]},
+        ensure_ascii=False,default=str,sort_keys=True,separators=(",",":")
+    ).encode("utf-8")
+    digest=hashlib.sha256(integrity_source).hexdigest()
+    payload["integrity"]={"algorithm":"sha256","sha256":digest}
     raw=json.dumps(payload,ensure_ascii=False,default=str).encode("utf-8")
     gz=gzip.compress(raw,compresslevel=6)
-    audit(db,user,"backup.download","database","",{"bytes":len(gz)})
+    audit(db,user,"backup.download","database","",{
+        "bytes":len(gz),"format":"v2","backup_id":payload["backup_id"],
+        "sha256":digest,"tables":len(payload["tables"])
+    })
     db.commit()
     name=f"cdm-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json.gz"
-    return Response(gz,media_type="application/gzip",headers={"Content-Disposition":f'attachment; filename="{name}"',"Cache-Control":"no-store"})
+    return Response(gz,media_type="application/gzip",headers={
+        "Content-Disposition":f'attachment; filename="{name}"',
+        "Cache-Control":"no-store",
+        "Pragma":"no-cache",
+        "X-CDM-Backup-Id":payload["backup_id"],
+        "X-CDM-Backup-SHA256":digest,
+    })
 
 @router.get("/overview")
 def overview(db:Session=Depends(get_db),user=Depends(current_user)):
