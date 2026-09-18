@@ -3,6 +3,7 @@ import hmac
 import json
 import os
 import time
+import unicodedata
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 import httpx
@@ -285,38 +286,173 @@ def _ml_token(db,row):
     return access
 
 
-def ml_category_suggestions(db:Session, company_id:int, title:str, limit:int=3):
+
+def _ml_normalize(value):
+    text=unicodedata.normalize("NFKD",str(value or ""))
+    text="".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(
+        text.lower().replace("/"," ").replace("-"," ").replace("_"," ").split()
+    )
+
+
+def _ml_vehicle_segment(product):
+    try:
+        raw=json.loads(getattr(product,"ml_attributes_json","{}") or "{}")
+    except Exception:
+        raw={}
+    if not isinstance(raw,dict):
+        return ""
+
+    internal=str(raw.get("_CDM_VEHICLE_SEGMENT") or "").strip()
+    if internal in {"car_pickup","truck"}:
+        return internal
+
+    legacy=_ml_normalize(raw.get("VEHICLE_TYPE"))
+    if "caminhao" in legacy:
+        return "truck"
+    if "carro" in legacy or "caminhonete" in legacy or "automovel" in legacy:
+        return "car_pickup"
+    return ""
+
+
+def _ml_vehicle_value(category_attrs, segment):
+    if segment not in {"car_pickup","truck"}:
+        return ""
+    vehicle_attr=next(
+        (a for a in (category_attrs or []) if str(a.get("id") or "")=="VEHICLE_TYPE"),
+        None,
+    )
+    if not vehicle_attr:
+        return ""
+
+    for value in vehicle_attr.get("values") or []:
+        name=str(value.get("name") or "").strip()
+        normalized=_ml_normalize(name)
+        if segment=="truck" and "caminhao" in normalized:
+            return name
+        if segment=="car_pickup" and (
+            ("carro" in normalized or "caminhonete" in normalized or "automovel" in normalized)
+            and "caminhao" not in normalized
+        ):
+            return name
+    return ""
+
+
+def ml_category_suggestions(
+    db:Session,
+    company_id:int,
+    title:str,
+    limit:int=3,
+    vehicle_type:str="",
+):
     row=_active_connection(db,company_id,"mercadolivre")
     token=_ml_token(db,row)
     q=(title or "").strip()
-    if not q: raise RuntimeError("Informe o título da peça para sugerir a categoria")
+    if not q:
+        raise RuntimeError("Informe o título da peça para sugerir a categoria")
+
+    segment=(vehicle_type or "").strip()
+    if segment not in {"","car_pickup","truck"}:
+        raise RuntimeError("Tipo de veículo inválido")
+
+    search_q=q
+    if segment=="truck":
+        search_q=f"{q} caminhão"
+    elif segment=="car_pickup":
+        search_q=f"{q} carro caminhonete"
+
+    wanted=max(1,min(int(limit),8))
+    discovery_limit=min(8,max(wanted,5))
+
     with httpx.Client(timeout=30) as c:
-        r=c.get("https://api.mercadolibre.com/sites/MLB/domain_discovery/search",params={"q":q,"limit":max(1,min(int(limit),8))},headers={"Authorization":f"Bearer {token}"})
-    if r.status_code>=400: raise RuntimeError(f"Mercado Livre categorização: {r.text[:600]}")
-    out=[]
-    for item in r.json() or []:
-        out.append({"category_id":item.get("category_id"),"category_name":item.get("category_name"),"domain_id":item.get("domain_id"),"domain_name":item.get("domain_name")})
-    return out
+        r=c.get(
+            "https://api.mercadolibre.com/sites/MLB/domain_discovery/search",
+            params={"q":search_q,"limit":discovery_limit},
+            headers={"Authorization":f"Bearer {token}"},
+        )
+        if r.status_code>=400:
+            raise RuntimeError(f"Mercado Livre categorização: {r.text[:600]}")
+
+        out=[]
+        fallback=[]
+        for item in r.json() or []:
+            result={
+                "category_id":item.get("category_id"),
+                "category_name":item.get("category_name"),
+                "domain_id":item.get("domain_id"),
+                "domain_name":item.get("domain_name"),
+                "vehicle_type":segment,
+            }
+
+            if not segment or not result["category_id"]:
+                out.append(result)
+                continue
+
+            ar=c.get(
+                f"https://api.mercadolibre.com/categories/{result['category_id']}/attributes",
+                headers={"Authorization":f"Bearer {token}"},
+            )
+            if ar.status_code>=400:
+                fallback.append(result)
+                continue
+
+            attrs=ar.json() or []
+            vehicle_attr=next(
+                (a for a in attrs if str(a.get("id") or "")=="VEHICLE_TYPE"),
+                None,
+            )
+            if vehicle_attr:
+                result["vehicle_type_value"]=_ml_vehicle_value(attrs,segment)
+                if result["vehicle_type_value"]:
+                    out.append(result)
+            else:
+                fallback.append(result)
+
+        if segment and len(out)<wanted:
+            for item in fallback:
+                if item not in out:
+                    out.append(item)
+                if len(out)>=wanted:
+                    break
+
+    return out[:wanted]
+
 
 
 def _ml_item_attributes(client,token,product:Product):
-    # Só envia atributos que a categoria realmente conhece. Isso reduz erros de publicação em autopeças.
-    r=client.get(f"https://api.mercadolibre.com/categories/{product.ml_category_id}/attributes",headers={"Authorization":f"Bearer {token}"})
-    if r.status_code>=400: return []
-    allowed={str(a.get("id")) for a in (r.json() or [])}
+    r=client.get(
+        f"https://api.mercadolibre.com/categories/{product.ml_category_id}/attributes",
+        headers={"Authorization":f"Bearer {token}"},
+    )
+    if r.status_code>=400:
+        return []
+
+    category_attrs=r.json() or []
+    allowed={str(a.get("id")) for a in category_attrs}
     candidates={
         "BRAND":product.brand,
         "MODEL":product.model,
         "PART_NUMBER":product.oem,
         "OEM":product.oem,
     }
+
     attrs=[]
     for aid,value in candidates.items():
         if aid in allowed and value:
             attrs.append({"id":aid,"value_name":str(value)[:255]})
-    # Novo padrão de condição quando a categoria o disponibiliza.
+
+    segment=_ml_vehicle_segment(product)
+    vehicle_value=_ml_vehicle_value(category_attrs,segment)
+    if "VEHICLE_TYPE" in allowed and vehicle_value:
+        attrs.append({"id":"VEHICLE_TYPE","value_name":vehicle_value})
+
     if "ITEM_CONDITION" in allowed:
-        attrs.append({"id":"ITEM_CONDITION","value_name":"Novo" if product.condition=="new" else ("Recondicionado" if product.condition=="reconditioned" else "Usado")})
+        attrs.append({
+            "id":"ITEM_CONDITION",
+            "value_name":"Novo" if product.condition=="new" else (
+                "Recondicionado" if product.condition=="reconditioned" else "Usado"
+            ),
+        })
     return attrs
 
 
@@ -400,13 +536,31 @@ def _extra_ml_attributes(product:Product):
         raw=json.loads(getattr(product,"ml_attributes_json","{}") or "{}")
     except Exception:
         return []
+
+    segment=_ml_vehicle_segment(product)
+
     if isinstance(raw,list):
-        return [x for x in raw if isinstance(x,dict) and x.get("id")]
-    if not isinstance(raw,dict): return []
+        return [
+            x for x in raw
+            if isinstance(x,dict)
+            and x.get("id")
+            and not str(x.get("id") or "").startswith("_CDM_")
+            and not (segment and str(x.get("id") or "")=="VEHICLE_TYPE")
+        ]
+
+    if not isinstance(raw,dict):
+        return []
+
     out=[]
     for aid,value in raw.items():
-        if value in (None,""): continue
-        out.append({"id":str(aid),"value_name":str(value)[:255]})
+        aid=str(aid)
+        if aid.startswith("_CDM_"):
+            continue
+        if segment and aid=="VEHICLE_TYPE":
+            continue
+        if value in (None,""):
+            continue
+        out.append({"id":aid,"value_name":str(value)[:255]})
     return out
 
 
@@ -551,7 +705,10 @@ def ml_publication_preflight(db:Session, company_id:int, product:Product):
     token=_ml_token(db,row)
     errors=[]
     warnings=[]
+    vehicle_segment=_ml_vehicle_segment(product)
 
+    if not vehicle_segment:
+        errors.append("Escolha Carro/Caminhonete ou Caminhão")
     if not product.ml_category_id:
         errors.append("Informe a categoria do Mercado Livre")
     if float(product.price or 0)<=0:
@@ -592,6 +749,18 @@ def ml_publication_preflight(db:Session, company_id:int, product:Product):
                     strict_required.append({"id":aid,"name":attr.get("name") or aid})
                 elif tags_attr.get("conditional_required"):
                     conditional.append({"id":aid,"name":attr.get("name") or aid})
+
+            vehicle_attr=next(
+                (a for a in attrs if str(a.get("id") or "")=="VEHICLE_TYPE"),
+                None,
+            )
+            if vehicle_segment and vehicle_attr:
+                vehicle_value=_ml_vehicle_value(attrs,vehicle_segment)
+                if not vehicle_value:
+                    label="Caminhão" if vehicle_segment=="truck" else "Carro/Caminhonete"
+                    errors.append(
+                        f"A categoria selecionada não aceita o Tipo de veículo {label}"
+                    )
 
             try:
                 payload=_ml_payload(
@@ -644,6 +813,7 @@ def ml_publication_preflight(db:Session, company_id:int, product:Product):
             "sku":product.sku or "",
             "name":product.name or "",
             "category_id":product.ml_category_id or "",
+            "vehicle_type":vehicle_segment,
             "price":float(product.price or 0),
             "stock":int(product.stock or 0),
             "images":len(images),

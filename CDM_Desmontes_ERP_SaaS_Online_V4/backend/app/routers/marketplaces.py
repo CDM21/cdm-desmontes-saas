@@ -22,10 +22,20 @@ def listings(product_id:int|None=None,db:Session=Depends(get_db),user=Depends(cu
     return q.order_by(MarketplaceListing.id.desc()).all()
 
 @router.get("/mercadolivre/category-suggestions")
-def ml_categories(q:str=Query(default=""),limit:int=Query(default=3),db:Session=Depends(get_db),user=Depends(current_user)):
+def ml_categories(
+    q:str=Query(default=""),
+    limit:int=Query(default=3),
+    vehicle_type:str=Query(default=""),
+    db:Session=Depends(get_db),
+    user=Depends(current_user),
+):
     require_active_subscription(user,db)
-    try: return ml_category_suggestions(db,user.company_id,q,limit)
-    except RuntimeError as e: raise HTTPException(400,str(e))
+    try:
+        return ml_category_suggestions(
+            db,user.company_id,q,limit,vehicle_type=vehicle_type
+        )
+    except RuntimeError as e:
+        raise HTTPException(400,str(e))
 
 
 
