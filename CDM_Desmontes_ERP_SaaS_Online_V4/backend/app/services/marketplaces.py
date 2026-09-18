@@ -328,7 +328,10 @@ def _ml_vehicle_value(category_attrs, segment):
     for value in vehicle_attr.get("values") or []:
         name=str(value.get("name") or "").strip()
         normalized=_ml_normalize(name)
-        if segment=="truck" and "caminhao" in normalized:
+        if segment=="truck" and (
+            "caminhao" in normalized
+            or "linha pesada" in normalized
+        ):
             return name
         if segment=="car_pickup" and (
             ("carro" in normalized or "caminhonete" in normalized or "automovel" in normalized)

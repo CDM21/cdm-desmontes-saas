@@ -1185,7 +1185,7 @@ function mlVehicleType(form){
   const saved=String(attrs._CDM_VEHICLE_SEGMENT||'')
   if(saved==='car_pickup'||saved==='truck')return saved
   const legacy=String(attrs.VEHICLE_TYPE||'').toLowerCase()
-  if(legacy.includes('caminhão')||legacy.includes('caminhao'))return 'truck'
+  if(legacy.includes('caminhão')||legacy.includes('caminhao')||legacy.includes('linha pesada'))return 'truck'
   if(legacy.includes('carro')||legacy.includes('caminhonete'))return 'car_pickup'
   return ''
 }
