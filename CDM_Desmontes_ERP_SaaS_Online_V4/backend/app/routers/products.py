@@ -19,9 +19,11 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Product, PhotoAiUsage
+from ..models import Product, PhotoAiUsage, StockMovement
 from ..deps import active_user, require_roles
-from ..services.marketplaces import publish_all
+from ..services.marketplaces import publish_all, sync_marketplace_stock_for_product
+
+# CDM STOCK SYNC V49
 
 router=APIRouter()
 
@@ -548,11 +550,39 @@ def update_product(product_id:int,data:ProductIn,db:Session=Depends(get_db),user
     duplicate=db.query(Product).filter(Product.company_id==user.company_id,Product.sku==data.sku,Product.id!=product_id).first()
     if duplicate:
         raise HTTPException(409,"SKU já existe nesta empresa")
+
+    old_stock=int(p.stock or 0)
+
     for key,value in data.model_dump(exclude={"auto_publish"}).items():
         setattr(p,key,value)
+
+    new_stock=max(0,int(p.stock or 0))
+    p.stock=new_stock
+    delta=new_stock-old_stock
+
+    if delta:
+        db.add(StockMovement(
+            company_id=user.company_id,
+            product_id=p.id,
+            kind="adjustment",
+            quantity_delta=delta,
+            balance_after=new_stock,
+            reference=f"product_edit:{p.id}",
+        ))
+
     db.commit(); db.refresh(p)
+
+    # Alteração de estoque nunca deve falhar só porque um marketplace está fora do ar.
+    # Cada anúncio com problema fica marcado como sync_error para correção posterior.
+    if delta:
+        try:
+            sync_marketplace_stock_for_product(db,p,user.company_id)
+        except Exception:
+            pass
+
     if data.auto_publish:
         publish_all(db,p,user.company_id)
+
     return p
 
 @router.delete("/{product_id}")
@@ -560,8 +590,29 @@ def archive_product(product_id:int,db:Session=Depends(get_db),user=Depends(requi
     p=db.query(Product).filter(Product.id==product_id,Product.company_id==user.company_id,Product.active==True).first()
     if not p:
         raise HTTPException(404,"Peça não encontrada")
+
+    old_stock=int(p.stock or 0)
     p.active=False
-    db.commit()
+    p.stock=0
+
+    if old_stock:
+        db.add(StockMovement(
+            company_id=user.company_id,
+            product_id=p.id,
+            kind="adjustment",
+            quantity_delta=-old_stock,
+            balance_after=0,
+            reference=f"archive:{p.id}",
+        ))
+
+    db.commit(); db.refresh(p)
+
+    # Arquivar uma peça também retira a disponibilidade dos anúncios existentes.
+    try:
+        sync_marketplace_stock_for_product(db,p,user.company_id)
+    except Exception:
+        pass
+
     return {"ok":True}
 
 @router.get("/public/{product_id}/images/{image_index}", include_in_schema=False)
