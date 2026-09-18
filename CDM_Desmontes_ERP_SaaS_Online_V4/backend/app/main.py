@@ -58,10 +58,13 @@ def _start_cdm_backup_scheduler():
 
 
 frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
-origins = {"http://localhost:5173", "http://127.0.0.1:5173", frontend_url}
+origins = {frontend_url}
+if not os.getenv("RENDER"):
+    origins.update({"http://localhost:5173", "http://127.0.0.1:5173"})
 extra_origins = os.getenv("CORS_ORIGINS", "")
 for origin in extra_origins.split(","):
-    if origin.strip(): origins.add(origin.strip().rstrip("/"))
+    if origin.strip():
+        origins.add(origin.strip().rstrip("/"))
 
 app.add_middleware(
     CORSMiddleware,

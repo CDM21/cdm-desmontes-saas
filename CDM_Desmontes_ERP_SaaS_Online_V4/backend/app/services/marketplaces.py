@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from ..crypto import encrypt_secret, decrypt_secret
+from ..crypto import encrypt_secret, decrypt_secret, rotate_secret
 from ..models import Company, MarketplaceConnection, MarketplaceListing, Product, Subscription
 from ..security import create_oauth_state, decode_oauth_state
 from ..subscriptions import subscription_is_active
@@ -256,7 +256,19 @@ def _ensure_subscription(db:Session,company_id:int):
 
 def _active_connection(db:Session,company_id:int,marketplace:str):
     row=_connection(db,company_id,marketplace)
-    if not row or not row.active or row.status!="connected": raise RuntimeError(f"CONNECT: Conecte sua conta {marketplace} na Central de Integrações")
+    if not row or not row.active or row.status!="connected":
+        raise RuntimeError(f"CONNECT: Conecte sua conta {marketplace} na Central de Integrações")
+
+    changed=False
+    if row.access_token_enc:
+        row.access_token_enc, rotated=rotate_secret(row.access_token_enc)
+        changed=changed or rotated
+    if row.refresh_token_enc:
+        row.refresh_token_enc, rotated=rotate_secret(row.refresh_token_enc)
+        changed=changed or rotated
+    if changed:
+        db.commit()
+        db.refresh(row)
     return row
 
 
