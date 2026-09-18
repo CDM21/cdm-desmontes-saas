@@ -1097,6 +1097,72 @@ def _shopee_call(db,row,path,payload=None,method="POST"):
     return data
 
 
+def shopee_setup_options(db:Session, company_id:int):
+    row=_active_connection(db,company_id,"shopee")
+
+    shop={}
+    try:
+        data=_shopee_call(db,row,"/api/v2/shop/get_shop_info",{},method="GET")
+        shop=(data.get("response") or data or {}) if isinstance(data,dict) else {}
+    except Exception:
+        shop={}
+
+    try:
+        categories_data=_shopee_call(
+            db,row,"/api/v2/product/get_category",{"language":"pt-br"},method="GET"
+        )
+    except Exception:
+        categories_data=_shopee_call(db,row,"/api/v2/product/get_category",{},method="GET")
+
+    category_root=(categories_data.get("response") or {}) if isinstance(categories_data,dict) else {}
+    category_rows=(category_root.get("category_list") or categories_data.get("category_list") or []) if isinstance(categories_data,dict) else []
+    categories=[]
+    for item in category_rows:
+        if not isinstance(item,dict):
+            continue
+        cid=item.get("category_id")
+        if cid in (None,""):
+            continue
+        name=(item.get("display_category_name") or item.get("original_category_name") or item.get("category_name") or str(cid)).strip()
+        categories.append({
+            "id":str(cid),
+            "name":name,
+            "parent_id":str(item.get("parent_category_id") or ""),
+            "has_children":bool(item.get("has_children",False)),
+        })
+    categories.sort(key=lambda x:(x["has_children"],x["name"].lower()))
+
+    logistics_data=_shopee_call(db,row,"/api/v2/logistics/get_channel_list",{},method="GET")
+    logistics_root=(logistics_data.get("response") or {}) if isinstance(logistics_data,dict) else {}
+    logistics_rows=(logistics_root.get("logistics_channel_list") or logistics_data.get("logistics_channel_list") or []) if isinstance(logistics_data,dict) else []
+    logistics=[]
+    for item in logistics_rows:
+        if not isinstance(item,dict):
+            continue
+        lid=item.get("logistics_channel_id") or item.get("logistic_id")
+        if lid in (None,""):
+            continue
+        name=(item.get("logistics_channel_name") or item.get("logistic_name") or item.get("channel_name") or str(lid)).strip()
+        logistics.append({
+            "id":str(lid),
+            "name":name,
+            "enabled":bool(item.get("enabled",True)),
+            "cod_enabled":bool(item.get("cod_enabled",False)),
+        })
+    logistics.sort(key=lambda x:(not x["enabled"],x["name"].lower()))
+
+    return {
+        "connected":True,
+        "account_name":row.account_name or shop.get("shop_name") or f"Loja Shopee #{row.external_account_id}",
+        "shop_id":str(row.external_account_id or shop.get("shop_id") or ""),
+        "region":shop.get("region") or "",
+        "redirect_uri":_redirect_uri("shopee"),
+        "categories":categories,
+        "logistics":logistics,
+        "enabled_logistics":[x for x in logistics if x["enabled"]],
+    }
+
+
 def _shopee_upload_images(db,row,product:Product):
     ids=[]
     for url in _image_urls(product)[:9]:

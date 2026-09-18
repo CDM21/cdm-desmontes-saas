@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_user
 from ..models import Product,MarketplaceListing
-from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification_background,ml_connection_check,ml_publication_preflight,_active_connection,_ml_token
+from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification_background,ml_connection_check,ml_publication_preflight,shopee_setup_options,_active_connection,_ml_token
 from ..subscriptions import require_active_subscription
 from ..security import decode_oauth_state
 
@@ -14,6 +14,15 @@ router=APIRouter()
 @router.get("/status")
 def status(db:Session=Depends(get_db),user=Depends(current_user)):
     return connection_status(db,user.company_id)
+
+@router.get("/shopee/setup-options")
+def shopee_options(db:Session=Depends(get_db),user=Depends(current_user)):
+    require_active_subscription(user,db)
+    try:
+        return shopee_setup_options(db,user.company_id)
+    except Exception as exc:
+        raise HTTPException(400,f"Shopee: {str(exc)}")
+
 
 @router.get("/listings")
 def listings(product_id:int|None=None,db:Session=Depends(get_db),user=Depends(current_user)):
