@@ -904,8 +904,7 @@ def ml_publication_preflight(db:Session, company_id:int, product:Product):
     images=_image_urls(product)
     if not images:
         warnings.append("A peça está sem imagem para o anúncio")
-    if not (product.description or "").strip():
-        warnings.append("A peça está sem descrição detalhada")
+    description_text=_ml_description_text(product)
 
     return {
         "ok":True,
@@ -931,8 +930,79 @@ def ml_publication_preflight(db:Session, company_id:int, product:Product):
         "required_attributes":strict_required,
         "missing_required_attributes":missing,
         "payload_preview":payload,
+        "description":{
+            "mode":"manual" if (product.description or "").strip() else "automatic",
+            "preview":description_text,
+        },
     }
 
+
+def _ml_condition_label(product:Product):
+    value=str(getattr(product,"condition","") or "").strip().lower()
+    if value=="new":
+        return "Nova"
+    if value=="reconditioned":
+        return "Recondicionada"
+    return "Usada"
+
+
+def _ml_description_text(product:Product):
+    manual=str(getattr(product,"description","") or "").strip()
+    compatibility=str(getattr(product,"compatibility","") or "").strip()
+
+    if manual:
+        parts=[manual]
+    else:
+        title=str(getattr(product,"name","") or "").strip() or "Peça automotiva"
+        lines=[title,"","Informações da peça:"]
+
+        sku=str(getattr(product,"sku","") or "").strip()
+        if sku:
+            lines.append(f"- SKU: {sku}")
+
+        brand=str(getattr(product,"brand","") or "").strip()
+        model=str(getattr(product,"model","") or "").strip()
+        year=getattr(product,"year",None)
+        vehicle=[]
+        if brand:
+            vehicle.append(brand)
+        if model:
+            vehicle.append(model)
+        if year:
+            vehicle.append(str(year))
+        if vehicle:
+            lines.append("- Aplicação informada: " + " ".join(vehicle))
+
+        oem=str(getattr(product,"oem","") or "").strip()
+        if oem:
+            lines.append(f"- Código/OEM: {oem}")
+
+        side=str(getattr(product,"side","") or "").strip()
+        if side:
+            lines.append(f"- Lado: {side}")
+
+        position=str(getattr(product,"position","") or "").strip()
+        if position:
+            lines.append(f"- Posição: {position}")
+
+        lines.append(f"- Condição: {_ml_condition_label(product)}")
+        lines.extend([
+            "",
+            "As informações acima foram geradas automaticamente a partir do cadastro da peça no CDM Desmontes.",
+            "Confira as fotos, códigos e aplicação antes da compra.",
+        ])
+        parts=["\n".join(lines)]
+
+    if compatibility:
+        parts.extend(["Compatibilidade:", compatibility])
+
+    warranty=""
+    if bool(getattr(product,"ml_has_warranty",False)):
+        warranty=str(getattr(product,"ml_warranty_text","") or "").strip()
+    if warranty:
+        parts.extend(["Garantia:", warranty])
+
+    return "\n\n".join(x.strip() for x in parts if str(x or "").strip())[:50000]
 
 def _ml_upsert_description(client,token,item_id,text):
     plain=str(text or "").strip()
@@ -993,9 +1063,9 @@ def _publish_ml(db,row,product:Product,listing:MarketplaceListing):
             if r.status_code>=400: raise RuntimeError(f"Mercado Livre: {r.text[:1200]}")
             data=r.json(); item_id=data.get("id")
             if multiwarehouse and getattr(product,"ml_store_id",""): db.commit()
-        if item_id and (product.description or product.compatibility):
-            text=(product.description or product.name)+(f"\n\nCompatibilidade:\n{product.compatibility}" if product.compatibility else "")
-            _ml_upsert_description(c,token,item_id,text)
+        description_text=_ml_description_text(product)
+        if item_id and description_text:
+            _ml_upsert_description(c,token,item_id,description_text)
     return {"external_id":item_id,"status":"published"}
 
 
