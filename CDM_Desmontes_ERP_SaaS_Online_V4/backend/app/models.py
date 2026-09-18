@@ -190,6 +190,19 @@ class PhotoAiUsage(Base):
     )
 
 
+
+class PartAiUsage(Base):
+    __tablename__ = "part_ai_usage"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    period = Column(String(7), index=True, nullable=False)  # YYYY-MM (UTC)
+    used = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("company_id", "period", name="uq_part_ai_usage_company_period"),
+    )
+
+
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True)

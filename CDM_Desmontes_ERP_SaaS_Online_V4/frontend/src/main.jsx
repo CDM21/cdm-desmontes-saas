@@ -1547,9 +1547,16 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
   // CDM DUPLICATE DETECTION V1
   const [duplicateCheck,setDuplicateCheck]=useState({loading:false,items:[],checked:false})
   const editing=!!initialProduct,[form,setForm]=useState({...productEmpty,...(initialProduct||{}),auto_publish:false}),[mlSuggestions,setMlSuggestions]=useState([]),[findingCategory,setFindingCategory]=useState(false),[marketModal,setMarketModal]=useState(null),[step,setStep]=useState('cadastro'),[categoryOpen,setCategoryOpen]=useState(false),[categoryQuery,setCategoryQuery]=useState(''),[categoryResults,setCategoryResults]=useState([]),[categoryBusy,setCategoryBusy]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState(null)
+  const [aiUsage,setAiUsage]=useState(null)
   useEffect(()=>{setForm({...productEmpty,...(initialProduct||{}),auto_publish:false});setStep('cadastro');if(!initialProduct)loadNextSku()},[initialProduct?.id])
+  useEffect(()=>{loadAiUsage()},[])
+  async function loadAiUsage(){
+    try{const r=await api.get('/intelligence/product-photo-analysis-status');setAiUsage(r.data||null)}catch(e){}
+  }
   async function analyzeProductPhotos(files){
     if(!files?.length||aiBusy)return
+    if(aiUsage?.configured===false){notice('Cadastro de Peça com IA ainda não está configurado no servidor');return}
+    if(aiUsage&&Number(aiUsage.remaining||0)<=0){notice(`Limite mensal de ${aiUsage.limit||200} Cadastros com IA atingido. O cadastro manual continua liberado.`);return}
     setAiBusy(true);setAiResult(null)
     try{
       const prepared=[]
@@ -1566,6 +1573,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
         context:{name:form.name||'',brand:form.brand||'',model:form.model||'',year:form.year||'',groups:groups.map(g=>g.name)}
       })
       setAiResult(r.data)
+      if(r.data?.usage)setAiUsage(r.data.usage)
       notice('IA analisou a peça. Revise as sugestões antes de aplicar')
     }catch(e){
       notice(erroPt(e.response?.data?.detail)||'Não foi possível analisar a peça por foto')
@@ -1575,7 +1583,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     if(!aiResult)return
     const groupExists=groups.some(g=>(g.name||'').trim().toLowerCase()===(aiResult.part_group||'').trim().toLowerCase())
     setForm(f=>({...f,
-      name:aiResult.name||f.name,
+      name:aiResult.marketplace_title||aiResult.name||f.name,
       category:aiResult.category||f.category,
       part_group:groupExists?aiResult.part_group:f.part_group,
       side:aiResult.side||f.side,
@@ -1665,8 +1673,8 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
 
             <div className="videoExactInnovation ai">
               <div className="productAiPhoto" data-feature="CDM_AI_PHOTO_PANEL">
-                <div className="productAiPhotoHead"><div><span className="aiNewBadge">NOVO · IA</span><h4>Cadastro de peça por foto</h4><p>Tire ou envie até 3 fotos. A IA sugere os dados e você escolhe quando aplicar.</p></div><label className={'primary aiPhotoButton '+(aiBusy?'disabled':'')}>{aiBusy?'Analisando...':'📷 Tirar ou enviar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={aiBusy} onChange={e=>{analyzeProductPhotos(e.target.files);e.target.value=''}}/></label></div>
-                <small className="aiPrivacyNote">Somente as fotos escolhidas são enviadas para análise. Confira aplicação e código OEM antes de publicar.</small>
+                <div className="productAiPhotoHead"><div><span className="aiNewBadge">NOVO · IA</span><h4>Cadastro de peça por foto</h4><p>Tire ou envie até 3 fotos. A IA identifica a peça, monta o título e sugere os dados para você revisar.</p></div><label className={'primary aiPhotoButton '+(aiBusy||aiUsage?.configured===false||Number(aiUsage?.remaining??1)<=0?'disabled':'')}>{aiBusy?'Analisando...':aiUsage?.configured===false?'IA aguardando configuração':Number(aiUsage?.remaining??1)<=0?'Limite mensal atingido':'📷 Tirar ou enviar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={aiBusy||aiUsage?.configured===false||Number(aiUsage?.remaining??1)<=0} onChange={e=>{analyzeProductPhotos(e.target.files);e.target.value=''}}/></label></div>
+                <small className="aiPrivacyNote">Somente as fotos escolhidas são enviadas para análise. Confira aplicação e código OEM antes de publicar.</small>{aiUsage&&<small className="aiPrivacyNote"><b>Cadastro IA:</b> {aiUsage.used}/{aiUsage.limit} usados neste mês · {aiUsage.remaining} restantes{aiUsage.configured===false?' · aguardando chave da IA':''}</small>}
                 {aiResult&&<div className="aiPhotoResult">
                   <div className="aiPhotoResultTop"><div><b>{aiResult.name||'Peça identificada parcialmente'}</b><span className={'aiConfidence '+(aiResult.confidence||'baixa')}>Confiança: {aiResult.confidence||'baixa'}</span></div><button type="button" className="primary" onClick={applyAiProductSuggestions}>✓ Aplicar sugestões</button></div>
                   <div className="aiSuggestionGrid">

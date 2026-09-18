@@ -15,7 +15,7 @@ from ..deps import active_user
 from ..security import SECRET_KEY
 from ..models import (
     User, Company, Product, Vehicle, Sale, SaleItem, FinancialEntry,
-    AssistantMessage, SaleEvidence, ShippingCheck, SearchEvent
+    AssistantMessage, SaleEvidence, ShippingCheck, SearchEvent, PartAiUsage
 )
 
 router = APIRouter()
@@ -600,15 +600,81 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-def _response_output_text(data: dict):
-    if isinstance(data.get("output_text"), str) and data["output_text"].strip():
-        return data["output_text"].strip()
-    parts = []
-    for item in data.get("output") or []:
-        for c in item.get("content") or []:
-            if c.get("type") == "output_text" and c.get("text"):
-                parts.append(c["text"])
-    return "\n".join(parts).strip()
+PART_AI_MODEL_DEFAULT = "gemini-2.5-flash-lite"
+PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+
+def _part_ai_limit():
+    try:
+        return max(0, int(os.getenv("PART_AI_MONTHLY_LIMIT", "200")))
+    except Exception:
+        return 200
+
+
+def _part_ai_period():
+    return datetime.utcnow().strftime("%Y-%m")
+
+
+def _get_part_ai_usage(db: Session, company_id: int):
+    period = _part_ai_period()
+    row = (
+        db.query(PartAiUsage)
+        .filter(
+            PartAiUsage.company_id == company_id,
+            PartAiUsage.period == period,
+        )
+        .first()
+    )
+    if row:
+        return row
+
+    row = PartAiUsage(
+        company_id=company_id,
+        period=period,
+        used=0,
+    )
+    db.add(row)
+    try:
+        db.commit()
+        db.refresh(row)
+        return row
+    except Exception:
+        db.rollback()
+        row = (
+            db.query(PartAiUsage)
+            .filter(
+                PartAiUsage.company_id == company_id,
+                PartAiUsage.period == period,
+            )
+            .first()
+        )
+        if not row:
+            raise
+        return row
+
+
+def _part_ai_usage_payload(row: PartAiUsage):
+    limit = _part_ai_limit()
+    used = max(0, int(row.used or 0))
+    model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
+    return {
+        "version": "v46",
+        "provider": "gemini",
+        "model": model,
+        "configured": bool((os.getenv("GEMINI_API_KEY") or "").strip()),
+        "period": row.period,
+        "limit": limit,
+        "used": used,
+        "remaining": max(0, limit - used),
+    }
+
+
+def _increment_part_ai_usage(db: Session, row: PartAiUsage):
+    row.used = max(0, int(row.used or 0)) + 1
+    row.updated_at = datetime.utcnow()
+    db.add(row)
+    db.commit()
+    db.refresh(row)
 
 
 def _json_from_ai_text(text: str):
@@ -630,30 +696,138 @@ def _json_from_ai_text(text: str):
     return None
 
 
-@router.post("/product-photo-analysis")
-def product_photo_analysis(data: ProductPhotoAnalysisIn, db: Session = Depends(get_db), user = Depends(active_user)):
-    load_dotenv(Path(__file__).resolve().parents[2] / '.env', override=True)
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    model = (os.getenv("OPENAI_MODEL") or "").strip()
-    if not key or not model:
-        raise HTTPException(503, "IA por foto ainda não está configurada no servidor")
+def _gemini_result_text(payload: dict):
+    try:
+        candidates = payload.get("candidates") or []
+        if not candidates:
+            return ""
+        content = candidates[0].get("content") or {}
+        pieces = []
+        for part in content.get("parts") or []:
+            if isinstance(part.get("text"), str):
+                pieces.append(part["text"])
+        return "\n".join(pieces).strip()
+    except Exception:
+        return ""
 
-    images = []
+
+def _data_url_to_gemini_part(value: str):
+    raw = str(value or "").strip()
+    if not raw.startswith("data:image/") or "," not in raw:
+        return None
+
+    header, encoded = raw.split(",", 1)
+    mime = header[5:].split(";", 1)[0].strip().lower()
+    allowed = {
+        "image/jpeg", "image/jpg", "image/png", "image/webp",
+        "image/heic", "image/heif", "image/gif", "image/avif",
+    }
+    if mime not in allowed:
+        return None
+
+    try:
+        decoded = base64.b64decode(encoded, validate=False)
+    except Exception:
+        return None
+
+    if not decoded or len(decoded) > 5_000_000:
+        return None
+
+    return {
+        "inline_data": {
+            "mime_type": mime,
+            "data": base64.b64encode(decoded).decode("ascii"),
+        }
+    }
+
+
+PART_AI_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "name": {"type": "STRING"},
+        "category": {"type": "STRING"},
+        "part_group": {"type": "STRING"},
+        "side": {"type": "STRING"},
+        "position": {"type": "STRING"},
+        "condition": {"type": "STRING"},
+        "oem": {"type": "STRING"},
+        "brand": {"type": "STRING"},
+        "model": {"type": "STRING"},
+        "year": {"type": "STRING"},
+        "compatibility": {"type": "STRING"},
+        "description": {"type": "STRING"},
+        "marketplace_title": {"type": "STRING"},
+        "keywords": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"},
+        },
+        "quality_notes": {"type": "STRING"},
+        "confidence": {"type": "STRING"},
+        "warnings": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"},
+        },
+    },
+    "required": [
+        "name", "category", "part_group", "side", "position", "condition",
+        "oem", "brand", "model", "year", "compatibility", "description",
+        "marketplace_title", "keywords", "quality_notes", "confidence", "warnings",
+    ],
+}
+
+
+@router.get("/product-photo-analysis-status")
+def product_photo_analysis_status(
+    db: Session = Depends(get_db),
+    user = Depends(active_user),
+):
+    row = _get_part_ai_usage(db, user.company_id)
+    return _part_ai_usage_payload(row)
+
+
+@router.post("/product-photo-analysis")
+def product_photo_analysis(
+    data: ProductPhotoAnalysisIn,
+    db: Session = Depends(get_db),
+    user = Depends(active_user),
+):
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
+
+    key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
+    if not key:
+        raise HTTPException(
+            503,
+            "Cadastro de Peça com IA ainda não está configurado. Defina GEMINI_API_KEY no Render.",
+        )
+
+    usage_row = _get_part_ai_usage(db, user.company_id)
+    usage = _part_ai_usage_payload(usage_row)
+    if usage["remaining"] <= 0:
+        raise HTTPException(
+            402,
+            f"Os {usage['limit']} Cadastros com IA deste mês já foram usados. O cadastro manual continua liberado.",
+        )
+
+    image_parts = []
     for value in (data.images or [])[:3]:
-        img = str(value or "").strip()
-        if img.startswith("data:image/") or img.startswith("https://") or img.startswith("http://"):
-            images.append(img)
-    if not images:
-        raise HTTPException(400, "Envie pelo menos uma foto da peça")
-    if sum(len(x) for x in images) > 8_000_000:
-        raise HTTPException(413, "As fotos ficaram muito grandes. Envie até 3 fotos menores")
+        part = _data_url_to_gemini_part(value)
+        if part:
+            image_parts.append(part)
+
+    if not image_parts:
+        raise HTTPException(400, "Envie pelo menos uma foto válida da peça")
 
     vehicle_context = None
     if data.vehicle_id:
-        v = db.query(Vehicle).filter(
-            Vehicle.id == data.vehicle_id,
-            Vehicle.company_id == user.company_id
-        ).first()
+        v = (
+            db.query(Vehicle)
+            .filter(
+                Vehicle.id == data.vehicle_id,
+                Vehicle.company_id == user.company_id,
+            )
+            .first()
+        )
         if v:
             vehicle_context = {
                 "id": v.id,
@@ -664,96 +838,103 @@ def product_photo_analysis(data: ProductPhotoAnalysisIn, db: Session = Depends(g
             }
 
     safe_context = {
-        "veiculo_origem_selecionado": vehicle_context,
+        "veiculo_de_origem_selecionado": vehicle_context,
         "dados_ja_preenchidos": {
             "nome": str(data.context.get("name") or "")[:180],
             "marca": str(data.context.get("brand") or "")[:80],
             "modelo": str(data.context.get("model") or "")[:120],
             "ano": str(data.context.get("year") or "")[:10],
         },
-        "grupos_existentes": [str(x)[:120] for x in (data.context.get("groups") or [])[:80]],
+        "grupos_existentes": [
+            str(x)[:120]
+            for x in (data.context.get("groups") or [])[:80]
+        ],
     }
 
-    prompt = f'''\nVocê é o módulo Cadastro de Peças com IA do CDM Desmontes, um ERP brasileiro de desmontes e autopeças.
-Analise as fotos de UMA peça automotiva e devolva SOMENTE um objeto JSON válido, sem markdown e sem texto antes/depois.
+    prompt = f"""
+Você é o módulo Cadastro de Peças com IA do CDM Desmontes, um ERP brasileiro de desmontes e autopeças.
+As imagens mostram UMA peça automotiva vista de um ou mais ângulos.
 
 CONTEXTO DO CADASTRO:
 {json.dumps(safe_context, ensure_ascii=False, default=str)}
 
-REGRAS IMPORTANTES:
-- Seja conservador. Foto sozinha pode não provar aplicação exata.
-- Não invente código OEM, marca, modelo, ano ou aplicação. Se não estiver visível/confiável, use string vazia ou null.
-- Se houver etiqueta, gravação ou código legível na peça, transcreva em "oem". Se não estiver legível, deixe vazio.
-- "condition" deve ser exatamente: "used", "new" ou "reconditioned".
-- "side" use "Esquerdo", "Direito", "Ambos" ou "".
-- "position" use algo curto como "Dianteiro", "Traseiro", "Superior", "Inferior" ou "".
-- Em "part_group", prefira um dos grupos existentes enviados no contexto quando houver correspondência clara.
-- "compatibility" deve trazer apenas aplicações possíveis com cautela. Nunca prometa compatibilidade.
-- "description" deve ser uma descrição profissional para anúncio em português do Brasil, sem afirmar funcionamento que a foto não comprova.
-- "marketplace_title" deve ser um título curto e útil para anúncio.
-- "keywords" deve ter no máximo 10 itens.
-- "warnings" deve listar o que o usuário precisa conferir manualmente.
-- "confidence" deve ser "alta", "media" ou "baixa".
-- Se a imagem não parecer uma peça automotiva, deixe os campos técnicos vazios e explique em warnings.
+OBJETIVO:
+Identifique a peça com cautela e gere sugestões prontas para o cadastro e para anúncio.
 
-FORMATO EXATO:
-{{
-  "name": "",
-  "category": "",
-  "part_group": "",
-  "side": "",
-  "position": "",
-  "condition": "used",
-  "oem": "",
-  "brand": "",
-  "model": "",
-  "year": null,
-  "compatibility": "",
-  "description": "",
-  "marketplace_title": "",
-  "keywords": [],
-  "quality_notes": "",
-  "confidence": "baixa",
-  "warnings": []
-}}\n'''.strip()
+REGRAS:
+- Não invente código OEM, aplicação, marca, modelo ou ano.
+- Se um código/OEM estiver realmente legível na peça ou etiqueta, transcreva-o exatamente. Caso contrário use "".
+- O veículo de origem selecionado é contexto do desmonte; não trate isso sozinho como prova de compatibilidade com outros veículos.
+- "condition" deve ser exatamente "used", "new" ou "reconditioned".
+- "side" deve ser "Esquerdo", "Direito", "Ambos" ou "".
+- "position" deve ser curto, por exemplo "Dianteiro", "Traseiro", "Superior", "Inferior" ou "".
+- Em "part_group", use de preferência um dos grupos existentes quando houver correspondência clara.
+- "compatibility" deve listar apenas aplicações possíveis e sempre de forma cautelosa. Se não houver evidência suficiente, deixe vazio.
+- "description" deve ser profissional em português do Brasil e não pode afirmar funcionamento/teste que a foto não comprova.
+- "marketplace_title" deve ser um título comercial claro, sem alegações não comprovadas.
+- "quality_notes" descreve somente estado visual aparente: marcas, riscos, trincas, oxidação, conectores e detalhes visíveis.
+- "keywords" deve ter no máximo 10 termos.
+- "warnings" deve dizer exatamente o que o funcionário precisa conferir antes de salvar/publicar.
+- "confidence" deve ser exatamente "alta", "media" ou "baixa".
+- Se não parecer uma peça automotiva, deixe campos técnicos vazios e explique em "warnings".
+- Responda somente no formato JSON solicitado.
+""".strip()
 
-    content = [{"type": "input_text", "text": prompt}]
-    for img in images:
-        content.append({"type": "input_image", "image_url": img, "detail": "auto"})
-
+    parts = [{"text": prompt}, *image_parts]
     payload = {
-        "model": model,
-        "input": [{"role": "user", "content": content}],
-        "max_output_tokens": 1200,
-        "store": False,
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts,
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.15,
+            "maxOutputTokens": 1400,
+            "response_mime_type": "application/json",
+            "response_schema": PART_AI_SCHEMA,
+        },
     }
 
     try:
-        with httpx.Client(timeout=60) as client:
+        with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
             r = client.post(
-                "https://api.openai.com/v1/responses",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                PART_AI_URL.format(model=model),
+                headers={
+                    "x-goog-api-key": key,
+                    "Content-Type": "application/json",
+                },
                 json=payload,
             )
-        if r.status_code >= 400:
-            raise HTTPException(502, f"A IA não conseguiu analisar a foto agora (status {r.status_code})")
-        parsed = _json_from_ai_text(_response_output_text(r.json()))
-        if not isinstance(parsed, dict):
-            raise HTTPException(502, "A IA respondeu em um formato inesperado. Tente novamente")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(502, "Não foi possível conectar ao serviço de IA agora")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "A IA demorou demais para analisar a peça. Tente novamente.")
+    except httpx.HTTPError:
+        raise HTTPException(502, "Não foi possível conectar ao Cadastro de Peça com IA.")
+
+    if r.status_code >= 400:
+        if r.status_code in {401, 403}:
+            detail = "A chave do Gemini não foi aceita. Revise GEMINI_API_KEY no Render."
+        elif r.status_code == 429:
+            detail = "A IA recebeu muitas solicitações. Tente novamente em alguns segundos."
+        else:
+            detail = f"A IA não conseguiu analisar a foto agora (HTTP {r.status_code})."
+        raise HTTPException(502 if r.status_code >= 500 else r.status_code, detail)
+
+    parsed = _json_from_ai_text(_gemini_result_text(r.json()))
+    if not isinstance(parsed, dict):
+        raise HTTPException(502, "A IA respondeu em um formato inesperado. Tente novamente.")
 
     allowed_condition = {"used", "new", "reconditioned"}
     condition = str(parsed.get("condition") or "used").strip().lower()
     if condition not in allowed_condition:
         condition = "used"
 
-    year = parsed.get("year")
+    year_value = str(parsed.get("year") or "").strip()
     try:
-        year = int(year) if year not in (None, "") else None
+        year = int(re.sub(r"\D", "", year_value)[:4]) if year_value else None
     except Exception:
+        year = None
+    if year and (year < 1950 or year > datetime.utcnow().year + 2):
         year = None
 
     def txt(name, limit):
@@ -764,6 +945,9 @@ FORMATO EXATO:
     confidence = str(parsed.get("confidence") or "baixa").strip().lower()
     if confidence not in {"alta", "media", "baixa"}:
         confidence = "baixa"
+
+    _increment_part_ai_usage(db, usage_row)
+    usage = _part_ai_usage_payload(usage_row)
 
     return {
         "name": txt("name", 180),
@@ -783,8 +967,13 @@ FORMATO EXATO:
         "quality_notes": txt("quality_notes", 1200),
         "confidence": confidence,
         "warnings": [str(x).strip()[:240] for x in warnings[:6] if str(x).strip()],
-        "photos_analyzed": len(images),
+        "photos_analyzed": len(image_parts),
+        "provider": "gemini",
+        "model": model,
+        "usage": usage,
     }
+
+
 
 
 def _local_answer(db: Session, company_id: int, message: str):
