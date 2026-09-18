@@ -1135,15 +1135,41 @@ const productEmpty={sku:'',name:'',category:'',part_group:'',brand:'',model:'',y
 function imageList(value){const v=value||'';return (v.includes('data:image/')?v.split(/\n/):v.split(/\n|,/)).map(x=>x.trim()).filter(Boolean)}
 function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
 function loadImage(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src})}
+async function optimizeProductImageUpload(file){
+  try{
+    if(!file||!file.type?.startsWith('image/'))return file
+    const src=await readFileAsDataUrl(file)
+    const img=await loadImage(src)
+    const max=2200
+    const scale=Math.min(1,max/Math.max(img.width,img.height))
+    const shouldOptimize=scale<0.999||file.size>3*1024*1024
+    if(!shouldOptimize)return file
+    const w=Math.max(1,Math.round(img.width*scale))
+    const h=Math.max(1,Math.round(img.height*scale))
+    const canvas=document.createElement('canvas')
+    canvas.width=w;canvas.height=h
+    const ctx=canvas.getContext('2d')
+    ctx.imageSmoothingEnabled=true
+    ctx.imageSmoothingQuality='high'
+    ctx.drawImage(img,0,0,w,h)
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Falha ao otimizar imagem')),'image/jpeg',.90))
+    return new File([blob],String(file.name||'produto').replace(/\.[^.]+$/,'')+'-cdm.jpg',{type:'image/jpeg'})
+  }catch(e){
+    console.warn('CDM otimização de upload:',e)
+    return file
+  }
+}
+
 async function prepareProductImage(file,removeBg=true){
   if(removeBg){
     const formData=new FormData()
-    formData.append('file',file)
+    const uploadFile=await optimizeProductImageUpload(file)
+    formData.append('file',uploadFile,uploadFile.name||'produto.jpg')
 
     try{
       const response=await api.post('/products/remove-background',formData,{
         responseType:'arraybuffer',
-        timeout:45000
+        timeout:50000
       })
       const contentType=response.headers?.['content-type']||'image/jpeg'
       const blob=new Blob([response.data],{type:contentType})
@@ -1265,8 +1291,8 @@ function ProductImages({form,setForm,notice}){
  const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
- const progress=raceDone?100:Math.min(92,12+(elapsed*13))
- const progressText=raceDone?'Foto profissional pronta!':elapsed<2?'Enviando a foto...':elapsed<5?'Separando a peça do fundo...':'Montando fundo branco profissional...'
+ const progress=raceDone?100:Math.min(94,18+(elapsed*18))
+ const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'Separando a peça do fundo...':'Finalizando fundo branco...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1303,16 +1329,26 @@ function ProductImages({form,setForm,notice}){
    setRaceDone(false)
    try{
      const arr=[]
+     let fallbackCount=0
      for(const f of Array.from(files).slice(0,remaining)){
        if(!f.type.startsWith('image/'))continue
-       arr.push(await prepareProductImage(f,removeBg))
+       try{
+         arr.push(await prepareProductImage(f,removeBg))
+       }catch(e){
+         if(removeBg){
+           arr.push(await prepareProductImage(f,false))
+           fallbackCount++
+         }else{
+           throw e
+         }
+       }
      }
      save([...images,...arr])
      setRaceDone(true)
-     await new Promise(r=>setTimeout(r,650))
-     notice(`${arr.length} foto(s) adicionada(s)`)
+     await new Promise(r=>setTimeout(r,350))
+     notice(fallbackCount?`${arr.length} foto(s) adicionada(s). ${fallbackCount} ficou(ram) original(is); use ✎ para tentar o fundo branco novamente.`:`${arr.length} foto(s) profissional(is) adicionada(s)`)
    }catch(e){
-     notice('Não foi possível processar a foto')
+     notice('Não foi possível carregar esta foto')
    }finally{setBusy(false);setRaceDone(false)}
  }
 

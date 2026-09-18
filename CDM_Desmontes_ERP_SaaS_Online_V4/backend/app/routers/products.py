@@ -248,7 +248,7 @@ def remove_product_background(
         media_type="image/jpeg",
         headers={
             "Cache-Control": "no-store",
-            "X-CDM-Background": "studio-v40-white-catalog",
+            "X-CDM-Background": "studio-v40.1-fast-white",
         },
     )
 
