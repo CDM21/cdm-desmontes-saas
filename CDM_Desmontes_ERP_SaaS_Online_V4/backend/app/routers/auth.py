@@ -148,12 +148,41 @@ def logout_current(user=Depends(current_user),db:Session=Depends(get_db)):
 
 @router.post("/bootstrap")
 def bootstrap(db:Session=Depends(get_db)):
-    if os.getenv("ALLOW_BOOTSTRAP","").lower() not in {"1","true","yes"}: raise HTTPException(403,"Inicialização administrativa desativada em produção")
-    if db.query(User).count(): return {"message":"Já inicializado"}
-    company=Company(trade_name="CDM Desmontes",legal_name="CDM Desmontes",email="admin@autodesmonte.local",responsible_name="Administrador",state="RJ")
+    if os.getenv("ALLOW_BOOTSTRAP","").strip().lower() not in {"1","true","yes","on"}:
+        raise HTTPException(403,"Inicialização administrativa desativada em produção")
+    if db.query(User).count():
+        return {"message":"Já inicializado"}
+
+    bootstrap_email=(os.getenv("BOOTSTRAP_ADMIN_EMAIL") or "").strip().lower()
+    bootstrap_password=os.getenv("BOOTSTRAP_ADMIN_PASSWORD") or ""
+    if not bootstrap_email or "@" not in bootstrap_email:
+        raise HTTPException(503,"BOOTSTRAP_ADMIN_EMAIL não configurado corretamente")
+    password_error=password_policy_error(bootstrap_password)
+    if password_error:
+        raise HTTPException(503,f"BOOTSTRAP_ADMIN_PASSWORD insegura: {password_error}")
+
+    company=Company(
+        trade_name="CDM Desmontes",
+        legal_name="CDM Desmontes",
+        email=bootstrap_email,
+        responsible_name="Administrador",
+        state="RJ",
+    )
     db.add(company); db.flush()
-    u=User(company_id=company.id,email="admin@autodesmonte.local",name="Administrador",role="owner",password_hash=hash_password("admin123"))
+    u=User(
+        company_id=company.id,
+        email=bootstrap_email,
+        name="Administrador",
+        role="owner",
+        password_hash=hash_password(bootstrap_password),
+    )
     db.add(u)
-    db.add(Subscription(company_id=company.id,plan="mensal",status="active",provider="bootstrap",expires_at=datetime.utcnow()+timedelta(days=3650)))
+    db.add(Subscription(
+        company_id=company.id,
+        plan="mensal",
+        status="active",
+        provider="bootstrap",
+        expires_at=datetime.utcnow()+timedelta(days=3650),
+    ))
     db.commit()
     return {"message":"Administrador criado"}

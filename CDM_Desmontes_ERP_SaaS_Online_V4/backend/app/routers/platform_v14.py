@@ -11,6 +11,8 @@ from ..admin import audit, platform_admin_emails, require_platform_admin
 from ..db import engine, get_db
 from ..deps import active_user, current_user, require_roles
 from ..security import secret_key_status, TOKEN_HOURS
+from ..crypto import encryption_key_status
+from ..backup_service import offsite_config
 from ..models import (
     AuditLog, Company, Dismantling, MarketplaceConnection, Product,
     Sale, SaleItem, Subscription, User, Vehicle, VehicleExpense,
@@ -589,7 +591,11 @@ def platform_readiness(
 
     last_backup = (
         db.query(AuditLog)
-        .filter(AuditLog.action == "backup.download")
+        .filter(AuditLog.action.in_([
+            "backup.offsite.cron",
+            "backup.offsite.success",
+            "backup.download",
+        ]))
         .order_by(AuditLog.id.desc())
         .first()
     )
@@ -601,6 +607,16 @@ def platform_readiness(
         MarketplaceConnection.active == True
     ).count()
     secret_status = secret_key_status()
+    encryption_status = encryption_key_status()
+    backup_cfg = offsite_config()
+    external_cron = (
+        (os.getenv("BACKUP_CRON_EXTERNAL") or "").strip().lower()
+        in {"1","true","yes","on"}
+    )
+    bootstrap_enabled = (
+        (os.getenv("ALLOW_BOOTSTRAP") or "").strip().lower()
+        in {"1","true","yes","on"}
+    )
     backup_age_hours = None
     if last_backup and last_backup.created_at:
         backup_age_hours = round(max(0,(datetime.utcnow()-last_backup.created_at).total_seconds()/3600),1)
@@ -614,9 +630,11 @@ def platform_readiness(
             "billing_webhook_secret": bool(
                 (os.getenv("MP_WEBHOOK_SECRET") or "").strip()
             ),
-            "app_encryption_key": bool(
-                (os.getenv("APP_ENCRYPTION_KEY") or "").strip()
-            ),
+            "app_encryption_key": encryption_status["configured"],
+            "app_encryption_key_valid": encryption_status["valid"],
+            "app_encryption_using_secret_fallback": encryption_status["using_secret_fallback"],
+            "bootstrap_enabled": bootstrap_enabled,
+            "bootstrap_disabled": not bootstrap_enabled,
             "cors_explicit": bool((os.getenv("CORS_ORIGINS") or "").strip()),
             "secret_key_configured": secret_status["configured"],
             "secret_key_strong": secret_status["strong"],
@@ -627,29 +645,33 @@ def platform_readiness(
             "ready": bool(
                 secret_status["strong"]
                 and platform_admin_emails()
-                and (os.getenv("APP_ENCRYPTION_KEY") or "").strip()
+                and encryption_status["configured"]
+                and encryption_status["valid"]
+                and not bootstrap_enabled
             ),
         },
         "backup": {
             "available": True,
             "format": "cdm-logical-backup-v2",
             "integrity": "sha256",
+            "last_success_at": last_backup.created_at if last_backup else None,
+            "last_action": last_backup.action if last_backup else None,
             "last_download_at": last_backup.created_at if last_backup else None,
             "last_download_by_user": last_backup.user_id if last_backup else None,
             "age_hours": backup_age_hours,
             "fresh_24h": bool(backup_age_hours is not None and backup_age_hours <= 24),
-            "offsite_storage": bool(
-                (os.getenv("BACKUP_S3_ENDPOINT") or "").strip()
-                and (os.getenv("BACKUP_S3_ACCESS_KEY") or "").strip()
-                and (os.getenv("BACKUP_S3_SECRET_KEY") or "").strip()
-                and (os.getenv("BACKUP_S3_BUCKET") or "").strip()
+            "offsite_storage": bool(backup_cfg["configured"]),
+            "automatic_enabled": bool(
+                external_cron or backup_cfg["automatic_enabled"]
             ),
-            "automatic_enabled": (
-                (os.getenv("AUTO_BACKUP_ENABLED") or "").strip().lower()
-                not in {"0","false","no","off"}
+            "mode": (
+                "render-cron"
+                if external_cron
+                else ("internal" if backup_cfg["automatic_enabled"] else "disabled")
             ),
-            "interval_hours": int(os.getenv("AUTO_BACKUP_INTERVAL_HOURS","24") or 24),
-            "note": "Backup externo compatível com S3/R2; ativa quando as credenciais forem configuradas.",
+            "interval_hours": backup_cfg["interval_hours"],
+            "restore_drill_available": True,
+            "note": "Backup R2 com verificação SHA-256 e teste isolado de restauração.",
         },
         "audit": {
             "enabled": True,
