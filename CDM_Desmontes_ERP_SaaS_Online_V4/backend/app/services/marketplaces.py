@@ -355,68 +355,175 @@ def ml_category_suggestions(
     if segment not in {"","car_pickup","truck"}:
         raise RuntimeError("Tipo de veículo inválido")
 
-    search_q=q
-    if segment=="truck":
-        search_q=f"{q} caminhão"
-    elif segment=="car_pickup":
-        search_q=f"{q} carro caminhonete"
-
     wanted=max(1,min(int(limit),8))
-    discovery_limit=min(8,max(wanted,5))
+    headers={"Authorization":f"Bearer {token}"}
+    out=[]
+    seen=set()
+    category_cache={}
+
+    def category_details(client, category_id):
+        cid=str(category_id or "").strip()
+        if not cid:
+            return {}, []
+        if cid in category_cache:
+            return category_cache[cid]
+
+        info={}
+        attrs=[]
+        cr=client.get(
+            f"https://api.mercadolibre.com/categories/{cid}",
+            headers=headers,
+        )
+        if cr.status_code<400:
+            info=cr.json() or {}
+
+        ar=client.get(
+            f"https://api.mercadolibre.com/categories/{cid}/attributes",
+            headers=headers,
+        )
+        if ar.status_code<400:
+            attrs=ar.json() or []
+
+        category_cache[cid]=(info,attrs)
+        return info,attrs
+
+    def try_add(
+        client,
+        category_id,
+        category_name="",
+        domain_id="",
+        domain_name="",
+        source="predictor",
+    ):
+        cid=str(category_id or "").strip()
+        if not cid or cid in seen:
+            return False
+
+        info,attrs=category_details(client,cid)
+        name=str(category_name or info.get("name") or cid)
+        path_names=[
+            str(x.get("name") or "")
+            for x in (info.get("path_from_root") or [])
+        ]
+        path_text=_ml_normalize(" ".join(path_names+[name,domain_name or ""]))
+
+        vehicle_attr=next(
+            (a for a in attrs if str(a.get("id") or "")=="VEHICLE_TYPE"),
+            None,
+        )
+        vehicle_value=""
+
+        if segment:
+            if vehicle_attr:
+                vehicle_value=_ml_vehicle_value(attrs,segment)
+                if not vehicle_value:
+                    return False
+            else:
+                if segment=="truck":
+                    if "caminhao" not in path_text and "linha pesada" not in path_text:
+                        return False
+                elif segment=="car_pickup":
+                    if "caminhao" in path_text and "carro" not in path_text and "caminhonete" not in path_text:
+                        return False
+
+        seen.add(cid)
+        out.append({
+            "category_id":cid,
+            "category_name":name,
+            "domain_id":domain_id or "",
+            "domain_name":domain_name or "",
+            "vehicle_type":segment,
+            "vehicle_type_value":vehicle_value,
+            "source":source,
+            "path":" > ".join(path_names),
+        })
+        return True
+
+    if segment=="truck":
+        predictor_queries=[
+            f"{q} caminhão",
+            f"{q} para caminhão",
+            f"{q} linha pesada",
+            f"{q} truck",
+        ]
+    elif segment=="car_pickup":
+        predictor_queries=[
+            f"{q} carro caminhonete",
+            q,
+        ]
+    else:
+        predictor_queries=[q]
 
     with httpx.Client(timeout=30) as c:
-        r=c.get(
-            "https://api.mercadolibre.com/sites/MLB/domain_discovery/search",
-            params={"q":search_q,"limit":discovery_limit},
-            headers={"Authorization":f"Bearer {token}"},
-        )
-        if r.status_code>=400:
-            raise RuntimeError(f"Mercado Livre categorização: {r.text[:600]}")
-
-        out=[]
-        fallback=[]
-        for item in r.json() or []:
-            result={
-                "category_id":item.get("category_id"),
-                "category_name":item.get("category_name"),
-                "domain_id":item.get("domain_id"),
-                "domain_name":item.get("domain_name"),
-                "vehicle_type":segment,
-            }
-
-            if not segment or not result["category_id"]:
-                out.append(result)
+        for search_q in predictor_queries:
+            r=c.get(
+                "https://api.mercadolibre.com/sites/MLB/domain_discovery/search",
+                params={"q":search_q,"limit":8},
+                headers=headers,
+            )
+            if r.status_code>=400:
                 continue
 
-            ar=c.get(
-                f"https://api.mercadolibre.com/categories/{result['category_id']}/attributes",
-                headers={"Authorization":f"Bearer {token}"},
-            )
-            if ar.status_code>=400:
-                fallback.append(result)
-                continue
-
-            attrs=ar.json() or []
-            vehicle_attr=next(
-                (a for a in attrs if str(a.get("id") or "")=="VEHICLE_TYPE"),
-                None,
-            )
-            if vehicle_attr:
-                result["vehicle_type_value"]=_ml_vehicle_value(attrs,segment)
-                if result["vehicle_type_value"]:
-                    out.append(result)
-            else:
-                fallback.append(result)
-
-        if segment and len(out)<wanted:
-            for item in fallback:
-                if item not in out:
-                    out.append(item)
+            for item in r.json() or []:
+                try_add(
+                    c,
+                    item.get("category_id"),
+                    item.get("category_name") or "",
+                    item.get("domain_id") or "",
+                    item.get("domain_name") or "",
+                    source="predictor",
+                )
                 if len(out)>=wanted:
-                    break
+                    return out[:wanted]
+
+        # O preditor pode não reconhecer títulos genéricos de linha pesada.
+        # Nesse caso, procura anúncios semelhantes e aproveita somente
+        # categorias que passam pela mesma validação de segmento.
+        if segment=="truck" and len(out)<wanted:
+            similar_queries=[
+                f"{q} caminhão",
+                f"{q} caminhão usado",
+                f"{q} linha pesada",
+            ]
+            for search_q in similar_queries:
+                sr=c.get(
+                    "https://api.mercadolibre.com/sites/MLB/search",
+                    params={"q":search_q,"limit":50},
+                    headers=headers,
+                )
+                if sr.status_code>=400:
+                    continue
+
+                data=sr.json() or {}
+                for item in data.get("results") or []:
+                    try_add(
+                        c,
+                        item.get("category_id"),
+                        "",
+                        item.get("domain_id") or "",
+                        "",
+                        source="similar_items",
+                    )
+                    if len(out)>=wanted:
+                        return out[:wanted]
+
+                # Algumas respostas expõem categorias úteis nos filtros,
+                # mesmo quando os primeiros resultados não ajudam.
+                filter_groups=(data.get("filters") or [])+(data.get("available_filters") or [])
+                for group in filter_groups:
+                    if str(group.get("id") or "")!="category":
+                        continue
+                    for value in group.get("values") or []:
+                        try_add(
+                            c,
+                            value.get("id"),
+                            value.get("name") or "",
+                            source="search_filter",
+                        )
+                        if len(out)>=wanted:
+                            return out[:wanted]
 
     return out[:wanted]
-
 
 
 def _ml_item_attributes(client,token,product:Product):
