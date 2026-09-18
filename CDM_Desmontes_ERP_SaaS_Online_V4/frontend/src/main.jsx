@@ -62,7 +62,7 @@ const MENU=[
  ]},
  {key:'vendas',icon:'$',label:'Vendas',children:[
    {key:'sales',label:'Nova Venda'},
-   {key:'sales-history',label:'Vendas Realizadas'},
+   {key:'sales-history',label:'Central de Pedidos'},
    {key:'shipping',label:'Painel de Expedição'}
  ]},
  {key:'notas',icon:'▧',label:'Notas Fiscais',children:[
@@ -243,22 +243,22 @@ function App(){
      <Topbar tab={tab} setTab={setTab} session={session} theme={theme} setTheme={setTheme} onMenu={()=>setMobileNav(true)}/>
      <div className="content">
        {accessBlocked?<BillingPage billing={billing} session={session} refresh={load} notice={notice}/>:<>
-       {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session} setTab={setTab}/>} 
-       {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>} 
-       {tab==='qrcode'&&<QRCodeModule products={products} locations={catalog.locations}/>} 
+       {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session} setTab={setTab}/>}
+       {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>}
+       {tab==='qrcode'&&<QRCodeModule products={products} locations={catalog.locations}/>}
        {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
-       {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>} 
-       {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>} 
-       {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company}/>} 
-       {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} {tab==='users'&&<UsersPermissions notice={notice}/>} 
-       {tab==='cadastros'&&<CadastrosHome setTab={setTab}/>} 
-       {['labels','label-models','etiquetas'].includes(tab)&&<LabelsModule tab={tab} products={products} company={session?.company}/>} 
-       {tab==='sales'&&<Sales products={products} sales={sales} customers={catalog.customers} refresh={load} notice={notice}/>} 
-       {tab==='sales-history'&&<SalesHistory sales={sales}/>} 
-       {tab==='shipping'&&<SimpleModule eyebrow="EXPEDIÇÃO" title="Painel de Expedição" text="Separe, confira e acompanhe pedidos que precisam ser enviados." actions={['Aguardando separação','Prontos para envio','Despachados']}/>} 
-       {['marketplaces','mercadolivre','shopee','olx','integracoes'].includes(tab)&&<Marketplaces data={marketplaces} listings={listings} products={products} refresh={load} notice={notice} focus={tab} subscription={session?.subscription}/>} 
-       {['purchase-new','purchases','compras'].includes(tab)&&<SimpleModule eyebrow="COMPRAS" title={tab==='purchase-new'?'Nova Compra':'Compras'} text="Controle pedidos de compra, fornecedores, custos e recebimentos." actions={['Novo pedido de compra','Compras realizadas','Recebimentos']}/>} 
-       {['invoices','invoice-history','xml','invalidate-number','notas'].includes(tab)&&<FiscalModule tab={tab} notice={notice}/>} 
+       {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
+       {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>}
+       {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company}/>}
+       {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} {tab==='users'&&<UsersPermissions notice={notice}/>}
+       {tab==='cadastros'&&<CadastrosHome setTab={setTab}/>}
+       {['labels','label-models','etiquetas'].includes(tab)&&<LabelsModule tab={tab} products={products} company={session?.company}/>}
+       {tab==='sales'&&<Sales products={products} sales={sales} customers={catalog.customers} refresh={load} notice={notice}/>}
+       {tab==='sales-history'&&<SalesHistory sales={sales} refresh={load}/>}
+       {tab==='shipping'&&<SimpleModule eyebrow="EXPEDIÇÃO" title="Painel de Expedição" text="Separe, confira e acompanhe pedidos que precisam ser enviados." actions={['Aguardando separação','Prontos para envio','Despachados']}/>}
+       {['marketplaces','mercadolivre','shopee','olx','integracoes'].includes(tab)&&<Marketplaces data={marketplaces} listings={listings} products={products} refresh={load} notice={notice} focus={tab} subscription={session?.subscription}/>}
+       {['purchase-new','purchases','compras'].includes(tab)&&<SimpleModule eyebrow="COMPRAS" title={tab==='purchase-new'?'Nova Compra':'Compras'} text="Controle pedidos de compra, fornecedores, custos e recebimentos." actions={['Novo pedido de compra','Compras realizadas','Recebimentos']}/>}
+       {['invoices','invoice-history','xml','invalidate-number','notas'].includes(tab)&&<FiscalModule tab={tab} notice={notice}/>}
        {tab==='inteligencia'&&<IntelligenceHome setTab={setTab}/>}
        {tab==='assistant-cdm'&&<AssistantCDM/>}
        {tab==='owner-panel'&&<OwnerPanel/>}
@@ -266,12 +266,12 @@ function App(){
        {tab==='smart-dismantling'&&<SmartDismantling vehicles={vehicles} notice={notice}/>}
        {tab==='smart-pricing'&&<SmartPricing products={products} refresh={load} notice={notice}/>}
        {tab==='sale-protection'&&<SaleProtection sales={sales} products={products} notice={notice}/>}
-       {tab==='finance'&&<Finance data={finance} refresh={load} notice={notice}/>} 
-       {tab==='subscription'&&<BillingPage billing={billing} session={session} refresh={load} notice={notice}/>} 
-       {tab==='cashflow'&&<CashFlow data={finance}/>} 
-       {tab==='reports'&&<Reports products={products} sales={sales} finance={finance} vehicles={vehicles}/>} 
-       {tab==='gamification'&&<Gamification sales={sales} products={products}/>} 
-       {tab==='platform-admin'&&session?.is_platform_admin&&<PlatformAdminV2 notice={notice}/>} 
+       {tab==='finance'&&<Finance data={finance} refresh={load} notice={notice}/>}
+       {tab==='subscription'&&<BillingPage billing={billing} session={session} refresh={load} notice={notice}/>}
+       {tab==='cashflow'&&<CashFlow data={finance}/>}
+       {tab==='reports'&&<Reports products={products} sales={sales} finance={finance} vehicles={vehicles}/>}
+       {tab==='gamification'&&<Gamification sales={sales} products={products}/>}
+       {tab==='platform-admin'&&session?.is_platform_admin&&<PlatformAdminV2 notice={notice}/>}
        </>}
      </div>
    </main>
@@ -2345,7 +2345,137 @@ function Sales({products,sales,customers=[],refresh,notice}){
  </div>
 }
 
-function SalesHistory({sales}){return <section className="panel"><PanelHead eyebrow="VENDAS" title="Vendas Realizadas" text="Consulte as vendas registradas em todos os canais."/><Table rows={sales} cols={['id','source','payment_method','total','status','created_at']} format={{source:v=>valuePt('source',v),payment_method:v=>valuePt('payment_method',v),status:v=>valuePt('status',v),total:money,created_at:v=>v?new Date(v).toLocaleString('pt-BR'):'—'}}/></section>}
+// CDM ORDER CENTER V51
+function SalesHistory({sales,refresh}){
+ const [query,setQuery]=useState(''),[channel,setChannel]=useState('all'),[statusFilter,setStatusFilter]=useState('all'),[openId,setOpenId]=useState(null),[busy,setBusy]=useState(false)
+
+ const canceledValues=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
+ const doneValues=new Set(['paid','completed','finished','shipped','delivered','to_confirm_receive'])
+ const statusGroup=s=>{
+   const v=String(s||'').toLowerCase()
+   if(canceledValues.has(v))return 'canceled'
+   if(doneValues.has(v))return 'done'
+   return 'open'
+ }
+ const sourceMeta=s=>({
+   mercadolivre:{label:'Mercado Livre',short:'ML'},
+   shopee:{label:'Shopee',short:'SH'},
+   olx:{label:'OLX',short:'OLX'},
+   manual:{label:'Venda local',short:'LOJA'}
+ }[s]||{label:valuePt('source',s)||'Outro',short:'•'})
+
+ const normalized=useMemo(()=>[...(sales||[])].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)),[sales])
+ const filtered=useMemo(()=>{
+   const q=query.trim().toLowerCase()
+   return normalized.filter(s=>{
+     if(channel!=='all'&&String(s.source||'manual')!==channel)return false
+     if(statusFilter!=='all'&&statusGroup(s.status)!==statusFilter)return false
+     if(!q)return true
+     const itemText=(s.items||[]).map(i=>`${i.sku||''} ${i.name||''}`).join(' ')
+     return `${s.id} ${s.external_order_id||''} ${s.customer_name||''} ${s.source||''} ${s.payment_method||''} ${itemText}`.toLowerCase().includes(q)
+   })
+ },[normalized,query,channel,statusFilter])
+
+ const activeSales=normalized.filter(s=>statusGroup(s.status)!=='canceled')
+ const revenue=activeSales.reduce((a,s)=>a+Number(s.total||0),0)
+ const marketplaceCount=normalized.filter(s=>['mercadolivre','shopee','olx'].includes(s.source)).length
+ const openCount=normalized.filter(s=>statusGroup(s.status)==='open').length
+ const todayKey=new Date().toLocaleDateString('pt-BR')
+ const todayCount=normalized.filter(s=>s.created_at&&new Date(s.created_at).toLocaleDateString('pt-BR')===todayKey).length
+
+ async function reload(){
+   if(!refresh||busy)return
+   setBusy(true)
+   try{await refresh()}finally{setBusy(false)}
+ }
+
+ return <div className="orderCenter">
+   <div className="pageTitle orderCenterTitle">
+     <div><span>CENTRAL DE PEDIDOS</span><h2>Pedidos e vendas em um só lugar</h2><p>Acompanhe vendas locais, Mercado Livre, Shopee e outros canais sem misturar os estoques.</p></div>
+     <button className="ghost orderRefresh" onClick={reload} disabled={busy}>{busy?'Atualizando...':'↻ Atualizar pedidos'}</button>
+   </div>
+
+   <div className="orderMetrics">
+     <div><small>Pedidos registrados</small><strong>{normalized.length}</strong><span>{todayCount} hoje</span></div>
+     <div><small>Faturamento registrado</small><strong>{money(revenue)}</strong><span>desconsiderando cancelados</span></div>
+     <div><small>Marketplaces</small><strong>{marketplaceCount}</strong><span>pedidos externos</span></div>
+     <div className={openCount?'attention':''}><small>Em andamento</small><strong>{openCount}</strong><span>pedidos para acompanhar</span></div>
+   </div>
+
+   <section className="panel orderCenterPanel">
+     <div className="orderToolbar">
+       <div className="orderSearch"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar pedido, SKU, peça ou cliente..."/></div>
+       <select value={channel} onChange={e=>setChannel(e.target.value)}>
+         <option value="all">Todos os canais</option>
+         <option value="manual">Venda local</option>
+         <option value="mercadolivre">Mercado Livre</option>
+         <option value="shopee">Shopee</option>
+         <option value="olx">OLX</option>
+       </select>
+       <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+         <option value="all">Todos os status</option>
+         <option value="open">Em andamento</option>
+         <option value="done">Concluídos / pagos</option>
+         <option value="canceled">Cancelados</option>
+       </select>
+     </div>
+
+     <div className="orderResultBar">
+       <span><b>{filtered.length}</b> pedido(s) exibido(s)</span>
+       {(query||channel!=='all'||statusFilter!=='all')&&<button onClick={()=>{setQuery('');setChannel('all');setStatusFilter('all')}}>Limpar filtros</button>}
+     </div>
+
+     <div className="orderList">
+       {filtered.length?filtered.map(s=>{
+         const src=sourceMeta(s.source||'manual')
+         const items=s.items||[]
+         const opened=openId===s.id
+         const group=statusGroup(s.status)
+         return <article className={'orderCard '+group} key={s.id}>
+           <button className="orderCardMain" onClick={()=>setOpenId(opened?null:s.id)}>
+             <div className={'orderSource '+(s.source||'manual')}><b>{src.short}</b><small>{src.label}</small></div>
+             <div className="orderIdentity">
+               <small>{s.external_order_id?`PEDIDO ${s.external_order_id}`:`VENDA #${s.id}`}</small>
+               <b>{items.length?items.map(i=>i.name||'Peça').slice(0,2).join(' + '):'Venda registrada'}</b>
+               <span>{s.customer_name||'Consumidor final'} · {items.reduce((a,i)=>a+Number(i.quantity||0),0)} item(ns)</span>
+             </div>
+             <div className="orderDate"><small>Data</small><b>{s.created_at?new Date(s.created_at).toLocaleDateString('pt-BR'):'—'}</b><span>{s.created_at?new Date(s.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</span></div>
+             <div className="orderPayment"><small>Pagamento</small><b>{valuePt('payment_method',s.payment_method)||'—'}</b></div>
+             <div className="orderAmount"><small>Total</small><strong>{money(s.total)}</strong></div>
+             <div className={'orderStatus '+group}><i/><span>{statusPt(s.status)}</span></div>
+             <span className={'orderChevron '+(opened?'open':'')}>⌄</span>
+           </button>
+
+           {opened&&<div className="orderDetails">
+             <div className="orderDetailSummary">
+               <span><small>Canal</small><b>{src.label}</b></span>
+               <span><small>ID interno</small><b>#{s.id}</b></span>
+               <span><small>Pedido externo</small><b>{s.external_order_id||'—'}</b></span>
+               <span><small>Cliente</small><b>{s.customer_name||'Consumidor final'}</b></span>
+             </div>
+
+             <div className="orderItems">
+               <div className="orderItemsHead"><span>Peça</span><span>Qtd.</span><span>Unitário</span><span>Subtotal</span></div>
+               {items.length?items.map((item,idx)=><div className="orderItemRow" key={`${s.id}-${item.id||item.product_id||idx}`}>
+                 <div><b>{item.name||'Peça'}</b><small>{item.sku?`SKU ${item.sku}`:`Produto #${item.product_id||'—'}`}</small></div>
+                 <span>{item.quantity||0}</span>
+                 <span>{money(item.unit_price)}</span>
+                 <strong>{money(Number(item.unit_price||0)*Number(item.quantity||0))}</strong>
+               </div>):<div className="orderNoItems">Os itens detalhados deste pedido não estão disponíveis.</div>}
+             </div>
+
+             <div className="orderDetailFoot">
+               <span>Origem: <b>{src.label}</b></span>
+               <span>Status: <b>{statusPt(s.status)}</b></span>
+               <strong>Total {money(s.total)}</strong>
+             </div>
+           </div>}
+         </article>
+       }):<div className="emptyState orderEmpty">Nenhum pedido encontrado com esses filtros.</div>}
+     </div>
+   </section>
+ </div>
+}
 
 // CDM INTEGRATION CENTER V1
 function Marketplaces({data,listings,products,refresh,notice,focus,subscription}){

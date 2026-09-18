@@ -3875,3 +3875,92 @@ table th{
 @media(max-width:760px){
   .cdmProOnlyFeatures{justify-content:flex-start}
 }
+/* CDM ORDER CENTER V51 */
+.orderCenter{display:grid;gap:0}
+.orderCenterTitle{align-items:center}
+.orderRefresh{background:#ffffff12;color:#fff;border-color:#ffffff2b;white-space:nowrap}
+.orderRefresh:hover{background:#ffffff20}
+.orderMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.orderMetrics>div{display:grid;gap:4px;padding:15px 16px;border:1px solid var(--line);border-radius:11px;background:var(--panel);box-shadow:0 1px 3px #0000000a}
+.orderMetrics small{font-size:9px;color:var(--muted);font-weight:700}
+.orderMetrics strong{font-size:20px}
+.orderMetrics span{font-size:9px;color:var(--muted)}
+.orderMetrics .attention{border-color:#d59a304f;background:linear-gradient(135deg,var(--panel),#d59a300c)}
+.orderCenterPanel{padding:0;overflow:hidden}
+.orderToolbar{display:grid;grid-template-columns:minmax(280px,1fr) 190px 190px;gap:9px;padding:14px;border-bottom:1px solid var(--line);background:var(--soft)}
+.orderSearch{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding-left:8px}
+.orderSearch span{color:var(--muted);font-size:18px;text-align:center}
+.orderSearch input{border:0;background:transparent;box-shadow:none!important;padding-left:5px}
+.orderResultBar{min-height:42px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:10px;color:var(--muted)}
+.orderResultBar b{color:var(--text)}
+.orderResultBar button{background:transparent;color:#4e83ee;font-size:10px}
+.orderList{display:grid}
+.orderCard{border-bottom:1px solid var(--line);background:var(--panel)}
+.orderCard:last-child{border-bottom:0}
+.orderCardMain{width:100%;display:grid;grid-template-columns:100px minmax(220px,1.7fr) 105px 130px 120px 140px 24px;gap:12px;align-items:center;padding:13px 14px;background:transparent;color:var(--text);text-align:left}
+.orderCardMain:hover{background:var(--soft)}
+.orderSource{min-height:46px;border:1px solid var(--line);border-radius:9px;display:grid;align-content:center;justify-items:center;padding:6px;background:var(--soft)}
+.orderSource b{font-size:12px;line-height:1}
+.orderSource small{font-size:8px;margin-top:5px;color:var(--muted);white-space:nowrap}
+.orderSource.mercadolivre{background:#ffe60018;border-color:#d9bd2445}.orderSource.mercadolivre b{color:#b28a00}
+.orderSource.shopee{background:#ee4d2d16;border-color:#ee4d2d45}.orderSource.shopee b{color:#e75a3a}
+.orderSource.olx{background:#7937c915;border-color:#7937c945}.orderSource.olx b{color:#8f58dc}
+.orderSource.manual{background:#2878ff12;border-color:#2878ff35}.orderSource.manual b{color:#4c8dff}
+.orderIdentity{min-width:0;display:grid;gap:3px}
+.orderIdentity>small{font-size:8px;color:#6f8fe8;font-weight:800;letter-spacing:.04em}
+.orderIdentity>b{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orderIdentity>span{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orderDate,.orderPayment,.orderAmount{display:grid;gap:3px}
+.orderDate small,.orderPayment small,.orderAmount small{font-size:8px;color:var(--muted)}
+.orderDate b,.orderPayment b{font-size:10px}
+.orderDate span{font-size:8px;color:var(--muted)}
+.orderAmount strong{font-size:12px;white-space:nowrap}
+.orderStatus{display:flex;align-items:center;gap:6px;font-size:9px;font-weight:800;white-space:nowrap}
+.orderStatus i{width:7px;height:7px;border-radius:50%;background:#d29725}
+.orderStatus.done i{background:#20a15d}.orderStatus.done span{color:#299765}
+.orderStatus.canceled i{background:#df4a52}.orderStatus.canceled span{color:#df4a52}
+.orderChevron{font-size:18px;color:var(--muted);transition:.16s transform;text-align:center}
+.orderChevron.open{transform:rotate(180deg)}
+.orderDetails{padding:0 14px 14px 126px;background:linear-gradient(180deg,var(--soft),var(--panel));border-top:1px dashed var(--line)}
+.orderDetailSummary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 0}
+.orderDetailSummary span{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);min-width:0}
+.orderDetailSummary small,.orderDetailSummary b{display:block}
+.orderDetailSummary small{font-size:8px;color:var(--muted);margin-bottom:4px}
+.orderDetailSummary b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.orderItems{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
+.orderItemsHead,.orderItemRow{display:grid;grid-template-columns:minmax(220px,1fr) 70px 110px 120px;gap:12px;align-items:center;padding:9px 11px}
+.orderItemsHead{background:var(--soft);font-size:8px;color:var(--muted);font-weight:800;text-transform:uppercase}
+.orderItemRow+.orderItemRow{border-top:1px solid var(--line)}
+.orderItemRow b,.orderItemRow small{display:block}
+.orderItemRow b{font-size:10px}.orderItemRow small{font-size:8px;color:var(--muted);margin-top:2px}
+.orderItemRow>span,.orderItemRow>strong{font-size:10px}
+.orderNoItems{padding:18px;text-align:center;color:var(--muted);font-size:10px}
+.orderDetailFoot{display:flex;align-items:center;gap:18px;padding-top:11px;font-size:9px;color:var(--muted)}
+.orderDetailFoot strong{margin-left:auto;font-size:12px;color:var(--text)}
+.orderEmpty{margin:14px}
+
+@media(max-width:1100px){
+ .orderMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .orderCardMain{grid-template-columns:85px minmax(200px,1fr) 95px 105px 120px 24px}
+ .orderPayment{display:none}
+ .orderDetails{padding-left:14px}
+}
+@media(max-width:760px){
+ .orderCenterTitle{align-items:flex-start;flex-direction:column}
+ .orderRefresh{width:100%}
+ .orderToolbar{grid-template-columns:1fr}
+ .orderMetrics{grid-template-columns:1fr 1fr}
+ .orderCardMain{grid-template-columns:70px minmax(0,1fr) 24px;padding:11px}
+ .orderDate,.orderPayment,.orderAmount,.orderStatus{display:none}
+ .orderSource{min-height:42px}
+ .orderIdentity>b,.orderIdentity>span{white-space:normal}
+ .orderDetailSummary{grid-template-columns:1fr 1fr}
+ .orderItems{overflow-x:auto}
+ .orderItemsHead,.orderItemRow{min-width:590px}
+ .orderDetailFoot{align-items:flex-start;flex-direction:column;gap:5px}
+ .orderDetailFoot strong{margin-left:0}
+}
+@media(max-width:430px){
+ .orderMetrics{grid-template-columns:1fr}
+ .orderDetailSummary{grid-template-columns:1fr}
+}
