@@ -953,16 +953,11 @@ def _ml_description_text(product:Product):
     if manual:
         parts=[manual]
     else:
-        title=str(getattr(product,"name","") or "").strip() or "Peça automotiva"
-        lines=[title,"","Informações da peça:"]
-
-        sku=str(getattr(product,"sku","") or "").strip()
-        if sku:
-            lines.append(f"- SKU: {sku}")
-
+        name=str(getattr(product,"name","") or "").strip() or "Peça automotiva"
         brand=str(getattr(product,"brand","") or "").strip()
         model=str(getattr(product,"model","") or "").strip()
         year=getattr(product,"year",None)
+
         vehicle=[]
         if brand:
             vehicle.append(brand)
@@ -970,8 +965,26 @@ def _ml_description_text(product:Product):
             vehicle.append(model)
         if year:
             vehicle.append(str(year))
-        if vehicle:
-            lines.append("- Aplicação informada: " + " ".join(vehicle))
+        application=" ".join(vehicle).strip()
+
+        title=name[:1].upper()+name[1:] if name else "Peça automotiva"
+        if application:
+            normalized_title=_ml_normalize(title)
+            normalized_application=_ml_normalize(application)
+            if normalized_application not in normalized_title:
+                title=f"{title} {application}"
+
+        condition=_ml_condition_label(product).lower()
+        lines=[
+            title,
+            "",
+            f"Peça {condition}, conforme fotos do anúncio.",
+            "",
+            "Informações da peça:",
+        ]
+
+        if application:
+            lines.append(f"- Aplicação: {application}")
 
         oem=str(getattr(product,"oem","") or "").strip()
         if oem:
@@ -986,15 +999,15 @@ def _ml_description_text(product:Product):
             lines.append(f"- Posição: {position}")
 
         lines.append(f"- Condição: {_ml_condition_label(product)}")
+
         lines.extend([
             "",
-            "As informações acima foram geradas automaticamente a partir do cadastro da peça no CDM Desmontes.",
-            "Confira as fotos, códigos e aplicação antes da compra.",
+            "Antes da compra, confira o código/OEM, a aplicação e as fotos do anúncio para confirmar a compatibilidade com o seu veículo.",
         ])
         parts=["\n".join(lines)]
 
     if compatibility:
-        parts.extend(["Compatibilidade:", compatibility])
+        parts.extend(["Compatibilidade informada:", compatibility])
 
     warranty=""
     if bool(getattr(product,"ml_has_warranty",False)):
@@ -1002,7 +1015,9 @@ def _ml_description_text(product:Product):
     if warranty:
         parts.extend(["Garantia:", warranty])
 
-    return "\n\n".join(x.strip() for x in parts if str(x or "").strip())[:50000]
+    return "\n\n".join(
+        x.strip() for x in parts if str(x or "").strip()
+    )[:50000]
 
 def _ml_upsert_description(client,token,item_id,text):
     plain=str(text or "").strip()
