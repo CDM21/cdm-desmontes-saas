@@ -1266,7 +1266,7 @@ function ProductImages({form,setForm,notice}){
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(92,12+(elapsed*13))
- const progressText=raceDone?'Foto pronta!':elapsed<2?'Enviando a foto...':elapsed<5?'Removendo o fundo...':'Finalizando a imagem...'
+ const progressText=raceDone?'Foto profissional pronta!':elapsed<2?'Enviando a foto...':elapsed<5?'Separando a peça do fundo...':'Montando fundo branco profissional...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1331,7 +1331,7 @@ function ProductImages({form,setForm,notice}){
      if(zoom===value)setZoom(out)
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,650))
-     notice('Fundo tratado e deixado branco')
+     notice('Foto profissional pronta: fundo branco, peça inteira e centralizada')
    }catch(e){notice('Não foi possível tratar esta imagem')}
    finally{setBusy(false);setRaceDone(false)}
  }
@@ -1371,13 +1371,13 @@ function ProductImages({form,setForm,notice}){
      </div>
      <label className="inlineCheck mediaWhiteToggle">
        <input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/>
-       <span>Fundo branco ao adicionar</span>
+       <span>Foto profissional automática</span>
      </label>
    </div>
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioGrid">
+   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V40</b><br/>O CDM preserva mais resolução, mostra a peça inteira, centraliza com margem de segurança e cria fundo branco puro sem deformar o produto.</div></div>\n\n   <div className="mediaStudioGrid">
      <section className="mediaPhotoBox">
        <div className="mediaThumbRail">
          {images.map((src,i)=><article className={'mediaThumbCard '+(i===0?'principal':'')} key={`${i}-${src.slice(0,28)}`}>
@@ -1391,7 +1391,7 @@ function ProductImages({form,setForm,notice}){
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
-             <button type="button" disabled={busy} onClick={()=>whiten(i)} title="Deixar fundo branco">✎</button>
+             <button type="button" className="v40WhiteBtn" disabled={busy} onClick={()=>whiten(i)} title="Refazer foto profissional: fundo branco, peça inteira e centralizada">✎</button>
              {i!==0&&<button type="button" onClick={()=>principal(i)} title="Usar como principal">★</button>}
            </div>
 
@@ -1411,7 +1411,7 @@ function ProductImages({form,setForm,notice}){
 
        <div className="mediaRailHelp">
          <span>Clique na foto para ampliar</span>
-         <span>★ define a principal</span>
+         <span>✎ refaz fundo branco profissional</span><span>★ define a principal</span>
          <span>← → altera a ordem</span>
        </div>
      </section>

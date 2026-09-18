@@ -3762,3 +3762,26 @@ table th{
   .videoExactPage select,
   .videoExactPage textarea{font-size:13px!important}
 }
+
+/* CDM V40 — Foto profissional */
+.mediaWhiteToggle{
+  border:1px solid #2f9d72!important;
+  background:#17382d!important;
+  padding:8px 11px!important;
+  border-radius:7px!important;
+}
+.mediaWhiteToggle span{font-weight:800!important;color:#dff8ec!important}
+.mediaStudioV40Hint{
+  display:flex;align-items:flex-start;gap:8px;
+  margin:0 0 10px;padding:9px 10px;
+  border:1px solid #315d52;border-radius:6px;
+  background:#142b27;color:#cceee2;
+  font-size:11px;line-height:1.45;
+}
+.mediaStudioV40Hint b{color:#fff}
+.mediaThumbTools .v40WhiteBtn{position:relative}
+.mediaThumbTools .v40WhiteBtn:after{
+  content:"PRO";position:absolute;right:-4px;top:-5px;
+  font-size:7px;font-weight:900;letter-spacing:.04em;
+  padding:1px 3px;border-radius:3px;background:#19b879;color:white
+}
