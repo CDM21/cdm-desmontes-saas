@@ -1,11 +1,11 @@
 import os
 from fastapi import APIRouter,Depends,HTTPException,Query,Request,BackgroundTasks
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_user
 from ..models import Product,MarketplaceListing
-from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification_background,ml_connection_check,ml_publication_preflight,shopee_setup_options,_active_connection,_ml_token
+from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification_background,ml_connection_check,ml_publication_preflight,shopee_setup_options,process_shopee_notification_background,_active_connection,_ml_token
 from ..subscriptions import require_active_subscription
 from ..security import decode_oauth_state
 
@@ -133,6 +133,19 @@ async def mercadolivre_webhook(request:Request,background_tasks:BackgroundTasks)
         body={}
     background_tasks.add_task(process_ml_notification_background,body)
     return {"ok":True,"queued":True}
+
+
+# CDM SHOPEE ORDERS V50
+@router.post("/webhooks/shopee",include_in_schema=False)
+async def shopee_webhook(request:Request,background_tasks:BackgroundTasks):
+    try:
+        body=await request.json()
+    except Exception:
+        body={}
+    if not isinstance(body,dict):
+        body={}
+    background_tasks.add_task(process_shopee_notification_background,body)
+    return Response(content=b"",status_code=200)
 
 @router.get("/{marketplace}/diagnostics")
 def diagnostics(marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):

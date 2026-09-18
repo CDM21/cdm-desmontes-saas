@@ -1507,3 +1507,279 @@ def process_ml_notification(db:Session, body:dict):
         "canceled":canceled,
         "products_updated":len(touched),
     }
+# CDM SHOPEE ORDERS V50
+def process_shopee_notification(db:Session, body:dict):
+    from ..models import MarketplaceOrderEvent, Sale, SaleItem, StockMovement, FinancialEntry
+    from ..routers.notifications import add_sale_notification
+
+    if not isinstance(body,dict):
+        return {"ok":True,"ignored":True}
+
+    try:
+        code=int(body.get("code") or 0)
+    except Exception:
+        code=0
+
+    # order_status_push = code 3
+    if code!=3:
+        return {"ok":True,"ignored":True,"reason":"unsupported_push"}
+
+    data=body.get("data") or {}
+    if not isinstance(data,dict):
+        data={}
+
+    shop_id=str(body.get("shop_id") or data.get("shop_id") or "").strip()
+    order_sn=str(data.get("ordersn") or data.get("order_sn") or "").strip()
+
+    if not shop_id or not order_sn:
+        return {"ok":True,"ignored":True,"reason":"missing_shop_or_order"}
+
+    conn=db.query(MarketplaceConnection).filter(
+        MarketplaceConnection.marketplace=="shopee",
+        MarketplaceConnection.external_account_id==shop_id,
+        MarketplaceConnection.active==True,
+    ).first()
+    if not conn:
+        return {"ok":True,"ignored":True,"reason":"shop_not_connected"}
+
+    detail=_shopee_call(
+        db,
+        conn,
+        "/api/v2/order/get_order_detail",
+        {
+            "order_sn_list":order_sn,
+            "response_optional_fields":"item_list,payment_method,total_amount,buyer_username,pay_time",
+        },
+        method="GET",
+    )
+    response=(detail.get("response") or {}) if isinstance(detail,dict) else {}
+    orders=response.get("order_list") or []
+    if not orders:
+        raise RuntimeError(f"Shopee pedido {order_sn}: detalhes não retornados")
+
+    order=orders[0] or {}
+    status=str(order.get("order_status") or data.get("status") or "unknown").strip().lower()
+    canceled=status in {"cancelled","canceled"}
+    total=float(order.get("total_amount") or 0)
+    payment=str(order.get("payment_method") or "shopee").strip() or "shopee"
+
+    sale=db.query(Sale).filter(
+        Sale.company_id==conn.company_id,
+        Sale.source=="shopee",
+        Sale.external_order_id==order_sn,
+    ).first()
+
+    created=sale is None
+    touched={}
+
+    if not sale:
+        sale=Sale(
+            company_id=conn.company_id,
+            total=total,
+            payment_method=payment,
+            status=status,
+            source="shopee",
+            external_order_id=order_sn,
+        )
+        db.add(sale)
+        db.flush()
+
+        for oi in order.get("item_list") or []:
+            item_id=str(oi.get("item_id") or "").strip()
+            if not item_id:
+                continue
+
+            try:
+                qty=max(1,int(oi.get("model_quantity_purchased") or 1))
+            except Exception:
+                qty=1
+
+            listing=db.query(MarketplaceListing).filter(
+                MarketplaceListing.company_id==conn.company_id,
+                MarketplaceListing.marketplace=="shopee",
+                MarketplaceListing.external_id==item_id,
+            ).first()
+            if not listing:
+                continue
+
+            product=db.query(Product).filter(
+                Product.id==listing.product_id,
+                Product.company_id==conn.company_id,
+            ).with_for_update().first()
+            if not product:
+                continue
+
+            price=float(
+                oi.get("model_discounted_price")
+                or oi.get("model_original_price")
+                or product.price
+                or 0
+            )
+
+            db.add(SaleItem(
+                company_id=conn.company_id,
+                sale_id=sale.id,
+                product_id=product.id,
+                quantity=qty,
+                unit_price=price,
+            ))
+
+            # Reserva a peça no CDM já no primeiro status recebido.
+            # O Sale.external_order_id impede baixa duplicada nos próximos pushes.
+            if not canceled:
+                old=int(product.stock or 0)
+                product.stock=max(0,old-qty)
+                actual=old-product.stock
+                if actual:
+                    db.add(StockMovement(
+                        company_id=conn.company_id,
+                        product_id=product.id,
+                        kind="marketplace",
+                        quantity_delta=-actual,
+                        balance_after=product.stock,
+                        reference=f"shopee:{order_sn}",
+                    ))
+                    touched[product.id]=product
+    else:
+        sale.total=total
+        sale.status=status
+        sale.payment_method=payment
+
+    if canceled:
+        reversal_ref=f"shopee:{order_sn}:cancel"
+        already_reversed=db.query(StockMovement).filter(
+            StockMovement.company_id==conn.company_id,
+            StockMovement.reference==reversal_ref,
+        ).first()
+
+        if not already_reversed:
+            items=db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all()
+            for item in items:
+                movements=db.query(StockMovement).filter(
+                    StockMovement.company_id==conn.company_id,
+                    StockMovement.product_id==item.product_id,
+                    StockMovement.reference==f"shopee:{order_sn}",
+                    StockMovement.quantity_delta<0,
+                ).all()
+                restore=sum(abs(int(x.quantity_delta or 0)) for x in movements)
+                if restore<=0:
+                    continue
+
+                product=db.query(Product).filter(
+                    Product.id==item.product_id,
+                    Product.company_id==conn.company_id,
+                ).with_for_update().first()
+                if not product:
+                    continue
+
+                product.stock=int(product.stock or 0)+restore
+                db.add(StockMovement(
+                    company_id=conn.company_id,
+                    product_id=product.id,
+                    kind="marketplace",
+                    quantity_delta=restore,
+                    balance_after=product.stock,
+                    reference=reversal_ref,
+                ))
+                touched[product.id]=product
+
+    paid_statuses={
+        "invoice_pending",
+        "ready_to_ship",
+        "processed",
+        "shipped",
+        "to_confirm_receive",
+        "completed",
+        "to_return",
+    }
+    description=f"Shopee pedido {order_sn}"
+    finance=db.query(FinancialEntry).filter(
+        FinancialEntry.company_id==conn.company_id,
+        FinancialEntry.kind=="income",
+        FinancialEntry.description==description,
+    ).first()
+
+    if canceled:
+        if finance:
+            finance.status="canceled"
+    elif status in paid_statuses and total>0:
+        if not finance:
+            finance=FinancialEntry(
+                company_id=conn.company_id,
+                kind="income",
+                description=description,
+                amount=total,
+                status="paid",
+                due_date=datetime.utcnow().strftime("%Y-%m-%d"),
+            )
+            db.add(finance)
+        else:
+            finance.amount=total
+            finance.status="paid"
+
+    event=db.query(MarketplaceOrderEvent).filter(
+        MarketplaceOrderEvent.company_id==conn.company_id,
+        MarketplaceOrderEvent.marketplace=="shopee",
+        MarketplaceOrderEvent.external_order_id==order_sn,
+    ).first()
+    if not event:
+        event=MarketplaceOrderEvent(
+            company_id=conn.company_id,
+            marketplace="shopee",
+            external_order_id=order_sn,
+            sale_id=sale.id,
+            payload_json="{}",
+        )
+        db.add(event)
+
+    event.sale_id=sale.id
+    event.payload_json=json.dumps(
+        {"push":body,"order":order},
+        ensure_ascii=False,
+        default=str,
+    )[:20000]
+
+    if created and not canceled:
+        nomes=[]
+        for item_row in db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all():
+            prod=db.get(Product,item_row.product_id)
+            nomes.append(f"{item_row.quantity}x {prod.name if prod else 'Peça'}")
+        add_sale_notification(
+            db,
+            conn.company_id,
+            sale.id,
+            "shopee",
+            total,
+            ", ".join(nomes)[:360] or f"Pedido {order_sn}",
+        )
+
+    db.commit()
+
+    for product in touched.values():
+        try:
+            sync_marketplace_stock_for_product(db,product,conn.company_id)
+        except Exception:
+            pass
+
+    return {
+        "ok":True,
+        "sale_id":sale.id,
+        "created":created,
+        "status":status,
+        "total_amount":total,
+        "canceled":canceled,
+        "products_updated":len(touched),
+    }
+
+
+def process_shopee_notification_background(body:dict):
+    from ..db import SessionLocal
+    db=SessionLocal()
+    try:
+        process_shopee_notification(db,body)
+    except Exception as exc:
+        db.rollback()
+        print("Shopee webhook worker warning:",_safe_error(str(exc)))
+    finally:
+        db.close()
+
