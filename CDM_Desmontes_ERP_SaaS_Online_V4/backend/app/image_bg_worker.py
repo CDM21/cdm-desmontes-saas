@@ -1,17 +1,22 @@
 from pathlib import Path
 import io
-import threading
 import sys
+import threading
 
 import cv2
 import numpy as np
 import onnxruntime as ort
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
-# CDM FUNDO BRANCO PRO V47
-OUTPUT_SIZE = 1600
-TARGET_OBJECT_SIZE = 1080
-PROXY_MAX = 760
+# CDM FUNDO BRANCO PRO V47.2
+# Foco: manter a qualidade da V47.1, mas abrir/processar mais rápido.
+# Estratégia:
+# - proxy menor para segmentação
+# - skip do GrabCut quando a máscara local já vier confiável
+# - arquivo final menor e progressivo para carregar mais rápido no site
+OUTPUT_SIZE = 1400
+TARGET_OBJECT_SIZE = 980
+PROXY_MAX = 640
 MODEL_INPUT = 320
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "u2netp.onnx"
 
@@ -58,7 +63,12 @@ def _clean_components(binary):
     if k % 2 == 0:
         k += 1
     k = min(k, 7)
-    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8), iterations=1)
+    binary = cv2.morphologyEx(
+        binary,
+        cv2.MORPH_CLOSE,
+        np.ones((k, k), np.uint8),
+        iterations=1,
+    )
     count, labels, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
     if count <= 1:
         return binary
@@ -100,41 +110,80 @@ def _u2net_alpha(proxy_rgb):
     return np.clip(alpha * 255.0, 0, 255).astype(np.uint8)
 
 
+def _mask_is_confident(alpha):
+    h, w = alpha.shape
+    fg_ratio = float((alpha > 180).mean())
+    soft_ratio = float(((alpha > 24) & (alpha < 235)).mean())
+    border = max(2, int(round(min(h, w) * 0.03)))
+    border_mask = np.zeros_like(alpha, dtype=bool)
+    border_mask[:border, :] = True
+    border_mask[-border:, :] = True
+    border_mask[:, :border] = True
+    border_mask[:, -border:] = True
+    border_fg = float((alpha[border_mask] > 70).mean()) if border_mask.any() else 0.0
+    return (0.006 < fg_ratio < 0.78) and (soft_ratio < 0.20) and (border_fg < 0.08)
+
+
 def _refine_alpha(proxy_rgb, alpha):
     h, w = alpha.shape
     support = _clean_components((alpha >= 20).astype(np.uint8))
     alpha = alpha.copy()
     alpha[support == 0] = 0
+
     coverage = float((alpha >= 40).mean())
     if coverage < 0.004:
         raise RuntimeError("Não foi possível identificar a peça com segurança")
     if coverage > 0.94:
         raise RuntimeError("Fundo muito complexo para recorte automático")
+
+    # V47.2: quando a máscara já vier boa, evita GrabCut para ganhar velocidade.
+    if _mask_is_confident(alpha):
+        alpha[alpha < 14] = 0
+        alpha[alpha > 244] = 255
+        alpha = cv2.GaussianBlur(alpha, (3, 3), 0.42)
+        alpha[alpha < 8] = 0
+        alpha[alpha > 250] = 255
+        return alpha
+
     try:
         gc = np.full((h, w), cv2.GC_PR_BGD, dtype=np.uint8)
         gc[alpha <= 12] = cv2.GC_BGD
         gc[(alpha > 12) & (alpha < 92)] = cv2.GC_PR_BGD
         gc[(alpha >= 92) & (alpha < 220)] = cv2.GC_PR_FGD
         gc[alpha >= 220] = cv2.GC_FGD
+
         border = max(2, int(round(min(h, w) * 0.006)))
         gc[:border, :] = cv2.GC_BGD
         gc[-border:, :] = cv2.GC_BGD
         gc[:, :border] = cv2.GC_BGD
         gc[:, -border:] = cv2.GC_BGD
+
         bg_model = np.zeros((1, 65), np.float64)
         fg_model = np.zeros((1, 65), np.float64)
-        cv2.grabCut(cv2.cvtColor(proxy_rgb, cv2.COLOR_RGB2BGR), gc, None, bg_model, fg_model, 1, cv2.GC_INIT_WITH_MASK)
+
+        cv2.grabCut(
+            cv2.cvtColor(proxy_rgb, cv2.COLOR_RGB2BGR),
+            gc,
+            None,
+            bg_model,
+            fg_model,
+            1,
+            cv2.GC_INIT_WITH_MASK,
+        )
+
         grab = np.where((gc == cv2.GC_FGD) | (gc == cv2.GC_PR_FGD), 1, 0).astype(np.uint8)
         grab = _clean_components(grab)
+
         allowed = cv2.dilate(grab, np.ones((3, 3), np.uint8), iterations=1)
         core = cv2.erode(grab, np.ones((3, 3), np.uint8), iterations=1)
         alpha[allowed == 0] = 0
         alpha[core > 0] = np.maximum(alpha[core > 0], 238)
     except Exception:
         pass
+
     alpha[alpha < 13] = 0
     alpha[alpha > 244] = 255
-    alpha = cv2.GaussianBlur(alpha, (3, 3), 0.48)
+    alpha = cv2.GaussianBlur(alpha, (3, 3), 0.45)
     alpha[alpha < 8] = 0
     alpha[alpha > 250] = 255
     return alpha
@@ -149,18 +198,23 @@ def _safe_bbox(alpha):
     y1, y2 = int(ys.min()), int(ys.max())
     obj_w = x2 - x1 + 1
     obj_h = y2 - y1 + 1
-    px = max(5, int(round(obj_w * 0.022)))
-    py = max(5, int(round(obj_h * 0.022)))
-    return (max(0, x1 - px), max(0, y1 - py), min(w - 1, x2 + px), min(h - 1, y2 + py))
+    px = max(5, int(round(obj_w * 0.02)))
+    py = max(5, int(round(obj_h * 0.02)))
+    return (
+        max(0, x1 - px),
+        max(0, y1 - py),
+        min(w - 1, x2 + px),
+        min(h - 1, y2 + py),
+    )
 
 
 def _enhance_object(obj):
     alpha = obj.getchannel("A")
     rgb = obj.convert("RGB")
-    rgb = ImageEnhance.Contrast(rgb).enhance(1.035)
-    rgb = ImageEnhance.Color(rgb).enhance(1.012)
-    rgb = ImageEnhance.Brightness(rgb).enhance(1.008)
-    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=0.85, percent=90, threshold=4))
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.03)
+    rgb = ImageEnhance.Color(rgb).enhance(1.01)
+    rgb = ImageEnhance.Brightness(rgb).enhance(1.006)
+    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=0.8, percent=85, threshold=4))
     out = rgb.convert("RGBA")
     out.putalpha(alpha)
     return out
@@ -170,40 +224,67 @@ def process_image(src, dst):
     raw = src.read_bytes()
     pil = Image.open(io.BytesIO(raw))
     pil = ImageOps.exif_transpose(pil).convert("RGB")
-    max_source = 2600
+
+    max_source = 2200
     if max(pil.size) > max_source:
         scale = max_source / max(pil.size)
-        pil = pil.resize((max(1, int(round(pil.width * scale))), max(1, int(round(pil.height * scale)))), Image.Resampling.LANCZOS)
+        pil = pil.resize(
+            (
+                max(1, int(round(pil.width * scale))),
+                max(1, int(round(pil.height * scale))),
+            ),
+            Image.Resampling.LANCZOS,
+        )
+
     rgb = np.array(pil)
     h, w = rgb.shape[:2]
     if h < 80 or w < 80:
         raise RuntimeError("Imagem pequena demais para tratamento")
+
     proxy = _resize_proxy(rgb)
     proxy_alpha = _u2net_alpha(proxy)
     proxy_alpha = _refine_alpha(proxy, proxy_alpha)
+
     alpha = cv2.resize(proxy_alpha, (w, h), interpolation=cv2.INTER_CUBIC)
     alpha = np.clip(alpha, 0, 255).astype(np.uint8)
     alpha[alpha < 8] = 0
     alpha[alpha > 250] = 255
+
     bbox = _safe_bbox(alpha)
     if bbox is None:
         raise RuntimeError("Não foi possível identificar a peça com segurança")
+
     x1, y1, x2, y2 = bbox
     crop_rgb = rgb[y1:y2 + 1, x1:x2 + 1]
     crop_alpha = alpha[y1:y2 + 1, x1:x2 + 1]
+
     obj = Image.fromarray(crop_rgb, "RGB").convert("RGBA")
     obj.putalpha(Image.fromarray(crop_alpha, "L"))
     obj = _enhance_object(obj)
+
     ow, oh = obj.size
-    fit = min(TARGET_OBJECT_SIZE / max(ow, 1), TARGET_OBJECT_SIZE / max(oh, 1), 2.10)
+    fit = min(
+        TARGET_OBJECT_SIZE / max(ow, 1),
+        TARGET_OBJECT_SIZE / max(oh, 1),
+        2.05,
+    )
     nw = max(1, int(round(ow * fit)))
     nh = max(1, int(round(oh * fit)))
     obj = obj.resize((nw, nh), Image.Resampling.LANCZOS)
+
     out = Image.new("RGB", (OUTPUT_SIZE, OUTPUT_SIZE), "#FFFFFF")
     x = (OUTPUT_SIZE - nw) // 2
     y = (OUTPUT_SIZE - nh) // 2
     out.paste(obj, (x, y), obj)
-    out.save(dst, format="JPEG", quality=95, subsampling=0, optimize=True)
+
+    out.save(
+        dst,
+        format="JPEG",
+        quality=92,
+        subsampling=1,
+        optimize=True,
+        progressive=True,
+    )
 
 
 if __name__ == "__main__":
