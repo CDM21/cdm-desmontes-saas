@@ -3964,3 +3964,64 @@ table th{
  .orderMetrics{grid-template-columns:1fr}
  .orderDetailSummary{grid-template-columns:1fr}
 }
+/* CDM SHIPPING V52 */
+.shippingV52{display:grid}
+.shippingTitle{align-items:center}
+.shippingRefresh{background:#ffffff12;color:#fff;border-color:#ffffff2b;white-space:nowrap}
+.shippingMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.shippingMetrics button{text-align:left;display:grid;gap:4px;padding:14px 15px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--text)}
+.shippingMetrics button:hover,.shippingMetrics button.active{border-color:#4c82ef;box-shadow:0 0 0 1px #4c82ef33 inset}
+.shippingMetrics small{font-size:9px;color:var(--muted);font-weight:800}
+.shippingMetrics strong{font-size:21px}
+.shippingMetrics span{font-size:9px;color:var(--muted)}
+.shippingPanel{padding:0;overflow:hidden}
+.shippingToolbar{display:grid;grid-template-columns:minmax(260px,1fr) 220px;gap:9px;padding:14px;background:var(--soft);border-bottom:1px solid var(--line)}
+.shippingSearch{display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding-left:7px}
+.shippingSearch span{color:var(--muted);text-align:center;font-size:18px}
+.shippingSearch input{border:0;background:transparent;box-shadow:none!important;padding-left:5px}
+.shippingResult{padding:10px 14px;border-bottom:1px solid var(--line);font-size:9px;color:var(--muted)}
+.shippingResult b{color:var(--text)}
+.shippingList{display:grid}
+.shippingCard{padding:14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.shippingCard:last-child{border-bottom:0}
+.shippingCardHead{display:grid;grid-template-columns:90px minmax(0,1fr) 170px;gap:12px;align-items:center}
+.shippingSource{min-height:48px;border:1px solid var(--line);border-radius:9px;background:var(--soft);display:grid;align-content:center;justify-items:center;padding:6px}
+.shippingSource b{font-size:12px}.shippingSource small{font-size:8px;color:var(--muted);margin-top:4px}
+.shippingSource.mercadolivre{background:#ffe60018;border-color:#d9bd2445}.shippingSource.mercadolivre b{color:#b28a00}
+.shippingSource.shopee{background:#ee4d2d16;border-color:#ee4d2d45}.shippingSource.shopee b{color:#e75a3a}
+.shippingSource.olx{background:#7937c915;border-color:#7937c945}.shippingSource.olx b{color:#8f58dc}
+.shippingSource.manual{background:#2878ff12;border-color:#2878ff35}.shippingSource.manual b{color:#4c8dff}
+.shippingIdentity{min-width:0;display:grid;gap:3px}
+.shippingIdentity small{font-size:8px;color:#6f8fe8;font-weight:900;letter-spacing:.04em}
+.shippingIdentity b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shippingIdentity span{font-size:9px;color:var(--muted)}
+.shippingStatus{justify-self:end;display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:9px}
+.shippingStatus i{width:7px;height:7px;border-radius:50%;background:#d39427}
+.shippingStatus.separated i{background:#3e80e8}
+.shippingStatus.ready_to_ship i{background:#9256d8}
+.shippingStatus.shipped i{background:#20a15d}
+.shippingProgress{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:15px 0 12px}
+.shippingProgress>div{position:relative;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:8px}
+.shippingProgress>div:after{content:"";position:absolute;height:2px;background:var(--line);left:26px;right:5px;top:11px;z-index:0}
+.shippingProgress>div:last-child:after{display:none}
+.shippingProgress i{position:relative;z-index:1;width:23px;height:23px;display:grid;place-items:center;border-radius:50%;background:var(--soft);border:1px solid var(--line);font-style:normal;font-size:8px}
+.shippingProgress span{position:relative;z-index:1;background:var(--panel);padding-right:5px}
+.shippingProgress .done i,.shippingProgress .current i{background:#2878ff;color:#fff;border-color:#2878ff}
+.shippingProgress .done:after{background:#2878ff}
+.shippingItems{display:grid;gap:6px;margin-bottom:12px}
+.shippingItems>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+.shippingItems b,.shippingItems small{display:block}
+.shippingItems b{font-size:10px}.shippingItems small{font-size:8px;color:var(--muted);margin-top:2px}
+.shippingItems strong{font-size:10px;white-space:nowrap}
+.shippingFields{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:9px;padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--soft)}
+.shippingFields label{display:grid;gap:5px}.shippingFields label>span{font-size:8px;color:var(--muted);font-weight:800}
+.shippingFields input{background:var(--panel);font-size:10px;padding:8px 9px}
+.shippingActions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px}
+.shippingActions>div:first-child{display:grid;gap:2px}.shippingActions small{font-size:8px;color:var(--muted)}
+.shippingActions>div:last-child{display:flex;gap:7px;align-items:center}
+.shippingActions button{padding:9px 12px;border-radius:8px;font-size:9px}
+.shippingDone{padding:8px 10px;border-radius:8px;background:#20a15d18;color:#36af70;border:1px solid #20a15d38;font-size:9px;font-weight:900}
+.shippingEmpty{margin:14px}
+@media(max-width:950px){.shippingMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.shippingCardHead{grid-template-columns:80px minmax(0,1fr)}.shippingStatus{grid-column:2;justify-self:start}.shippingFields{grid-template-columns:1fr 1fr}.shippingNotes{grid-column:1/-1}}
+@media(max-width:680px){.shippingTitle{align-items:flex-start;flex-direction:column}.shippingRefresh{width:100%}.shippingMetrics{grid-template-columns:1fr 1fr}.shippingToolbar{grid-template-columns:1fr}.shippingCardHead{grid-template-columns:72px minmax(0,1fr)}.shippingProgress{grid-template-columns:1fr;gap:7px}.shippingProgress>div:after{display:none}.shippingFields{grid-template-columns:1fr}.shippingNotes{grid-column:auto}.shippingActions{align-items:stretch;flex-direction:column}.shippingActions>div:last-child{display:grid}.shippingActions button{width:100%}}
+@media(max-width:430px){.shippingMetrics{grid-template-columns:1fr}}

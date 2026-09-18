@@ -255,7 +255,7 @@ function App(){
        {['labels','label-models','etiquetas'].includes(tab)&&<LabelsModule tab={tab} products={products} company={session?.company}/>}
        {tab==='sales'&&<Sales products={products} sales={sales} customers={catalog.customers} refresh={load} notice={notice}/>}
        {tab==='sales-history'&&<SalesHistory sales={sales} refresh={load}/>}
-       {tab==='shipping'&&<SimpleModule eyebrow="EXPEDIÇÃO" title="Painel de Expedição" text="Separe, confira e acompanhe pedidos que precisam ser enviados." actions={['Aguardando separação','Prontos para envio','Despachados']}/>}
+       {tab==='shipping'&&<ShippingPanel sales={sales} refresh={load} notice={notice}/>}
        {['marketplaces','mercadolivre','shopee','olx','integracoes'].includes(tab)&&<Marketplaces data={marketplaces} listings={listings} products={products} refresh={load} notice={notice} focus={tab} subscription={session?.subscription}/>}
        {['purchase-new','purchases','compras'].includes(tab)&&<SimpleModule eyebrow="COMPRAS" title={tab==='purchase-new'?'Nova Compra':'Compras'} text="Controle pedidos de compra, fornecedores, custos e recebimentos." actions={['Novo pedido de compra','Compras realizadas','Recebimentos']}/>}
        {['invoices','invoice-history','xml','invalidate-number','notas'].includes(tab)&&<FiscalModule tab={tab} notice={notice}/>}
@@ -2472,6 +2472,117 @@ function SalesHistory({sales,refresh}){
            </div>}
          </article>
        }):<div className="emptyState orderEmpty">Nenhum pedido encontrado com esses filtros.</div>}
+     </div>
+   </section>
+ </div>
+}
+
+// CDM SHIPPING V52
+function ShippingPanel({sales,refresh,notice}){
+ const [filter,setFilter]=useState('active'),[query,setQuery]=useState(''),[busy,setBusy]=useState(''),[drafts,setDrafts]=useState({})
+ const canceled=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
+ const steps=[['awaiting_separation','Aguardando separação'],['separated','Separado'],['ready_to_ship','Pronto para envio'],['shipped','Despachado']]
+ const labels=Object.fromEntries(steps)
+ const order=Object.fromEntries(steps.map((x,i)=>[x[0],i]))
+ const src=s=>({manual:['LOJA','Venda local'],mercadolivre:['ML','Mercado Livre'],shopee:['SH','Shopee'],olx:['OLX','OLX']}[s]||['•',valuePt('source',s)||'Outro'])
+
+ const eligible=useMemo(()=>[...(sales||[])].filter(s=>!canceled.has(String(s.status||'').toLowerCase())).sort((a,b)=>{
+   const sa=order[s.shipping_status||'awaiting_separation']??0
+   const sb=order[b.shipping_status||'awaiting_separation']??0
+   return sa-sb||new Date(b.created_at||0)-new Date(a.created_at||0)
+ }),[sales])
+
+ const shown=useMemo(()=>{
+   const q=query.trim().toLowerCase()
+   return eligible.filter(s=>{
+     const st=s.shipping_status||'awaiting_separation'
+     if(filter==='active'&&st==='shipped')return false
+     if(filter!=='all'&&filter!=='active'&&st!==filter)return false
+     if(!q)return true
+     const items=(s.items||[]).map(i=>`${i.sku||''} ${i.name||''}`).join(' ')
+     return `${s.id} ${s.external_order_id||''} ${s.customer_name||''} ${s.carrier_name||''} ${s.tracking_code||''} ${items}`.toLowerCase().includes(q)
+   })
+ },[eligible,filter,query])
+
+ const count=st=>eligible.filter(s=>(s.shipping_status||'awaiting_separation')===st).length
+ const activeCount=eligible.filter(s=>(s.shipping_status||'awaiting_separation')!=='shipped').length
+
+ function draftFor(s){return drafts[s.id]||{carrier_name:s.carrier_name||'',tracking_code:s.tracking_code||'',shipping_notes:s.shipping_notes||''}}
+ function setDraft(id,key,value){
+   const s=(sales||[]).find(x=>x.id===id)||{}
+   setDrafts(d=>({...d,[id]:{...draftFor(s),...(d[id]||{}),[key]:value}}))
+ }
+
+ async function move(s,next){
+   const d=draftFor(s)
+   setBusy(`${s.id}:${next}`)
+   try{
+     await api.patch(`/sales/${s.id}/shipping`,{shipping_status:next,carrier_name:d.carrier_name||'',tracking_code:d.tracking_code||'',shipping_notes:d.shipping_notes||''})
+     await refresh()
+     notice(`Pedido ${s.external_order_id||'#'+s.id}: ${labels[next]}`)
+   }catch(e){
+     notice(erroPt(e.response?.data?.detail)||'Não foi possível atualizar a expedição')
+   }finally{setBusy('')}
+ }
+
+ return <div className="shippingV52">
+   <div className="pageTitle shippingTitle">
+     <div><span>EXPEDIÇÃO</span><h2>Painel de Expedição</h2><p>Separe, confira e acompanhe os pedidos até o despacho sem alterar novamente o estoque.</p></div>
+     <button className="ghost shippingRefresh" onClick={refresh}>↻ Atualizar pedidos</button>
+   </div>
+
+   <div className="shippingMetrics">
+     <button className={filter==='active'?'active':''} onClick={()=>setFilter('active')}><small>Fila ativa</small><strong>{activeCount}</strong><span>pedidos pendentes</span></button>
+     <button className={filter==='awaiting_separation'?'active':''} onClick={()=>setFilter('awaiting_separation')}><small>Aguardando separação</small><strong>{count('awaiting_separation')}</strong><span>para localizar no estoque</span></button>
+     <button className={filter==='ready_to_ship'?'active':''} onClick={()=>setFilter('ready_to_ship')}><small>Prontos para envio</small><strong>{count('ready_to_ship')}</strong><span>aguardando despacho</span></button>
+     <button className={filter==='shipped'?'active':''} onClick={()=>setFilter('shipped')}><small>Despachados</small><strong>{count('shipped')}</strong><span>pedidos concluídos</span></button>
+   </div>
+
+   <section className="panel shippingPanel">
+     <div className="shippingToolbar">
+       <div className="shippingSearch"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar pedido, SKU, peça, cliente ou rastreio..."/></div>
+       <select value={filter} onChange={e=>setFilter(e.target.value)}>
+         <option value="active">Fila ativa</option><option value="all">Todos</option>
+         {steps.map(([k,l])=><option key={k} value={k}>{l}</option>)}
+       </select>
+     </div>
+
+     <div className="shippingResult"><b>{shown.length}</b> pedido(s) nesta visão</div>
+
+     <div className="shippingList">
+       {shown.length?shown.map(s=>{
+         const st=s.shipping_status||'awaiting_separation',idx=order[st]??0,channel=src(s.source||'manual'),items=s.items||[],d=draftFor(s),isBusy=busy.startsWith(`${s.id}:`)
+         return <article className={'shippingCard '+st} key={s.id}>
+           <div className="shippingCardHead">
+             <div className={'shippingSource '+(s.source||'manual')}><b>{channel[0]}</b><small>{channel[1]}</small></div>
+             <div className="shippingIdentity"><small>{s.external_order_id?`PEDIDO ${s.external_order_id}`:`VENDA #${s.id}`}</small><b>{items.length?items.map(i=>i.name||'Peça').slice(0,2).join(' + '):'Venda registrada'}</b><span>{s.customer_name||'Consumidor final'} · {items.reduce((a,i)=>a+Number(i.quantity||0),0)} item(ns) · {money(s.total)}</span></div>
+             <div className={'shippingStatus '+st}><i/><b>{labels[st]||st}</b></div>
+           </div>
+
+           <div className="shippingProgress">
+             {steps.map(([k,l],i)=><div key={k} className={(i<idx?'done ':i===idx?'current ':'')+(k==='shipped'&&st==='shipped'?'done current':'')}><i>{i<idx||st==='shipped'?'✓':i+1}</i><span>{l}</span></div>)}
+           </div>
+
+           <div className="shippingItems">{items.map((it,i)=><div key={it.id||i}><span><b>{it.name||'Peça'}</b><small>{it.sku?`SKU ${it.sku}`:`Produto #${it.product_id||'—'}`}</small></span><strong>{it.quantity||0} un.</strong></div>)}</div>
+
+           <div className="shippingFields">
+             <label><span>Transportadora</span><input value={d.carrier_name} onChange={e=>setDraft(s.id,'carrier_name',e.target.value)} placeholder="Ex.: Correios, Jadlog..."/></label>
+             <label><span>Código de rastreio</span><input value={d.tracking_code} onChange={e=>setDraft(s.id,'tracking_code',e.target.value)} placeholder="Opcional"/></label>
+             <label className="shippingNotes"><span>Observações</span><input value={d.shipping_notes} onChange={e=>setDraft(s.id,'shipping_notes',e.target.value)} placeholder="Embalagem, retirada, conferência..."/></label>
+           </div>
+
+           <div className="shippingActions">
+             <div><small>Criado em {s.created_at?new Date(s.created_at).toLocaleString('pt-BR'):'—'}</small>{s.shipped_at&&<small>Despachado em {new Date(s.shipped_at).toLocaleString('pt-BR')}</small>}</div>
+             <div>
+               {idx>0&&<button className="ghost" disabled={isBusy} onClick={()=>move(s,steps[idx-1][0])}>← Voltar etapa</button>}
+               {st==='awaiting_separation'&&<button className="primary" disabled={isBusy} onClick={()=>move(s,'separated')}>✓ Marcar como separado</button>}
+               {st==='separated'&&<button className="primary" disabled={isBusy} onClick={()=>move(s,'ready_to_ship')}>Pronto para envio →</button>}
+               {st==='ready_to_ship'&&<button className="primary" disabled={isBusy} onClick={()=>move(s,'shipped')}>Despachar pedido →</button>}
+               {st==='shipped'&&<span className="shippingDone">✓ Expedição concluída</span>}
+             </div>
+           </div>
+         </article>
+       }):<div className="emptyState shippingEmpty">Nenhum pedido encontrado nesta etapa.</div>}
      </div>
    </section>
  </div>

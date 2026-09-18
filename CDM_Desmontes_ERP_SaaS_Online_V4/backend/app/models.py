@@ -301,6 +301,12 @@ class Sale(Base):
     status = Column(String(30), default="paid")
     source = Column(String(40), default="manual")
     external_order_id = Column(String(180), default="", index=True)
+    shipping_status = Column(String(40), default="awaiting_separation", index=True)
+    carrier_name = Column(String(120), default="")
+    tracking_code = Column(String(180), default="")
+    shipping_notes = Column(Text, default="")
+    shipping_updated_at = Column(DateTime, nullable=True)
+    shipped_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

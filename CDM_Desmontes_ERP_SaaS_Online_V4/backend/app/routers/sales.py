@@ -21,6 +21,14 @@ class SaleIn(BaseModel):
     items:list[ItemIn]
 
 
+# CDM SHIPPING V52
+class ShippingUpdate(BaseModel):
+    shipping_status:str
+    carrier_name:str=""
+    tracking_code:str=""
+    shipping_notes:str=""
+
+
 def _serialize_sale(db:Session, sale:Sale):
     items=[]
     for row in db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all():
@@ -34,6 +42,12 @@ def _serialize_sale(db:Session, sale:Sale):
         "id":sale.id,"customer_id":sale.customer_id,"customer_name":customer.name if customer else "",
         "total":sale.total,"payment_method":sale.payment_method,"status":sale.status,
         "source":getattr(sale,"source","manual"),"external_order_id":getattr(sale,"external_order_id","") or "",
+        "shipping_status":getattr(sale,"shipping_status","awaiting_separation") or "awaiting_separation",
+        "carrier_name":getattr(sale,"carrier_name","") or "",
+        "tracking_code":getattr(sale,"tracking_code","") or "",
+        "shipping_notes":getattr(sale,"shipping_notes","") or "",
+        "shipping_updated_at":getattr(sale,"shipping_updated_at",None),
+        "shipped_at":getattr(sale,"shipped_at",None),
         "created_at":sale.created_at,"items":items,
     }
 
@@ -47,6 +61,50 @@ def get_sale(sale_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
     row=db.query(Sale).filter(Sale.id==sale_id,Sale.company_id==user.company_id).first()
     if not row: raise HTTPException(404,"Venda não encontrada")
     return _serialize_sale(db,row)
+
+@router.patch("/{sale_id}/shipping")
+def update_shipping(
+    sale_id:int,
+    data:ShippingUpdate,
+    db:Session=Depends(get_db),
+    user=Depends(require_roles("owner","admin","manager","stock","cashier")),
+):
+    allowed={"awaiting_separation","separated","ready_to_ship","shipped"}
+    status=(data.shipping_status or "").strip().lower()
+    if status not in allowed:
+        raise HTTPException(400,"Status de expedição inválido")
+
+    sale=db.query(Sale).filter(
+        Sale.id==sale_id,
+        Sale.company_id==user.company_id,
+    ).first()
+    if not sale:
+        raise HTTPException(404,"Venda não encontrada")
+
+    sale.shipping_status=status
+    sale.carrier_name=(data.carrier_name or "").strip()[:120]
+    sale.tracking_code=(data.tracking_code or "").strip()[:180]
+    sale.shipping_notes=(data.shipping_notes or "").strip()[:2000]
+    sale.shipping_updated_at=datetime.utcnow()
+
+    if status=="shipped":
+        if not sale.shipped_at:
+            sale.shipped_at=datetime.utcnow()
+    else:
+        sale.shipped_at=None
+
+    audit(
+        db,user,"sale.shipping_update","sale",str(sale.id),
+        {
+            "shipping_status":status,
+            "carrier_name":sale.carrier_name,
+            "tracking_code":sale.tracking_code,
+        },
+    )
+    db.commit()
+    db.refresh(sale)
+    return _serialize_sale(db,sale)
+
 
 @router.post("")
 def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","cashier"))):
