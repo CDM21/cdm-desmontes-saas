@@ -7,7 +7,7 @@ import unicodedata
 import cv2
 import numpy as np
 import httpx
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps
 from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
@@ -196,8 +196,8 @@ def find_product_duplicates(
 
 
 
-# CDM PHOTO AI V43 — Photoroom
-PHOTOROOM_EDIT_URL = "https://image-api.photoroom.com/v2/edit"
+# CDM PHOTO AI V44 — Photoroom Basic
+PHOTOROOM_SEGMENT_URL = "https://sdk.photoroom.com/v1/segment"
 
 
 def _photoroom_error_message(response):
@@ -216,11 +216,7 @@ def _photoroom_error_message(response):
 
     try:
         payload = response.json()
-        detail = (
-            payload.get("message")
-            or payload.get("detail")
-            or payload.get("error")
-        )
+        detail = payload.get("message") or payload.get("detail") or payload.get("error")
         if detail:
             return f"Photoroom: {str(detail)[:260]}"
     except Exception:
@@ -232,13 +228,41 @@ def _photoroom_error_message(response):
     return f"Photoroom recusou a imagem (HTTP {status})."
 
 
+def _catalog_white_square(image_bytes: bytes, output_size=1600, safe_object=1260) -> bytes:
+    pil = Image.open(io.BytesIO(image_bytes))
+    pil = ImageOps.exif_transpose(pil).convert("RGBA")
+
+    alpha = pil.getchannel("A")
+    bbox = alpha.getbbox()
+    if bbox:
+        pil = pil.crop(bbox)
+
+    w, h = pil.size
+    if w < 2 or h < 2:
+        raise ValueError("A IA retornou uma imagem inválida.")
+
+    fit = min(safe_object / max(w, 1), safe_object / max(h, 1), 1.9)
+    nw = max(1, int(round(w * fit)))
+    nh = max(1, int(round(h * fit)))
+    pil = pil.resize((nw, nh), Image.Resampling.LANCZOS)
+
+    bg = Image.new("RGBA", (output_size, output_size), (255, 255, 255, 255))
+    x = (output_size - nw) // 2
+    y = (output_size - nh) // 2
+    bg.alpha_composite(pil, (x, y))
+
+    out = io.BytesIO()
+    bg.convert("RGB").save(out, format="JPEG", quality=95, subsampling=0)
+    return out.getvalue()
+
+
 @router.get("/photo-ai-status")
 def photo_ai_status(user=Depends(active_user)):
     key = (os.getenv("PHOTOROOM_API_KEY") or "").strip()
     return {
-        "version": "v43",
-        "provider": "photoroom",
-        "label": "Photoroom",
+        "version": "v44",
+        "provider": "photoroom_basic",
+        "label": "Photoroom Basic",
         "configured": bool(key),
     }
 
@@ -260,7 +284,7 @@ def remove_product_background(
     if not api_key:
         raise HTTPException(
             503,
-            "A IA de fotos ainda não está configurada. Defina PHOTOROOM_API_KEY no Render."
+            "A IA de fotos ainda não está configurada. Defina PHOTOROOM_API_KEY no Render.",
         )
 
     content_type = (file.content_type or "image/jpeg").split(";")[0].strip()
@@ -268,24 +292,23 @@ def remove_product_background(
 
     try:
         with httpx.Client(
-            timeout=httpx.Timeout(55.0, connect=10.0),
+            timeout=httpx.Timeout(45.0, connect=10.0),
             follow_redirects=True,
         ) as client:
             response = client.post(
-                PHOTOROOM_EDIT_URL,
+                PHOTOROOM_SEGMENT_URL,
                 headers={
                     "x-api-key": api_key,
-                    "Accept": "image/jpeg, application/json",
+                    "Accept": "image/jpeg, image/png, application/json",
                 },
                 files={
-                    "imageFile": (filename, raw, content_type),
+                    "image_file": (filename, raw, content_type),
                 },
                 data={
-                    "removeBackground": "true",
-                    "background.color": "FFFFFF",
-                    "padding": "0.12",
-                    "outputSize": "1600x1600",
-                    "export.format": "jpeg",
+                    "bg_color": "FFFFFF",
+                    "crop": "true",
+                    "format": "jpg",
+                    "size": "hd",
                 },
             )
     except httpx.TimeoutException:
@@ -299,19 +322,21 @@ def remove_product_background(
             _photoroom_error_message(response),
         )
 
-    result = response.content
-    if not result:
+    if not response.content:
         raise HTTPException(502, "O Photoroom retornou uma imagem vazia.")
 
-    media_type = (response.headers.get("content-type") or "image/jpeg").split(";")[0]
+    try:
+        result = _catalog_white_square(response.content)
+    except Exception:
+        result = response.content
 
     return Response(
         content=result,
-        media_type=media_type,
+        media_type="image/jpeg",
         headers={
             "Cache-Control": "no-store",
-            "X-CDM-Photo-AI": "photoroom",
-            "X-CDM-Photo-AI-Version": "v43",
+            "X-CDM-Photo-AI": "photoroom_basic",
+            "X-CDM-Photo-AI-Version": "v44",
             "Access-Control-Expose-Headers": "X-CDM-Photo-AI,X-CDM-Photo-AI-Version",
         },
     )

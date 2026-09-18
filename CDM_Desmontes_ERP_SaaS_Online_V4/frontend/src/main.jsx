@@ -1306,7 +1306,7 @@ function ProductImages({form,setForm,notice}){
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'Photoroom removendo o fundo...':'Finalizando fundo branco profissional...'
+ const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'Photoroom Basic removendo o fundo...':'Finalizando fundo branco profissional...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1360,7 +1360,7 @@ function ProductImages({form,setForm,notice}){
      save([...images,...arr])
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,350))
-     notice(fallbackCount?`${arr.length} foto(s) profissional(is) adicionada(s). ${fallbackCount} foto(s) não foram adicionadas porque o Photoroom não conseguiu tratá-las.`:`${arr.length} foto(s) profissional(is) criada(s) pelo Photoroom`)
+     notice(fallbackCount?`${arr.length} foto(s) profissional(is) adicionada(s). ${fallbackCount} foto(s) não foram adicionadas porque o Photoroom Basic não conseguiu tratá-las.`:`${arr.length} foto(s) profissional(is) criada(s) pelo Photoroom`)
    }catch(e){
      notice('Não foi possível carregar esta foto')
    }finally{setBusy(false);setRaceDone(false)}
@@ -1381,7 +1381,7 @@ function ProductImages({form,setForm,notice}){
      if(zoom===value)setZoom(out)
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,650))
-     notice('Foto profissional pronta pelo Photoroom: fundo branco e peça preservada')
+     notice('Foto profissional pronta pelo Photoroom Basic: fundo branco e peça preservada')
    }catch(e){notice('Não foi possível tratar esta imagem')}
    finally{setBusy(false);setRaceDone(false)}
  }
@@ -1427,7 +1427,7 @@ function ProductImages({form,setForm,notice}){
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V43 · Photoroom</b><br/>O CDM usa o Photoroom para remover o fundo de verdade, colocar fundo branco puro e manter a peça centralizada com margem profissional para os anúncios.</div></div>
+   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V44 · Photoroom Basic</b><br/>Agora o CDM usa a versão mais econômica do Photoroom para remover o fundo, manter o fundo branco puro e padronizar a peça em formato de catálogo.</div></div>
 
    <div className="mediaStudioGrid">
      <section className="mediaPhotoBox">
