@@ -114,6 +114,104 @@ def _client(cfg):
     )
 
 
+
+def validate_backup_blob(blob, expected_sha256=""):
+    if not isinstance(blob, (bytes, bytearray)) or not blob:
+        raise RuntimeError("Backup vazio ou inválido.")
+
+    try:
+        raw = gzip.decompress(bytes(blob))
+    except Exception as exc:
+        raise RuntimeError(f"Backup não pôde ser descompactado: {exc}") from exc
+
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Backup não contém JSON válido: {exc}") from exc
+
+    if payload.get("format") != "cdm-logical-backup-v2":
+        raise RuntimeError("Formato de backup não reconhecido.")
+
+    tables = payload.get("tables")
+    table_counts = payload.get("table_counts")
+    integrity = payload.get("integrity") or {}
+
+    if not isinstance(tables, dict) or not isinstance(table_counts, dict):
+        raise RuntimeError("Estrutura interna do backup está incompleta.")
+    if set(tables) != set(table_counts):
+        raise RuntimeError("Tabelas e contagens do backup não correspondem.")
+
+    for table, rows in tables.items():
+        if not isinstance(rows, list):
+            raise RuntimeError(f"Tabela {table} possui estrutura inválida.")
+        try:
+            declared = int(table_counts.get(table))
+        except Exception as exc:
+            raise RuntimeError(f"Contagem inválida para a tabela {table}.") from exc
+        if declared != len(rows):
+            raise RuntimeError(
+                f"Contagem divergente na tabela {table}: "
+                f"declarado={declared}, encontrado={len(rows)}."
+            )
+
+    integrity_source = json.dumps(
+        {"tables": tables, "table_counts": table_counts},
+        ensure_ascii=False,
+        default=str,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    calculated = hashlib.sha256(integrity_source).hexdigest()
+    stored = str(integrity.get("sha256") or "").strip().lower()
+
+    if str(integrity.get("algorithm") or "").lower() != "sha256" or not stored:
+        raise RuntimeError("Backup não possui assinatura de integridade SHA-256.")
+    if calculated != stored:
+        raise RuntimeError("SHA-256 interno do backup não confere.")
+
+    expected = str(expected_sha256 or "").strip().lower()
+    if expected and calculated != expected:
+        raise RuntimeError("SHA-256 do objeto salvo não confere com o backup enviado.")
+
+    return {
+        "verified": True,
+        "format": payload.get("format"),
+        "backup_id": payload.get("backup_id"),
+        "created_at": payload.get("created_at"),
+        "sha256": calculated,
+        "tables": len(tables),
+        "rows": sum(len(rows) for rows in tables.values()),
+        "bytes": len(blob),
+    }
+
+
+def verify_offsite_object(key, expected_sha256=""):
+    cfg = offsite_config()
+    if not cfg["configured"]:
+        raise RuntimeError(
+            "Backup externo não configurado. Faltam as credenciais S3/R2 no servidor."
+        )
+    if not str(key or "").strip():
+        raise RuntimeError("Chave do backup externo não informada.")
+
+    client = _client(cfg)
+    response = client.get_object(Bucket=cfg["bucket"], Key=key)
+    blob = response["Body"].read()
+    metadata = response.get("Metadata") or {}
+    metadata_sha = str(metadata.get("sha256") or "").strip()
+    verify_against = expected_sha256 or metadata_sha
+
+    result = validate_backup_blob(blob, expected_sha256=verify_against)
+    result.update(
+        {
+            "bucket": cfg["bucket"],
+            "key": key,
+            "etag": str(response.get("ETag") or "").strip('"'),
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    return result
+
 def upload_offsite(backup=None):
     cfg = offsite_config()
     if not cfg["configured"]:
@@ -139,8 +237,17 @@ def upload_offsite(backup=None):
             "format": "cdm-logical-backup-v2",
         },
     )
+
+    # O backup só é considerado concluído depois de ser lido de volta do R2
+    # e passar novamente pela validação de formato, contagens e SHA-256.
+    verification = verify_offsite_object(
+        key,
+        expected_sha256=backup["sha256"],
+    )
+
     return {
         "ok": True,
+        "verified": True,
         "bucket": cfg["bucket"],
         "key": key,
         "backup_id": backup["backup_id"],
@@ -149,6 +256,7 @@ def upload_offsite(backup=None):
         "tables": backup["tables"],
         "rows": backup["rows"],
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "verification": verification,
     }
 
 
