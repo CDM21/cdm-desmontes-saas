@@ -14,7 +14,7 @@ from ..db import get_db, engine
 from ..deps import current_user
 from ..models import Company, User, Subscription, Product, Sale, SaleItem, Vehicle, VehicleExpense, StockMovement, MarketplaceConnection, MarketplaceListing, AuditLog
 from ..admin import require_platform_admin, audit
-from ..backup_service import offsite_config, upload_offsite, list_offsite
+from ..backup_service import offsite_config, upload_offsite, list_offsite, restore_drill_offsite
 
 router=APIRouter()
 
@@ -196,6 +196,26 @@ def offsite_backup_cron(
         except Exception:
             db.rollback()
         raise HTTPException(503,f"Falha no backup automático externo: {exc}")
+
+
+
+class RestoreDrillIn(BaseModel):
+    key: str = ""
+
+
+@router.post("/backup/offsite/restore-drill")
+def offsite_restore_drill(
+    data: RestoreDrillIn,
+    user=Depends(current_user),
+):
+    require_platform_admin(user)
+    try:
+        return restore_drill_offsite(data.key)
+    except Exception as exc:
+        raise HTTPException(
+            503,
+            f"Teste de restauração não concluído: {exc}",
+        )
 
 @router.get("/overview")
 def overview(db:Session=Depends(get_db),user=Depends(current_user)):

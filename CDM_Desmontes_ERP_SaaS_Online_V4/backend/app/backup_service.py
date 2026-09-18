@@ -212,6 +212,211 @@ def verify_offsite_object(key, expected_sha256=""):
     )
     return result
 
+
+def _quote_sqlite_identifier(value):
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def _download_offsite_payload(key=""):
+    cfg = offsite_config()
+    if not cfg["configured"]:
+        raise RuntimeError(
+            "Backup externo não configurado. Faltam as credenciais S3/R2 no servidor."
+        )
+
+    selected_key = str(key or "").strip()
+    if not selected_key:
+        recent = list_offsite(1).get("items", [])
+        if not recent:
+            raise RuntimeError("Nenhum backup externo encontrado no R2.")
+        selected_key = str(recent[0].get("key") or "").strip()
+
+    client = _client(cfg)
+    response = client.get_object(Bucket=cfg["bucket"], Key=selected_key)
+    blob = response["Body"].read()
+    metadata = response.get("Metadata") or {}
+    expected_sha = str(metadata.get("sha256") or "").strip()
+
+    verification = validate_backup_blob(
+        blob,
+        expected_sha256=expected_sha,
+    )
+    payload = json.loads(gzip.decompress(blob).decode("utf-8"))
+
+    return {
+        "bucket": cfg["bucket"],
+        "key": selected_key,
+        "blob": blob,
+        "payload": payload,
+        "verification": verification,
+    }
+
+
+def restore_drill_offsite(key=""):
+    """
+    Teste de restauração seguro.
+
+    Nunca escreve no banco de produção. O backup é lido do R2, validado e
+    reconstruído em um banco SQLite temporário, que é apagado ao final.
+
+    Como o formato V2 não armazena o DDL original das tabelas, as colunas do
+    ambiente temporário são recriadas como TEXT. O objetivo deste drill é
+    provar que todos os dados do backup podem ser materializados novamente,
+    sem alterar o sistema real.
+    """
+    import sqlite3
+    import tempfile
+
+    downloaded = _download_offsite_payload(key)
+    payload = downloaded["payload"]
+    tables = payload.get("tables") or {}
+    declared_counts = payload.get("table_counts") or {}
+
+    temp_path = None
+    conn = None
+    restored_counts = {}
+    restored_rows = 0
+
+    try:
+        handle = tempfile.NamedTemporaryFile(
+            prefix="cdm-restore-drill-",
+            suffix=".sqlite3",
+            delete=False,
+        )
+        temp_path = handle.name
+        handle.close()
+
+        conn = sqlite3.connect(temp_path)
+
+        for table_name, rows in tables.items():
+            table_ident = _quote_sqlite_identifier(table_name)
+
+            columns = []
+            seen = set()
+            for row in rows:
+                for column in row.keys():
+                    if column not in seen:
+                        seen.add(column)
+                        columns.append(column)
+
+            if not columns:
+                conn.execute(
+                    f"CREATE TABLE {table_ident} "
+                    '("__cdm_empty_table__" TEXT)'
+                )
+            else:
+                column_sql = ", ".join(
+                    f"{_quote_sqlite_identifier(column)} TEXT"
+                    for column in columns
+                )
+                conn.execute(f"CREATE TABLE {table_ident} ({column_sql})")
+
+                placeholders = ", ".join("?" for _ in columns)
+                quoted_columns = ", ".join(
+                    _quote_sqlite_identifier(column)
+                    for column in columns
+                )
+                insert_sql = (
+                    f"INSERT INTO {table_ident} ({quoted_columns}) "
+                    f"VALUES ({placeholders})"
+                )
+
+                values = []
+                for row in rows:
+                    converted = []
+                    for column in columns:
+                        value = row.get(column)
+                        if isinstance(value, (dict, list)):
+                            value = json.dumps(
+                                value,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            )
+                        elif value is not None and not isinstance(
+                            value, (str, int, float, bool)
+                        ):
+                            value = str(value)
+                        converted.append(value)
+                    values.append(tuple(converted))
+
+                if values:
+                    conn.executemany(insert_sql, values)
+
+            count = int(
+                conn.execute(
+                    f"SELECT COUNT(*) FROM {table_ident}"
+                ).fetchone()[0]
+            )
+            restored_counts[table_name] = count
+            restored_rows += count
+
+        conn.commit()
+        conn.close()
+        conn = None
+
+        # Reabre o arquivo para provar que os dados foram realmente gravados.
+        conn = sqlite3.connect(temp_path)
+        reopened_counts = {}
+        for table_name in tables.keys():
+            table_ident = _quote_sqlite_identifier(table_name)
+            reopened_counts[table_name] = int(
+                conn.execute(
+                    f"SELECT COUNT(*) FROM {table_ident}"
+                ).fetchone()[0]
+            )
+        conn.close()
+        conn = None
+
+        normalized_declared = {
+            str(name): int(count or 0)
+            for name, count in declared_counts.items()
+        }
+        counts_match = (
+            restored_counts == normalized_declared
+            and reopened_counts == normalized_declared
+        )
+
+        if not counts_match:
+            raise RuntimeError(
+                "As contagens restauradas no banco temporário "
+                "não conferem com o backup."
+            )
+
+        return {
+            "ok": True,
+            "safe_mode": True,
+            "production_database_untouched": True,
+            "temporary_database": "sqlite",
+            "temporary_schema_mode": "text-columns",
+            "temporary_database_deleted": True,
+            "bucket": downloaded["bucket"],
+            "key": downloaded["key"],
+            "backup_id": downloaded["verification"].get("backup_id"),
+            "sha256": downloaded["verification"].get("sha256"),
+            "tables": len(tables),
+            "rows": restored_rows,
+            "counts_match": True,
+            "reopen_check": True,
+            "created_at": payload.get("created_at"),
+            "tested_at": datetime.now(timezone.utc).isoformat(),
+            "note": (
+                "O backup V2 foi reconstruído em banco isolado e descartável. "
+                "O teste valida recuperação dos dados e contagens; "
+                "não substitui uma restauração futura com DDL nativo."
+            ),
+        }
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
+
 def upload_offsite(backup=None):
     cfg = offsite_config()
     if not cfg["configured"]:
