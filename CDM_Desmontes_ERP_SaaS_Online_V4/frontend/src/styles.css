@@ -3076,3 +3076,230 @@ table{font-size:12px}
   .productCoreGrid,.videoPriceCards,.videoProductHeaderMeta{grid-template-columns:1fr!important}.productCoreGrid .span2,.productCoreGrid .span4{grid-column:1!important}
   .productStepNav{grid-template-columns:1fr 1fr!important}.videoChannelRow{grid-template-columns:1fr}.videoChannelIdentity{grid-column:auto}
 }
+
+/* CDM V38 — Estrutura fiel ao vídeo */
+.videoExactPage{
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+.videoExactTitle{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:12px;
+  padding:3px 2px 12px;
+  border-bottom:1px solid rgba(148,163,184,.12);
+}
+.videoExactTitle>div:first-child{display:grid;gap:3px}
+.videoExactTitle>div:first-child>span{font-size:8px;font-weight:900;letter-spacing:.16em;color:#a4b2ca}
+.videoExactTitle h2{margin:0;font-size:19px;line-height:1.15}
+.videoExactTitle p{margin:0;font-size:9px;color:var(--muted)}
+.videoExactTitleMeta{display:grid;grid-template-columns:70px 170px;gap:7px}
+.videoExactTitleMeta>div{display:grid;gap:2px;padding:7px 9px;border:1px solid rgba(148,163,184,.12);border-radius:6px;background:#151c27}
+.videoExactTitleMeta small{font-size:6px;font-weight:900;letter-spacing:.1em;color:#7f8a9d}
+.videoExactTitleMeta b{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.videoExactShell{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 210px;
+  gap:10px;
+  align-items:start;
+}
+
+.videoExactMain{min-width:0;display:grid;gap:9px}
+
+.videoExactSection{
+  scroll-margin-top:86px;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:6px;
+  overflow:hidden;
+  background:#171e29;
+}
+.videoExactSectionHead{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 13px;
+  border-bottom:1px solid rgba(148,163,184,.11);
+  background:#1b222e;
+}
+.videoExactSectionHead h3{margin:0 0 2px;font-size:12px}
+.videoExactSectionHead p{margin:0;font-size:7px;color:#9aa6b7}
+.videoExactSectionBody{padding:12px 13px 14px}
+
+.videoExactQuickFlags{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+  margin-bottom:8px;
+}
+.videoExactFlag{
+  display:flex;align-items:center;gap:8px;
+  min-height:38px;padding:7px 9px;
+  border:1px solid rgba(148,163,184,.11);
+  border-radius:6px;background:#141b26;
+}
+.videoExactFlag input{width:13px!important;height:13px!important;min-height:0!important;padding:0!important}
+.videoExactFlag span{display:grid;gap:1px}.videoExactFlag b{font-size:8px}.videoExactFlag small{font-size:6px;color:#7f8b9d}
+.videoExactFlag.fixed{opacity:.86}
+
+.videoExactInnovation{margin-bottom:8px}
+.videoExactInnovation .productAiPhoto,
+.videoExactInnovation .duplicateDetector{margin:0!important}
+.videoExactInnovation .productAiPhoto{
+  padding:9px 10px!important;border-radius:6px!important;border-left:3px solid #13d6e8!important;
+  background:#182331!important;border-top-color:#2b4357!important;border-right-color:#2b4357!important;border-bottom-color:#2b4357!important
+}
+.videoExactInnovation .duplicateDetector{
+  padding:9px 10px!important;border-radius:6px!important;border-left:3px solid #ef9f23!important;
+  background:#211d18!important
+}
+.videoExactInnovation .productAiPhotoHead h4{font-size:9px!important}
+.videoExactInnovation .productAiPhotoHead p,.videoExactInnovation .aiPrivacyNote{font-size:6px!important}
+.videoExactInnovation .aiPhotoButton{min-height:29px!important;padding:6px 9px!important;font-size:7px!important;border-radius:5px!important}
+.videoExactInnovation .duplicateDetectorHead b{font-size:8px!important}.videoExactInnovation .duplicateDetectorHead small{font-size:6px!important}
+.videoExactInnovation .duplicateDetectorHead button{min-height:28px!important;padding:6px 8px!important;font-size:7px!important;border-radius:5px!important}
+
+.videoExactFormGrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px 8px;
+}
+.videoExactFormGrid .span2{grid-column:span 2}
+.videoExactFormGrid .span4{grid-column:1/-1}
+.videoExactPage .field>span{font-size:7px!important;margin-bottom:4px!important;color:#d2d8e2!important}
+.videoExactPage input,.videoExactPage select,.videoExactPage textarea{
+  min-height:33px!important;
+  padding:6px 8px!important;
+  border-radius:5px!important;
+  border:1px solid #465165!important;
+  background:#151c27!important;
+  font-size:8px!important;
+  color:#edf1f7!important;
+}
+.videoExactPage textarea{min-height:58px!important}
+.videoExactPage input:focus,.videoExactPage select:focus,.videoExactPage textarea:focus{border-color:#27d7e3!important;box-shadow:0 0 0 1px #27d7e333!important}
+.videoExactPage .categoryField{grid-template-columns:minmax(0,1fr) 34px!important;gap:4px!important}
+.videoExactPage .categorySearchBtn{padding:0!important;min-height:33px!important}
+
+.videoExactMediaBody{padding:10px!important}
+.videoExactMediaBody .mediaStudioHeader{display:none!important}
+.videoExactMediaBody .mediaStudioGrid{grid-template-columns:minmax(0,1.65fr) minmax(180px,.7fr)!important;gap:8px!important}
+.videoExactMediaBody .mediaPhotoBox,
+.videoExactMediaBody .mediaVideoBox{
+  min-height:190px!important;
+  border-radius:5px!important;
+  border:1px solid #0b76ec!important;
+  color:white!important;
+}
+.videoExactMediaBody .mediaPhotoBox{padding:10px!important;background:linear-gradient(145deg,#0b55bf,#173c82)!important}
+.videoExactMediaBody .mediaVideoBox{padding:16px!important;background:linear-gradient(145deg,#0f62d2,#174e9e)!important}
+.videoExactMediaBody .mediaVideoBox p,.videoExactMediaBody .mediaVideoBox small{color:#deecff!important}
+.videoExactMediaBody .mediaAddTile{min-height:148px!important;border-radius:5px!important;color:white!important;background:#ffffff0f!important;border-color:#ffffff99!important}
+.videoExactMediaBody .mediaAddTile small{color:#d8e8ff!important}
+.videoExactMediaBody .mediaRailHelp,.videoExactMediaBody .imageUrlsAdvanced{font-size:6px!important}
+
+.videoExactDescription{min-height:105px!important}
+.videoExactCollapse{
+  margin-top:8px;
+  border-top:1px solid rgba(148,163,184,.12);
+}
+.videoExactCollapse summary{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 1px 4px;
+  cursor:pointer;
+  font-size:8px;font-weight:900;
+}
+.videoExactCollapse summary span{font-size:7px;color:#ffe132}
+.videoExactCollapseBody{padding:8px 0 2px}
+
+.videoExactReadiness{
+  margin-top:13px;
+  padding-top:10px;
+  border-top:1px solid rgba(148,163,184,.12);
+}
+.videoExactReadyHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.videoExactReadyHead h4{margin:0 0 2px;font-size:9px}.videoExactReadyHead p{margin:0;font-size:6px;color:#9aa6b7}.videoExactReadyHead b{font-size:14px}
+.videoExactReadyBar{height:4px;margin:8px 0 6px;border-radius:99px;background:#303848;overflow:hidden}
+.videoExactReadyBar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#1bd4dc 0 68%,#ffc928 68% 85%,#ff4a55 85%)}
+.videoExactReadyLegend{display:flex;gap:12px;font-size:6px}.videoExactReadyLegend .ok{color:#55e2b1}.videoExactReadyLegend .optional{color:#4cd9ff}.videoExactReadyLegend .adjust{color:#ffc852}
+
+.videoExactChannelList{display:grid;gap:6px;margin-top:10px}
+.videoExactChannel{
+  display:grid;
+  grid-template-columns:minmax(230px,1.45fr) 170px 36px 76px;
+  gap:7px;
+  align-items:center;
+  min-height:57px;
+  padding:7px 8px;
+  border:1px solid #485366;
+  border-left:4px solid #5b6677;
+  border-radius:6px;
+  background:#18202b;
+}
+.videoExactChannel.sale{grid-template-columns:minmax(230px,1.45fr) 170px 76px;border-left-color:#18d4df}
+.videoExactChannel.ml{border-left-color:#ff9919}.videoExactChannel.shopee{border-left-color:#1dd3d7}.videoExactChannel.olx{border-left-color:#21c9dd}
+.videoExactChannel.enabled{box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)}
+.videoExactChannelIdentity{display:flex;align-items:center;gap:8px;min-width:0}
+.videoExactChannelIdentity>div:last-child{min-width:0}.videoExactChannelIdentity b{display:block;font-size:8px}.videoExactChannelIdentity span{display:block;margin-top:2px;font-size:6px;color:#9aa6b7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.videoExactChannelIcon{width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:#17d3d9;color:white;font-size:11px;font-weight:900}
+.videoExactChannelPrice small{display:block;margin-bottom:3px;font-size:6px;color:#9aa6b7}.videoExactChannelPrice>div{display:grid;grid-template-columns:22px 1fr;align-items:center}.videoExactChannelPrice span{font-size:7px;color:#9aa6b7}
+.videoExactChannelPrice input{min-height:27px!important;padding:4px 6px!important}
+.videoExactChannel .switch{margin:0 auto!important;transform:scale(.8)}
+.videoExactManage{min-height:28px;border-radius:5px;background:#2be2dd;color:#052425;font-size:7px;font-weight:900}.videoExactManage:disabled{opacity:.42}
+.videoExactMlSuggest{display:grid;grid-template-columns:auto 1fr;gap:6px;margin-top:8px}
+
+.videoExactPricingInputs{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:520px}
+.videoExactPriceRecommendation{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(148,163,184,.12)}
+.videoExactPriceRecommendation>div{padding:9px;border:1px solid #465165;border-radius:5px;background:#151c27}
+.videoExactPriceRecommendation>div.recommended{border-color:#25be7f;background:#133126}
+.videoExactPriceRecommendation small,.videoExactPriceRecommendation b,.videoExactPriceRecommendation span{display:block}.videoExactPriceRecommendation small{font-size:6px;color:#9aa6b7}.videoExactPriceRecommendation b{margin:4px 0;font-size:10px}.videoExactPriceRecommendation span{font-size:6px;color:#76d9b0}
+.videoExactMarkup{display:flex;align-items:center;gap:5px;margin-top:8px;font-size:6px;color:#9aa6b7}.videoExactMarkup button{min-height:25px;padding:4px 7px;border-radius:4px;background:#242d3a;color:#dfe6ee;font-size:6px}
+
+.videoExactSide{position:sticky;top:72px;display:grid;gap:8px}
+.videoExactSideNav,.videoExactSideSummary,.videoExactSideActions{padding:8px;border:1px solid rgba(148,163,184,.12);border-radius:6px;background:#151c27}
+.videoExactSideNav{display:grid;gap:4px}
+.videoExactSideNav button{display:flex;align-items:center;gap:7px;min-height:35px;width:100%;padding:7px 8px;border-radius:5px;background:transparent;color:#e6ebf2;text-align:left;font-size:8px;font-weight:800}
+.videoExactSideNav button:hover{background:#202938}
+.videoExactSideNav button span{width:18px;height:18px;display:grid;place-items:center;border-radius:50%;background:#26303e;font-size:6px;color:#9aa6b7}
+.videoExactSideSummary{display:grid;gap:4px}.videoExactSideSummary>small{font-size:6px;font-weight:900;letter-spacing:.12em;color:#7ba3ee}.videoExactSideSummary>b{font-size:9px}.videoExactSideSummary>span{font-size:6px;color:#9aa6b7}
+.videoExactSideSummary>div{display:flex;justify-content:space-between;padding-top:6px;margin-top:2px;border-top:1px solid rgba(148,163,184,.10)}.videoExactSideSummary em{font-size:6px;color:#9aa6b7;font-style:normal}.videoExactSideSummary strong{font-size:7px}
+.videoExactSideActions{display:grid;gap:5px}.videoExactSideActions button{min-height:34px;border-radius:5px;font-size:7px}
+
+/* Modal do Mercado Livre no mesmo padrão compacto do vídeo */
+.marketConfigModalML{width:min(860px,94vw)!important;border-radius:6px!important;background:#171e29!important}
+.marketConfigModalML .modalHead{padding:13px 15px 10px!important;background:#171e29!important}
+.marketConfigModalML .modalHead:before{display:none!important}
+.marketConfigModalML .modalHead small{font-size:6px!important}.marketConfigModalML .modalHead h2{font-size:14px!important}.marketConfigModalML .modalHead p{font-size:7px!important}
+.mlProfessionalBody{padding:11px 15px 13px!important;gap:8px!important}
+.mlPremiumHero,.mlConfigSummary{display:none!important}
+.videoMlAccount{border-radius:5px!important;padding:8px!important}
+.videoMlTitleField input{min-height:31px!important;font-size:8px!important}
+.mlProfessionalBody .formSectionTitle{padding:7px 0 5px!important;font-size:7px!important}
+.mlProfessionalBody .optionGrid,.mlProfessionalBody .optionGrid.two{gap:6px!important}
+.mlProfessionalBody .choiceCard{min-height:58px!important;padding:8px 9px!important;border-radius:5px!important}
+.mlProfessionalBody .choiceCard.selected{border-color:#e43a48!important;background:#652730!important;box-shadow:none!important}
+.mlProfessionalBody .choiceCard b{font-size:8px!important}.mlProfessionalBody .choiceCard small{font-size:6px!important;margin-top:4px!important}
+.mlProfessionalBody .choiceCard input{top:8px!important;right:8px!important;width:11px!important;height:11px!important}
+.mlProfessionalBody .switchRows label{min-height:48px!important;padding:7px!important;border-radius:5px!important}
+.mlProfessionalBody .fieldHelp,.mlAutoSourceBar{font-size:6px!important;padding:6px 7px!important;border-radius:5px!important}
+.mlManagedField{padding:7px!important;border-radius:5px!important}
+.marketConfigModalML .modalFoot{padding:8px 15px!important}.marketConfigModalML .modalFoot button{min-height:29px!important;border-radius:5px!important;font-size:7px!important}.marketConfigModalML .modalFoot .primary{background:#2bdedb!important;color:#062424!important;box-shadow:none!important}
+.marketplaceModalBackdrop{padding:8px!important;background:#020611d9!important}
+
+@media(max-width:1000px){
+  .videoExactShell{grid-template-columns:1fr}.videoExactSide{position:static}.videoExactSideNav{grid-template-columns:repeat(4,1fr)}.videoExactSideNav button{justify-content:center}
+}
+@media(max-width:720px){
+  .videoExactTitle{align-items:flex-start;flex-direction:column}.videoExactTitleMeta{width:100%;grid-template-columns:1fr 2fr}
+  .videoExactFormGrid{grid-template-columns:1fr 1fr}.videoExactFormGrid .span2,.videoExactFormGrid .span4{grid-column:1/-1}
+  .videoExactMediaBody .mediaStudioGrid{grid-template-columns:1fr!important}
+  .videoExactChannel,.videoExactChannel.sale{grid-template-columns:1fr 1fr}.videoExactChannelIdentity{grid-column:1/-1}
+  .videoExactPriceRecommendation{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+  .videoExactFormGrid,.videoExactPriceRecommendation,.videoExactQuickFlags{grid-template-columns:1fr}.videoExactFormGrid .span2,.videoExactFormGrid .span4{grid-column:1}
+  .videoExactSideNav{grid-template-columns:1fr 1fr}
+}
