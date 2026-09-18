@@ -1140,10 +1140,13 @@ async function optimizeProductImageUpload(file){
     if(!file||!file.type?.startsWith('image/'))return file
     const src=await readFileAsDataUrl(file)
     const img=await loadImage(src)
-    const max=2200
+
+    // V41: preserva muito mais detalhe para a IA. Só reduz fotos realmente enormes.
+    const max=3600
     const scale=Math.min(1,max/Math.max(img.width,img.height))
-    const shouldOptimize=scale<0.999||file.size>3*1024*1024
+    const shouldOptimize=scale<0.999||file.size>8*1024*1024
     if(!shouldOptimize)return file
+
     const w=Math.max(1,Math.round(img.width*scale))
     const h=Math.max(1,Math.round(img.height*scale))
     const canvas=document.createElement('canvas')
@@ -1152,10 +1155,21 @@ async function optimizeProductImageUpload(file){
     ctx.imageSmoothingEnabled=true
     ctx.imageSmoothingQuality='high'
     ctx.drawImage(img,0,0,w,h)
-    const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Falha ao otimizar imagem')),'image/jpeg',.90))
-    return new File([blob],String(file.name||'produto').replace(/\.[^.]+$/,'')+'-cdm.jpg',{type:'image/jpeg'})
+
+    const blob=await new Promise((resolve,reject)=>
+      canvas.toBlob(
+        b=>b?resolve(b):reject(new Error('Falha ao preparar imagem')),
+        'image/jpeg',
+        .95
+      )
+    )
+    return new File(
+      [blob],
+      String(file.name||'produto').replace(/\.[^.]+$/,'')+'-cdm.jpg',
+      {type:'image/jpeg'}
+    )
   }catch(e){
-    console.warn('CDM otimização de upload:',e)
+    console.warn('CDM preparação V41:',e)
     return file
   }
 }
@@ -1181,8 +1195,8 @@ async function prepareProductImage(file,removeBg=true){
         reader.readAsDataURL(blob)
       })
     }catch(e){
-      console.error('CDM Smart Background:',e)
-      throw new Error('Não foi possível remover o fundo desta foto')
+      console.error('CDM Photo AI V41 / remove.bg:',e)
+      throw new Error('A IA profissional não conseguiu tratar esta foto')
     }
   }
 
@@ -1292,7 +1306,7 @@ function ProductImages({form,setForm,notice}){
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'Separando a peça do fundo...':'Finalizando fundo branco...'
+ const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'IA removendo o fundo...':'Finalizando foto profissional...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1346,7 +1360,7 @@ function ProductImages({form,setForm,notice}){
      save([...images,...arr])
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,350))
-     notice(fallbackCount?`${arr.length} foto(s) adicionada(s). ${fallbackCount} ficou(ram) original(is); use ✎ para tentar o fundo branco novamente.`:`${arr.length} foto(s) profissional(is) adicionada(s)`)
+     notice(fallbackCount?`${arr.length} foto(s) adicionada(s). A IA não tratou ${fallbackCount}; mantive a original para não perder a foto.`:`${arr.length} foto(s) profissional(is) criada(s) pela IA`)
    }catch(e){
      notice('Não foi possível carregar esta foto')
    }finally{setBusy(false);setRaceDone(false)}
@@ -1367,7 +1381,7 @@ function ProductImages({form,setForm,notice}){
      if(zoom===value)setZoom(out)
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,650))
-     notice('Foto profissional pronta: fundo branco, peça inteira e centralizada')
+     notice('Foto profissional pronta pela IA: fundo branco e peça preservada')
    }catch(e){notice('Não foi possível tratar esta imagem')}
    finally{setBusy(false);setRaceDone(false)}
  }
@@ -1407,13 +1421,13 @@ function ProductImages({form,setForm,notice}){
      </div>
      <label className="inlineCheck mediaWhiteToggle">
        <input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/>
-       <span>Foto profissional automática</span>
+       <span>Foto profissional com IA</span>
      </label>
    </div>
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V40</b><br/>O CDM preserva mais resolução, mostra a peça inteira, centraliza com margem de segurança e cria fundo branco puro sem deformar o produto.</div></div>\n\n   <div className="mediaStudioGrid">
+   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V41 · IA</b><br/>A foto é tratada por IA especializada: remove o fundo de verdade, mantém a peça inteira e entrega fundo branco puro com margem de segurança.</div></div>\n\n   <div className="mediaStudioGrid">
      <section className="mediaPhotoBox">
        <div className="mediaThumbRail">
          {images.map((src,i)=><article className={'mediaThumbCard '+(i===0?'principal':'')} key={`${i}-${src.slice(0,28)}`}>

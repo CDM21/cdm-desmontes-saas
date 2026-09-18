@@ -1,10 +1,12 @@
 import base64
 import io
+import os
 import re
 import unicodedata
 
 import cv2
 import numpy as np
+import httpx
 from PIL import Image, ImageEnhance
 from difflib import SequenceMatcher
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -194,61 +196,116 @@ def find_product_duplicates(
 
 
 
-# CDM SMART BACKGROUND V10
+# CDM PHOTO AI V41 — remove.bg profissional
+REMOVE_BG_API_URL = "https://api.remove.bg/v1.0/removebg"
+
+
+def _remove_bg_error_message(response):
+    status = int(response.status_code or 0)
+    if status in {401, 403}:
+        return "A chave do remove.bg não foi aceita. Revise REMOVE_BG_API_KEY no Render."
+    if status == 402:
+        return "Os créditos do remove.bg acabaram ou não permitem esta resolução."
+    if status == 429:
+        return "O remove.bg recebeu muitas fotos ao mesmo tempo. Tente novamente em alguns segundos."
+    if status >= 500:
+        return "O remove.bg está temporariamente indisponível. Tente novamente."
+
+    try:
+        payload = response.json()
+        errors = payload.get("errors") or []
+        if errors:
+            first = errors[0] or {}
+            title = str(first.get("title") or first.get("code") or "").strip()
+            if title:
+                return f"remove.bg: {title[:240]}"
+    except Exception:
+        pass
+
+    text = (response.text or "").strip().replace("\n", " ")
+    if text:
+        return f"remove.bg: {text[:240]}"
+    return f"remove.bg recusou a imagem (HTTP {status})."
+
+
+@router.get("/photo-ai-status")
+def photo_ai_status(user=Depends(active_user)):
+    key = (os.getenv("REMOVE_BG_API_KEY") or "").strip()
+    return {
+        "provider": "remove.bg",
+        "configured": bool(key),
+        "version": "v41",
+    }
+
+
 @router.post("/remove-background")
 def remove_product_background(
     file: UploadFile = File(...),
     user = Depends(active_user),
 ):
-    import subprocess
-    import sys
-    import tempfile
-    from pathlib import Path
-
     raw = file.file.read()
     if not raw:
         raise HTTPException(400, "Imagem vazia")
     if len(raw) > 15 * 1024 * 1024:
         raise HTTPException(413, "A imagem deve ter no máximo 15 MB")
 
-    worker = Path(__file__).resolve().parents[1] / "image_bg_worker.py"
-    if not worker.exists():
-        raise HTTPException(500, "Processador de imagem não encontrado")
+    api_key = (os.getenv("REMOVE_BG_API_KEY") or "").strip()
+    if not api_key:
+        raise HTTPException(
+            503,
+            "A IA de fotos ainda não está configurada no servidor. Defina REMOVE_BG_API_KEY."
+        )
 
-    with tempfile.TemporaryDirectory(prefix="cdm_bg_") as tmp:
-        tmp_dir = Path(tmp)
-        src = tmp_dir / "entrada.img"
-        dst = tmp_dir / "saida.jpg"
-        src.write_bytes(raw)
+    content_type = (file.content_type or "image/jpeg").split(";")[0].strip()
+    filename = (file.filename or "produto.jpg")[:180]
 
-        try:
-            proc = subprocess.run(
-                [sys.executable, str(worker), str(src), str(dst)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=35,
-                check=False,
+    try:
+        with httpx.Client(
+            timeout=httpx.Timeout(40.0, connect=10.0),
+            follow_redirects=True,
+        ) as client:
+            response = client.post(
+                REMOVE_BG_API_URL,
+                headers={
+                    "X-Api-Key": api_key,
+                    "Accept": "image/jpeg",
+                },
+                files={
+                    "image_file": (filename, raw, content_type),
+                },
+                data={
+                    "size": "auto",
+                    "type": "auto",
+                    "type_level": "latest",
+                    "format": "jpg",
+                    "bg_color": "ffffff",
+                    "crop": "true",
+                    "crop_margin": "10%",
+                    "shadow_type": "none",
+                },
             )
-        except subprocess.TimeoutExpired:
-            raise HTTPException(
-                504,
-                "O recorte demorou mais de 35 segundos e foi interrompido. Tente outra foto."
-            )
+    except httpx.TimeoutException:
+        raise HTTPException(504, "A IA de fotos demorou demais. Tente novamente.")
+    except httpx.HTTPError:
+        raise HTTPException(502, "Não foi possível conectar à IA de fotos.")
 
-        if proc.returncode != 0 or not dst.exists():
-            err = proc.stderr.decode("utf-8", errors="replace").strip()
-            if not err:
-                err = "Falha no processador de imagem"
-            raise HTTPException(422, err[-500:])
+    if response.status_code != 200:
+        raise HTTPException(
+            response.status_code if 400 <= response.status_code < 500 else 502,
+            _remove_bg_error_message(response),
+        )
 
-        result = dst.read_bytes()
+    result = response.content
+    if not result:
+        raise HTTPException(502, "A IA retornou uma imagem vazia.")
 
     return Response(
         content=result,
         media_type="image/jpeg",
         headers={
             "Cache-Control": "no-store",
-            "X-CDM-Background": "studio-v40.1-fast-white",
+            "X-CDM-Photo-AI": "remove-bg-v41",
+            "X-CDM-Foreground-Type": response.headers.get("X-Type", ""),
         },
     )
 
