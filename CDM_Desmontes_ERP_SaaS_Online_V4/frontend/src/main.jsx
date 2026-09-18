@@ -1174,11 +1174,12 @@ async function optimizeProductImageUpload(file){
   }
 }
 
-async function prepareProductImage(file,removeBg=true){
+async function prepareProductImage(file,removeBg=true,mode='auto'){
   if(removeBg){
     const formData=new FormData()
     const uploadFile=await optimizeProductImageUpload(file)
     formData.append('file',uploadFile,uploadFile.name||'produto.jpg')
+    formData.append('mode',mode||'auto')
 
     try{
       const response=await api.post('/products/remove-background',formData,{
@@ -1186,6 +1187,7 @@ async function prepareProductImage(file,removeBg=true){
         timeout:50000
       })
       const contentType=response.headers?.['content-type']||'image/jpeg'
+      window.__cdmLastPhotoEngine=response.headers?.['x-cdm-photo-ai']||''
       const blob=new Blob([response.data],{type:contentType})
       if(!blob.size)throw new Error('Imagem processada vazia')
       return await new Promise((resolve,reject)=>{
@@ -1303,10 +1305,16 @@ function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
 // CDM PRODUCT IMAGES V2
 function ProductImages({form,setForm,notice}){
  const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
+ const [photoMode,setPhotoMode]=useState('auto'),[photoStatus,setPhotoStatus]=useState(null),[lastPhotoEngine,setLastPhotoEngine]=useState('')
  const images=imageList(form.image_urls)
+ const effectivePhotoMode=photoMode==='auto'?(photoStatus?.premium?.remaining>0?'premium':'basic'):photoMode
+ async function refreshPhotoStatus(){
+   try{const r=await api.get('/products/photo-ai-status');setPhotoStatus(r.data||null)}catch(e){}
+ }
+ useEffect(()=>{refreshPhotoStatus()},[])
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'Photoroom Basic removendo o fundo...':'Finalizando fundo branco profissional...'
+ const progressText=raceDone?'Foto pronta!':elapsed<1?'Preparando a foto...':effectivePhotoMode==='premium'?'Foto Premium IA removendo o fundo...':'Fundo Branco CDM trabalhando...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1347,20 +1355,22 @@ function ProductImages({form,setForm,notice}){
      for(const f of Array.from(files).slice(0,remaining)){
        if(!f.type.startsWith('image/'))continue
        try{
-         arr.push(await prepareProductImage(f,removeBg))
+         arr.push(await prepareProductImage(f,removeBg,photoMode))
+         if(removeBg)setLastPhotoEngine(window.__cdmLastPhotoEngine||'')
        }catch(e){
          if(removeBg){
            fallbackCount++
-           console.error('Photoroom não tratou a foto:',e)
+           console.error('Tratamento de foto não concluído:',e)
            continue
          }
          throw e
        }
      }
      save([...images,...arr])
+     if(removeBg)await refreshPhotoStatus()
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,350))
-     notice(fallbackCount?`${arr.length} foto(s) profissional(is) adicionada(s). ${fallbackCount} foto(s) não foram adicionadas porque o Photoroom Basic não conseguiu tratá-las.`:`${arr.length} foto(s) profissional(is) criada(s) pelo Photoroom`)
+     notice(fallbackCount?`${arr.length} foto(s) profissional(is) adicionada(s). ${fallbackCount} foto(s) não foram adicionadas porque o tratamento de fundo não foi concluído.`:`${arr.length} foto(s) tratada(s) com sucesso`)
    }catch(e){
      notice('Não foi possível carregar esta foto')
    }finally{setBusy(false);setRaceDone(false)}
@@ -1374,14 +1384,16 @@ function ProductImages({form,setForm,notice}){
      const value=images[i]
      const blob=await fetch(value).then(r=>r.blob())
      const file=new File([blob],`produto-${i}.jpg`,{type:blob.type||'image/jpeg'})
-     const out=await prepareProductImage(file,true)
+     const out=await prepareProductImage(file,true,photoMode)
+     setLastPhotoEngine(window.__cdmLastPhotoEngine||'')
      const next=[...images]
      next[i]=out
      save(next)
      if(zoom===value)setZoom(out)
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,650))
-     notice('Foto profissional pronta pelo Photoroom Basic: fundo branco e peça preservada')
+     await refreshPhotoStatus()
+     notice(window.__cdmLastPhotoEngine==='photoroom_basic'?'Foto Premium IA pronta':'Fundo Branco CDM pronto')
    }catch(e){notice('Não foi possível tratar esta imagem')}
    finally{setBusy(false);setRaceDone(false)}
  }
@@ -1421,13 +1433,35 @@ function ProductImages({form,setForm,notice}){
      </div>
      <label className="inlineCheck mediaWhiteToggle">
        <input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/>
-       <span>Foto profissional com IA</span>
+       <span>Tratar fundo da foto</span>
      </label>
    </div>
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V44 · Photoroom Basic</b><br/>Agora o CDM usa a versão mais econômica do Photoroom para remover o fundo, manter o fundo branco puro e padronizar a peça em formato de catálogo.</div></div>
+   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Tratamento profissional de fotos</b><br/>Você tem uma franquia mensal de <b>{photoStatus?.premium?.limit??200} Fotos Premium IA</b>. Quando ela acabar, o modo Automático continua funcionando com o <b>Fundo Branco CDM ilimitado</b>.</div></div>
+
+   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10,margin:'0 0 14px'}}>
+     <button type="button" onClick={()=>setPhotoMode('auto')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='auto'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='auto'?'#eef7ff':'#fff',cursor:'pointer'}}>
+       <b style={{display:'block'}}>Automático · Recomendado</b>
+       <small>Usa IA enquanto houver saldo e depois muda para o CDM.</small>
+     </button>
+     <button type="button" onClick={()=>setPhotoMode('premium')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='premium'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='premium'?'#eef7ff':'#fff',cursor:'pointer'}}>
+       <b style={{display:'block'}}>✨ Foto Premium IA</b>
+       <small>{photoStatus?`${photoStatus.premium.remaining} restantes de ${photoStatus.premium.limit}`:'Carregando franquia...'}</small>
+     </button>
+     <button type="button" onClick={()=>setPhotoMode('basic')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='basic'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='basic'?'#eef7ff':'#fff',cursor:'pointer'}}>
+       <b style={{display:'block'}}>⬜ Fundo Branco CDM</b>
+       <small>Ilimitado · não consome Foto Premium IA.</small>
+     </button>
+   </div>
+
+   <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',margin:'0 0 14px',padding:'9px 11px',border:'1px solid #d7e1e8',borderRadius:8,background:'#f8fbfd'}}>
+     <span><b>Modo selecionado:</b> {photoMode==='premium'?'Foto Premium IA':photoMode==='basic'?'Fundo Branco CDM':'Automático'}</span>
+     {photoStatus&&<span><b>IA:</b> {photoStatus.premium.used}/{photoStatus.premium.limit} usadas este mês</span>}
+     {photoStatus&&<span><b>CDM:</b> ilimitado</span>}
+     {lastPhotoEngine&&<span><b>Última foto:</b> {lastPhotoEngine==='photoroom_basic'?'Premium IA':'Fundo Branco CDM'}</span>}
+   </div>
 
    <div className="mediaStudioGrid">
      <section className="mediaPhotoBox">

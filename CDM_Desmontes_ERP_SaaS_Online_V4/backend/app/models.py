@@ -177,6 +177,19 @@ class Product(Base):
     __table_args__ = (UniqueConstraint("company_id", "sku", name="uq_company_sku"),)
 
 
+class PhotoAiUsage(Base):
+    __tablename__ = "photo_ai_usage"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    period = Column(String(7), index=True, nullable=False)  # YYYY-MM (UTC)
+    premium_used = Column(Integer, default=0)
+    basic_used = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint("company_id", "period", name="uq_photo_ai_usage_company_period"),
+    )
+
+
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True)

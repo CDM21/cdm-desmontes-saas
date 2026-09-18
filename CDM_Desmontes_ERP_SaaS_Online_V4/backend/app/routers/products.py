@@ -1,8 +1,13 @@
 import base64
 import io
 import os
+import subprocess
+import sys
+import tempfile
 import re
 import unicodedata
+from datetime import datetime
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -14,7 +19,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
-from ..models import Product
+from ..models import Product, PhotoAiUsage
 from ..deps import active_user, require_roles
 from ..services.marketplaces import publish_all
 
@@ -196,8 +201,94 @@ def find_product_duplicates(
 
 
 
-# CDM PHOTO AI V44 — Photoroom Basic
+# CDM PHOTO AI V45 — IA Premium + Fundo Branco CDM
 PHOTOROOM_SEGMENT_URL = "https://sdk.photoroom.com/v1/segment"
+
+
+def _photo_ai_limit() -> int:
+    try:
+        return max(0, int(os.getenv("PHOTO_AI_MONTHLY_LIMIT", "200")))
+    except Exception:
+        return 200
+
+
+def _photo_period() -> str:
+    return datetime.utcnow().strftime("%Y-%m")
+
+
+def _get_photo_usage(db: Session, company_id: int) -> PhotoAiUsage:
+    period = _photo_period()
+    row = (
+        db.query(PhotoAiUsage)
+        .filter(
+            PhotoAiUsage.company_id == company_id,
+            PhotoAiUsage.period == period,
+        )
+        .first()
+    )
+    if row:
+        return row
+
+    row = PhotoAiUsage(
+        company_id=company_id,
+        period=period,
+        premium_used=0,
+        basic_used=0,
+    )
+    db.add(row)
+    try:
+        db.commit()
+        db.refresh(row)
+        return row
+    except Exception:
+        db.rollback()
+        row = (
+            db.query(PhotoAiUsage)
+            .filter(
+                PhotoAiUsage.company_id == company_id,
+                PhotoAiUsage.period == period,
+            )
+            .first()
+        )
+        if not row:
+            raise
+        return row
+
+
+def _photo_usage_payload(row: PhotoAiUsage):
+    limit = _photo_ai_limit()
+    used = max(0, int(row.premium_used or 0))
+    remaining = max(0, limit - used)
+    return {
+        "version": "v45",
+        "period": row.period,
+        "premium": {
+            "provider": "photoroom_basic",
+            "label": "Foto Premium IA",
+            "limit": limit,
+            "used": used,
+            "remaining": remaining,
+            "configured": bool((os.getenv("PHOTOROOM_API_KEY") or "").strip()),
+        },
+        "basic": {
+            "provider": "cdm_basic",
+            "label": "Fundo Branco CDM",
+            "unlimited": True,
+            "used": max(0, int(row.basic_used or 0)),
+        },
+        "default_mode": "auto",
+    }
+
+
+def _increment_photo_usage(db: Session, row: PhotoAiUsage, provider: str):
+    if provider == "photoroom_basic":
+        row.premium_used = max(0, int(row.premium_used or 0)) + 1
+    elif provider == "cdm_basic":
+        row.basic_used = max(0, int(row.basic_used or 0)) + 1
+    row.updated_at = datetime.utcnow()
+    db.add(row)
+    db.commit()
+    db.refresh(row)
 
 
 def _photoroom_error_message(response):
@@ -256,39 +347,13 @@ def _catalog_white_square(image_bytes: bytes, output_size=1600, safe_object=1260
     return out.getvalue()
 
 
-@router.get("/photo-ai-status")
-def photo_ai_status(user=Depends(active_user)):
-    key = (os.getenv("PHOTOROOM_API_KEY") or "").strip()
-    return {
-        "version": "v44",
-        "provider": "photoroom_basic",
-        "label": "Photoroom Basic",
-        "configured": bool(key),
-    }
-
-
-@router.post("/remove-background")
-def remove_product_background(
-    file: UploadFile = File(...),
-    user=Depends(active_user),
-):
-    raw = file.file.read()
-
-    if not raw:
-        raise HTTPException(400, "Imagem vazia")
-
-    if len(raw) > 15 * 1024 * 1024:
-        raise HTTPException(413, "A imagem deve ter no máximo 15 MB")
-
+def _call_photoroom(raw: bytes, filename: str, content_type: str) -> bytes:
     api_key = (os.getenv("PHOTOROOM_API_KEY") or "").strip()
     if not api_key:
         raise HTTPException(
             503,
-            "A IA de fotos ainda não está configurada. Defina PHOTOROOM_API_KEY no Render.",
+            "A Foto Premium IA ainda não está configurada no servidor.",
         )
-
-    content_type = (file.content_type or "image/jpeg").split(";")[0].strip()
-    filename = (file.filename or "produto.jpg")[:180]
 
     try:
         with httpx.Client(
@@ -312,9 +377,9 @@ def remove_product_background(
                 },
             )
     except httpx.TimeoutException:
-        raise HTTPException(504, "O Photoroom demorou demais para tratar esta foto.")
+        raise HTTPException(504, "A Foto Premium IA demorou demais. Tente novamente.")
     except httpx.HTTPError:
-        raise HTTPException(502, "Não foi possível conectar ao Photoroom.")
+        raise HTTPException(502, "Não foi possível conectar à Foto Premium IA.")
 
     if response.status_code != 200:
         raise HTTPException(
@@ -323,21 +388,144 @@ def remove_product_background(
         )
 
     if not response.content:
-        raise HTTPException(502, "O Photoroom retornou uma imagem vazia.")
+        raise HTTPException(502, "A Foto Premium IA retornou uma imagem vazia.")
 
     try:
-        result = _catalog_white_square(response.content)
+        return _catalog_white_square(response.content)
     except Exception:
-        result = response.content
+        return response.content
+
+
+def _call_cdm_basic(raw: bytes) -> bytes:
+    worker = Path(__file__).resolve().parents[1] / "image_bg_worker.py"
+    if not worker.exists():
+        raise HTTPException(500, "Processador Fundo Branco CDM não encontrado.")
+
+    with tempfile.TemporaryDirectory(prefix="cdm_basic_") as tmp:
+        tmp_dir = Path(tmp)
+        src = tmp_dir / "entrada.img"
+        dst = tmp_dir / "saida.jpg"
+        src.write_bytes(raw)
+
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(worker), str(src), str(dst)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=35,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(
+                504,
+                "O Fundo Branco CDM demorou demais nesta foto. Tente outra imagem.",
+            )
+
+        if proc.returncode != 0 or not dst.exists():
+            err = proc.stderr.decode("utf-8", errors="replace").strip()
+            if not err:
+                err = "Não foi possível criar o Fundo Branco CDM."
+            raise HTTPException(422, err[-500:])
+
+        result = dst.read_bytes()
+
+    if not result:
+        raise HTTPException(502, "O Fundo Branco CDM retornou uma imagem vazia.")
+    return result
+
+
+def _normalize_photo_mode(mode: str) -> str:
+    value = (mode or "auto").strip().lower()
+    if value in {"premium", "ia", "ai", "photoroom"}:
+        return "premium"
+    if value in {"basic", "basico", "básico", "cdm", "cdm_basic"}:
+        return "basic"
+    return "auto"
+
+
+@router.get("/photo-ai-status")
+def photo_ai_status(
+    db: Session = Depends(get_db),
+    user=Depends(active_user),
+):
+    row = _get_photo_usage(db, user.company_id)
+    return _photo_usage_payload(row)
+
+
+@router.post("/remove-background")
+def remove_product_background(
+    file: UploadFile = File(...),
+    mode: str = Form("auto"),
+    db: Session = Depends(get_db),
+    user=Depends(active_user),
+):
+    raw = file.file.read()
+
+    if not raw:
+        raise HTTPException(400, "Imagem vazia")
+
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(413, "A imagem deve ter no máximo 15 MB")
+
+    row = _get_photo_usage(db, user.company_id)
+    status = _photo_usage_payload(row)
+    remaining = status["premium"]["remaining"]
+    requested = _normalize_photo_mode(mode)
+
+    content_type = (file.content_type or "image/jpeg").split(";")[0].strip()
+    filename = (file.filename or "produto.jpg")[:180]
+
+    provider = None
+    result = None
+    fallback_reason = ""
+
+    if requested == "basic":
+        result = _call_cdm_basic(raw)
+        provider = "cdm_basic"
+
+    elif requested == "premium":
+        if remaining <= 0:
+            raise HTTPException(
+                402,
+                "As 200 Fotos Premium IA deste mês já foram usadas. Selecione Fundo Branco CDM, que é ilimitado.",
+            )
+        result = _call_photoroom(raw, filename, content_type)
+        provider = "photoroom_basic"
+
+    else:
+        if remaining > 0:
+            try:
+                result = _call_photoroom(raw, filename, content_type)
+                provider = "photoroom_basic"
+            except HTTPException as exc:
+                fallback_reason = str(exc.detail or "Foto Premium IA indisponível")[:180]
+                result = _call_cdm_basic(raw)
+                provider = "cdm_basic"
+        else:
+            fallback_reason = "franquia_mensal_esgotada"
+            result = _call_cdm_basic(raw)
+            provider = "cdm_basic"
+
+    _increment_photo_usage(db, row, provider)
+    updated = _photo_usage_payload(row)
 
     return Response(
         content=result,
         media_type="image/jpeg",
         headers={
             "Cache-Control": "no-store",
-            "X-CDM-Photo-AI": "photoroom_basic",
-            "X-CDM-Photo-AI-Version": "v44",
-            "Access-Control-Expose-Headers": "X-CDM-Photo-AI,X-CDM-Photo-AI-Version",
+            "X-CDM-Photo-AI": provider,
+            "X-CDM-Photo-Mode": requested,
+            "X-CDM-Photo-AI-Version": "v45",
+            "X-CDM-Photo-Premium-Limit": str(updated["premium"]["limit"]),
+            "X-CDM-Photo-Premium-Used": str(updated["premium"]["used"]),
+            "X-CDM-Photo-Premium-Remaining": str(updated["premium"]["remaining"]),
+            "X-CDM-Photo-Fallback": fallback_reason,
+            "Access-Control-Expose-Headers": (
+                "X-CDM-Photo-AI,X-CDM-Photo-Mode,X-CDM-Photo-AI-Version,"
+                "X-CDM-Photo-Premium-Limit,X-CDM-Photo-Premium-Used,"
+                "X-CDM-Photo-Premium-Remaining,X-CDM-Photo-Fallback"
+            ),
         },
     )
 
