@@ -1,11 +1,11 @@
 import os
-from fastapi import APIRouter,Depends,HTTPException,Query,Request
+from fastapi import APIRouter,Depends,HTTPException,Query,Request,BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..deps import current_user
 from ..models import Product,MarketplaceListing
-from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification,_active_connection,_ml_token
+from ..services.marketplaces import MARKETPLACES,connection_status,authorization_url,exchange_callback,disconnect,publish_product,publish_all,refresh_listing,FRONTEND_URL,marketplace_diagnostics,record_connection_error,ml_category_suggestions,process_ml_notification_background,ml_connection_check,ml_publication_preflight,_active_connection,_ml_token
 from ..subscriptions import require_active_subscription
 from ..security import decode_oauth_state
 
@@ -27,6 +27,38 @@ def ml_categories(q:str=Query(default=""),limit:int=Query(default=3),db:Session=
     try: return ml_category_suggestions(db,user.company_id,q,limit)
     except RuntimeError as e: raise HTTPException(400,str(e))
 
+
+
+
+@router.get("/mercadolivre/connection-check")
+def ml_connection_health(
+    db:Session=Depends(get_db),
+    user=Depends(current_user),
+):
+    require_active_subscription(user,db)
+    try:
+        return ml_connection_check(db,user.company_id)
+    except Exception as exc:
+        raise HTTPException(400,f"Mercado Livre: {str(exc)}")
+
+
+@router.get("/mercadolivre/products/{product_id}/preflight")
+def ml_product_preflight(
+    product_id:int,
+    db:Session=Depends(get_db),
+    user=Depends(current_user),
+):
+    require_active_subscription(user,db)
+    product=db.query(Product).filter(
+        Product.id==product_id,
+        Product.company_id==user.company_id,
+    ).first()
+    if not product:
+        raise HTTPException(404,"Peça não encontrada")
+    try:
+        return ml_publication_preflight(db,user.company_id,product)
+    except Exception as exc:
+        raise HTTPException(400,f"Mercado Livre: {str(exc)}")
 
 
 @router.get("/mercadolivre/stores")
@@ -73,14 +105,15 @@ def ml_category_attributes(category_id:str,db:Session=Depends(get_db),user=Depen
     except Exception as e: raise HTTPException(400,f"Mercado Livre: {str(e)}")
 
 @router.post("/webhooks/mercadolivre",include_in_schema=False)
-async def mercadolivre_webhook(request:Request,db:Session=Depends(get_db)):
-    try: body=await request.json()
-    except Exception: body={}
-    try: return process_ml_notification(db,body if isinstance(body,dict) else {})
-    except Exception as exc:
-        # Retorna 200 para evitar tempestade de retentativas; o erro fica visível nos logs do Render.
-        print("Mercado Livre webhook warning:",str(exc)[:900])
-        return {"ok":False,"message":str(exc)[:300]}
+async def mercadolivre_webhook(request:Request,background_tasks:BackgroundTasks):
+    try:
+        body=await request.json()
+    except Exception:
+        body={}
+    if not isinstance(body,dict):
+        body={}
+    background_tasks.add_task(process_ml_notification_background,body)
+    return {"ok":True,"queued":True}
 
 @router.get("/{marketplace}/diagnostics")
 def diagnostics(marketplace:str,db:Session=Depends(get_db),user=Depends(current_user)):

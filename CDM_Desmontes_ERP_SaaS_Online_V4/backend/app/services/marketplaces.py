@@ -516,6 +516,175 @@ def _ml_sync_stock_client(client,token,row,product:Product,item_id:str,profile:d
     return {"mode":"seller_warehouse","user_product_id":up}
 
 
+
+def ml_connection_check(db:Session, company_id:int):
+    row=_active_connection(db,company_id,"mercadolivre")
+    token=_ml_token(db,row)
+    headers={"Authorization":f"Bearer {token}"}
+    with httpx.Client(timeout=30) as c:
+        r=c.get("https://api.mercadolibre.com/users/me",headers=headers)
+    if r.status_code>=400:
+        raise RuntimeError(f"Mercado Livre conexão: {r.text[:700]}")
+    profile=r.json()
+    returned_id=str(profile.get("id") or "")
+    expected_id=str(row.external_account_id or "")
+    if expected_id and returned_id and expected_id!=returned_id:
+        raise RuntimeError("Mercado Livre retornou uma conta diferente da conta conectada")
+    tags=profile.get("tags") or []
+    return {
+        "ok":True,
+        "connected":True,
+        "account_id":returned_id or expected_id,
+        "account_name":profile.get("nickname") or row.account_name or "",
+        "site_id":profile.get("site_id") or "MLB",
+        "token_expires_at":row.token_expires_at.isoformat() if row.token_expires_at else None,
+        "user_products":"user_product_seller" in tags,
+        "warehouse_management":"warehouse_management" in tags,
+        "multiwarehouse":"multiwarehouse" in tags,
+        "redirect_uri":_redirect_uri("mercadolivre"),
+        "notifications_callback":f"{_public_base_url()}/api/marketplaces/webhooks/mercadolivre",
+    }
+
+
+def ml_publication_preflight(db:Session, company_id:int, product:Product):
+    row=_active_connection(db,company_id,"mercadolivre")
+    token=_ml_token(db,row)
+    errors=[]
+    warnings=[]
+
+    if not product.ml_category_id:
+        errors.append("Informe a categoria do Mercado Livre")
+    if float(product.price or 0)<=0:
+        errors.append("Informe um preço maior que zero")
+    if int(product.stock or 0)<=0:
+        errors.append("Informe estoque maior que zero")
+    if not (product.name or "").strip():
+        errors.append("Informe o nome/título da peça")
+
+    headers={"Authorization":f"Bearer {token}"}
+    profile={}
+    payload={}
+    strict_required=[]
+    conditional=[]
+    supplied=set()
+
+    with httpx.Client(timeout=30) as c:
+        profile=_ml_user_profile(c,token,row)
+        tags=profile.get("tags") or []
+        use_up="user_product_seller" in tags
+        multiwarehouse="warehouse_management" in tags
+
+        if product.ml_category_id:
+            ar=c.get(
+                f"https://api.mercadolibre.com/categories/{product.ml_category_id}/attributes",
+                headers=headers,
+            )
+            if ar.status_code>=400:
+                errors.append(f"Categoria inválida ou indisponível: {ar.text[:300]}")
+                attrs=[]
+            else:
+                attrs=ar.json() or []
+
+            for attr in attrs:
+                aid=str(attr.get("id") or "")
+                tags_attr=attr.get("tags") or {}
+                if tags_attr.get("required") or tags_attr.get("catalog_required"):
+                    strict_required.append({"id":aid,"name":attr.get("name") or aid})
+                elif tags_attr.get("conditional_required"):
+                    conditional.append({"id":aid,"name":attr.get("name") or aid})
+
+            try:
+                payload=_ml_payload(
+                    c,token,product,
+                    for_update=False,
+                    use_up=use_up,
+                    multiwarehouse=multiwarehouse,
+                )
+                supplied={
+                    str(x.get("id") or "")
+                    for x in (payload.get("attributes") or [])
+                    if x.get("id")
+                }
+            except Exception as exc:
+                errors.append(str(exc))
+
+    missing=[x for x in strict_required if x["id"] and x["id"] not in supplied]
+    if missing:
+        errors.append(
+            "Faltam atributos obrigatórios: "
+            + ", ".join(x["name"] for x in missing[:12])
+        )
+
+    missing_cond=[x for x in conditional if x["id"] and x["id"] not in supplied]
+    if missing_cond:
+        warnings.append(
+            "A categoria possui atributos condicionais que podem ser exigidos: "
+            + ", ".join(x["name"] for x in missing_cond[:12])
+        )
+
+    images=_image_urls(product)
+    if not images:
+        warnings.append("A peça está sem imagem para o anúncio")
+    if not (product.description or "").strip():
+        warnings.append("A peça está sem descrição detalhada")
+
+    return {
+        "ok":True,
+        "ready":len(errors)==0,
+        "errors":errors,
+        "warnings":warnings,
+        "account":{
+            "id":str(row.external_account_id or ""),
+            "name":row.account_name or "",
+            "user_products":"user_product_seller" in (profile.get("tags") or []),
+            "warehouse_management":"warehouse_management" in (profile.get("tags") or []),
+        },
+        "product":{
+            "id":product.id,
+            "sku":product.sku or "",
+            "name":product.name or "",
+            "category_id":product.ml_category_id or "",
+            "price":float(product.price or 0),
+            "stock":int(product.stock or 0),
+            "images":len(images),
+        },
+        "required_attributes":strict_required,
+        "missing_required_attributes":missing,
+        "payload_preview":payload,
+    }
+
+
+def _ml_upsert_description(client,token,item_id,text):
+    plain=str(text or "").strip()
+    if not plain:
+        return {"updated":False}
+    headers={"Authorization":f"Bearer {token}","Content-Type":"application/json"}
+    url=f"https://api.mercadolibre.com/items/{item_id}/description"
+    current=client.get(url,headers={"Authorization":f"Bearer {token}"})
+    payload={"plain_text":plain[:50000]}
+    if current.status_code==200:
+        r=client.put(url,params={"api_version":"2"},json=payload,headers=headers)
+    elif current.status_code==404:
+        r=client.post(url,json=payload,headers=headers)
+    else:
+        raise RuntimeError(f"Mercado Livre descrição: {current.text[:700]}")
+    if r.status_code>=400:
+        raise RuntimeError(f"Mercado Livre descrição: {r.text[:900]}")
+    return {"updated":True}
+
+
+def process_ml_notification_background(body:dict):
+    from ..db import SessionLocal
+    db=SessionLocal()
+    try:
+        process_ml_notification(db,body)
+    except Exception as exc:
+        db.rollback()
+        print("Mercado Livre webhook worker warning:",_safe_error(str(exc)))
+    finally:
+        db.close()
+
+
 def _publish_ml(db,row,product:Product,listing:MarketplaceListing):
     if not product.ml_category_id: raise RuntimeError("PRODUCT: Informe a categoria do Mercado Livre no cadastro da peça")
     if product.price<=0 or product.stock<=0: raise RuntimeError("PRODUCT: Mercado Livre exige preço e estoque maiores que zero")
@@ -546,7 +715,7 @@ def _publish_ml(db,row,product:Product,listing:MarketplaceListing):
             if multiwarehouse and getattr(product,"ml_store_id",""): db.commit()
         if item_id and (product.description or product.compatibility):
             text=(product.description or product.name)+(f"\n\nCompatibilidade:\n{product.compatibility}" if product.compatibility else "")
-            c.post(f"https://api.mercadolibre.com/items/{item_id}/description",json={"plain_text":text[:50000]},headers=headers)
+            _ml_upsert_description(c,token,item_id,text)
     return {"external_id":item_id,"status":"published"}
 
 
@@ -688,48 +857,221 @@ def refresh_listing(db:Session, listing:MarketplaceListing):
     listing.error_message="";db.commit();db.refresh(listing);return listing
 
 
+
 def process_ml_notification(db:Session, body:dict):
-    """Processa pedido do Mercado Livre de forma idempotente e baixa o estoque local."""
     from ..models import MarketplaceOrderEvent, Sale, SaleItem, StockMovement, FinancialEntry
     from ..routers.notifications import add_sale_notification
+
     resource=str((body or {}).get("resource") or "")
     topic=str((body or {}).get("topic") or "")
     user_id=str((body or {}).get("user_id") or "")
+
     if "order" not in topic.lower() and "/orders/" not in resource:
         return {"ok":True,"ignored":True}
+
     order_id=resource.rstrip("/").split("/")[-1]
-    if not order_id: return {"ok":True,"ignored":True}
-    conn=db.query(MarketplaceConnection).filter(MarketplaceConnection.marketplace=="mercadolivre",MarketplaceConnection.external_account_id==user_id,MarketplaceConnection.active==True).first()
-    if not conn: return {"ok":True,"ignored":True,"reason":"account_not_connected"}
-    existing=db.query(MarketplaceOrderEvent).filter(MarketplaceOrderEvent.company_id==conn.company_id,MarketplaceOrderEvent.marketplace=="mercadolivre",MarketplaceOrderEvent.external_order_id==order_id).first()
-    if existing: return {"ok":True,"duplicate":True,"sale_id":existing.sale_id}
+    if not order_id:
+        return {"ok":True,"ignored":True}
+
+    conn=db.query(MarketplaceConnection).filter(
+        MarketplaceConnection.marketplace=="mercadolivre",
+        MarketplaceConnection.external_account_id==user_id,
+        MarketplaceConnection.active==True,
+    ).first()
+    if not conn:
+        return {"ok":True,"ignored":True,"reason":"account_not_connected"}
+
     token=_ml_token(db,conn)
     with httpx.Client(timeout=30) as c:
-        r=c.get(f"https://api.mercadolibre.com/orders/{order_id}",headers={"Authorization":f"Bearer {token}"})
-    if r.status_code>=400: raise RuntimeError(f"Mercado Livre pedido: {r.text[:700]}")
-    order=r.json(); paid=float(order.get("paid_amount") or order.get("total_amount") or 0)
-    sale=Sale(company_id=conn.company_id,total=paid,payment_method="mercadolivre",status=str(order.get("status") or "paid"),source="mercadolivre",external_order_id=order_id)
-    db.add(sale);db.flush();touched=[]
-    for oi in order.get("order_items") or []:
-        item=oi.get("item") or {}; item_id=str(item.get("id") or ""); qty=max(1,int(oi.get("quantity") or 1))
-        listing=db.query(MarketplaceListing).filter(MarketplaceListing.company_id==conn.company_id,MarketplaceListing.marketplace=="mercadolivre",MarketplaceListing.external_id==item_id).first()
-        if not listing: continue
-        p=db.query(Product).filter(Product.id==listing.product_id,Product.company_id==conn.company_id).with_for_update().first()
-        if not p: continue
-        old=p.stock;p.stock=max(0,p.stock-qty);actual=old-p.stock
-        price=float(oi.get("unit_price") or p.price or 0)
-        db.add(SaleItem(company_id=conn.company_id,sale_id=sale.id,product_id=p.id,quantity=qty,unit_price=price))
-        db.add(StockMovement(company_id=conn.company_id,product_id=p.id,kind="marketplace",quantity_delta=-actual,balance_after=p.stock,reference=f"mercadolivre:{order_id}"))
-        touched.append(p)
-    event=MarketplaceOrderEvent(company_id=conn.company_id,marketplace="mercadolivre",external_order_id=order_id,sale_id=sale.id,payload_json=json.dumps(order,ensure_ascii=False)[:20000])
-    db.add(event)
-    if paid>0: db.add(FinancialEntry(company_id=conn.company_id,kind="income",description=f"Mercado Livre pedido {order_id}",amount=paid,status="paid",due_date=datetime.utcnow().strftime("%Y-%m-%d")))
-    nomes=[]
-    for item_row in db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all():
-        prod=db.get(Product,item_row.product_id);nomes.append(f"{item_row.quantity}x {prod.name if prod else 'Peça'}")
-    add_sale_notification(db,conn.company_id,sale.id,"mercadolivre",paid,", ".join(nomes)[:360] or f"Pedido {order_id}")
+        r=c.get(
+            f"https://api.mercadolibre.com/orders/{order_id}",
+            headers={"Authorization":f"Bearer {token}"},
+        )
+    if r.status_code>=400:
+        raise RuntimeError(f"Mercado Livre pedido: {r.text[:700]}")
+
+    order=r.json()
+    status=str(order.get("status") or "unknown").lower()
+    canceled=status in {"cancelled","canceled"}
+    total=float(order.get("total_amount") or 0)
+    paid=float(order.get("paid_amount") or 0)
+
+    sale=db.query(Sale).filter(
+        Sale.company_id==conn.company_id,
+        Sale.source=="mercadolivre",
+        Sale.external_order_id==order_id,
+    ).first()
+
+    created=sale is None
+    touched={}
+
+    if not sale:
+        sale=Sale(
+            company_id=conn.company_id,
+            total=total,
+            payment_method="mercadolivre",
+            status=status,
+            source="mercadolivre",
+            external_order_id=order_id,
+        )
+        db.add(sale)
+        db.flush()
+
+        for oi in order.get("order_items") or []:
+            item=oi.get("item") or {}
+            item_id=str(item.get("id") or "")
+            qty=max(1,int(oi.get("quantity") or 1))
+            listing=db.query(MarketplaceListing).filter(
+                MarketplaceListing.company_id==conn.company_id,
+                MarketplaceListing.marketplace=="mercadolivre",
+                MarketplaceListing.external_id==item_id,
+            ).first()
+            if not listing:
+                continue
+
+            product=db.query(Product).filter(
+                Product.id==listing.product_id,
+                Product.company_id==conn.company_id,
+            ).with_for_update().first()
+            if not product:
+                continue
+
+            price=float(oi.get("unit_price") or product.price or 0)
+            db.add(SaleItem(
+                company_id=conn.company_id,
+                sale_id=sale.id,
+                product_id=product.id,
+                quantity=qty,
+                unit_price=price,
+            ))
+
+            if not canceled:
+                old=int(product.stock or 0)
+                product.stock=max(0,old-qty)
+                actual=old-product.stock
+                if actual:
+                    db.add(StockMovement(
+                        company_id=conn.company_id,
+                        product_id=product.id,
+                        kind="marketplace",
+                        quantity_delta=-actual,
+                        balance_after=product.stock,
+                        reference=f"mercadolivre:{order_id}",
+                    ))
+                    touched[product.id]=product
+    else:
+        sale.total=total
+        sale.status=status
+
+    if canceled:
+        reversal_ref=f"mercadolivre:{order_id}:cancel"
+        already_reversed=db.query(StockMovement).filter(
+            StockMovement.company_id==conn.company_id,
+            StockMovement.reference==reversal_ref,
+        ).first()
+
+        if not already_reversed:
+            items=db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all()
+            for item in items:
+                movements=db.query(StockMovement).filter(
+                    StockMovement.company_id==conn.company_id,
+                    StockMovement.product_id==item.product_id,
+                    StockMovement.reference==f"mercadolivre:{order_id}",
+                    StockMovement.quantity_delta<0,
+                ).all()
+                restore=sum(abs(int(x.quantity_delta or 0)) for x in movements)
+                if restore<=0:
+                    continue
+
+                product=db.query(Product).filter(
+                    Product.id==item.product_id,
+                    Product.company_id==conn.company_id,
+                ).with_for_update().first()
+                if not product:
+                    continue
+
+                product.stock=int(product.stock or 0)+restore
+                db.add(StockMovement(
+                    company_id=conn.company_id,
+                    product_id=product.id,
+                    kind="marketplace",
+                    quantity_delta=restore,
+                    balance_after=product.stock,
+                    reference=reversal_ref,
+                ))
+                touched[product.id]=product
+
+    description=f"Mercado Livre pedido {order_id}"
+    finance=db.query(FinancialEntry).filter(
+        FinancialEntry.company_id==conn.company_id,
+        FinancialEntry.kind=="income",
+        FinancialEntry.description==description,
+    ).first()
+
+    if canceled:
+        if finance:
+            finance.status="canceled"
+    elif paid>0:
+        if not finance:
+            finance=FinancialEntry(
+                company_id=conn.company_id,
+                kind="income",
+                description=description,
+                amount=paid,
+                status="paid",
+                due_date=datetime.utcnow().strftime("%Y-%m-%d"),
+            )
+            db.add(finance)
+        else:
+            finance.amount=paid
+            finance.status="paid"
+
+    event=db.query(MarketplaceOrderEvent).filter(
+        MarketplaceOrderEvent.company_id==conn.company_id,
+        MarketplaceOrderEvent.marketplace=="mercadolivre",
+        MarketplaceOrderEvent.external_order_id==order_id,
+    ).first()
+    if not event:
+        event=MarketplaceOrderEvent(
+            company_id=conn.company_id,
+            marketplace="mercadolivre",
+            external_order_id=order_id,
+            sale_id=sale.id,
+            payload_json="{}",
+        )
+        db.add(event)
+    event.sale_id=sale.id
+    event.payload_json=json.dumps(order,ensure_ascii=False,default=str)[:20000]
+
+    if created:
+        nomes=[]
+        for item_row in db.query(SaleItem).filter(SaleItem.sale_id==sale.id).all():
+            prod=db.get(Product,item_row.product_id)
+            nomes.append(f"{item_row.quantity}x {prod.name if prod else 'Peça'}")
+        add_sale_notification(
+            db,
+            conn.company_id,
+            sale.id,
+            "mercadolivre",
+            total,
+            ", ".join(nomes)[:360] or f"Pedido {order_id}",
+        )
+
     db.commit()
-    for p in touched:
-        try: sync_marketplace_stock_for_product(db,p,conn.company_id)
-        except Exception: pass
-    return {"ok":True,"sale_id":sale.id,"products_updated":len(touched)}
+
+    for product in touched.values():
+        try:
+            sync_marketplace_stock_for_product(db,product,conn.company_id)
+        except Exception:
+            pass
+
+    return {
+        "ok":True,
+        "sale_id":sale.id,
+        "created":created,
+        "status":status,
+        "paid_amount":paid,
+        "total_amount":total,
+        "canceled":canceled,
+        "products_updated":len(touched),
+    }
