@@ -3303,3 +3303,462 @@ table{font-size:12px}
   .videoExactFormGrid,.videoExactPriceRecommendation,.videoExactQuickFlags{grid-template-columns:1fr}.videoExactFormGrid .span2,.videoExactFormGrid .span4{grid-column:1}
   .videoExactSideNav{grid-template-columns:1fr 1fr}
 }
+
+/* CDM V39 — Tipografia padronizada e legível */
+
+/* Escala tipográfica única do sistema */
+:root{
+  --cdm-text-xs:11px;
+  --cdm-text-sm:12px;
+  --cdm-text-md:13px;
+  --cdm-text-base:14px;
+  --cdm-text-lg:16px;
+  --cdm-text-xl:20px;
+  --cdm-text-2xl:24px;
+  --cdm-line:1.45;
+}
+
+html{font-size:16px}
+body{
+  font-size:var(--cdm-text-base)!important;
+  line-height:var(--cdm-line)!important;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea{
+  font-size:var(--cdm-text-md)!important;
+  line-height:1.35!important;
+}
+
+small{
+  font-size:var(--cdm-text-xs)!important;
+  line-height:1.4!important;
+}
+
+/* Navegação, topo e estrutura geral */
+.navMain,
+.subNav button,
+.sidebarFoot span,
+.sidebarFoot small,
+.globalSearch input,
+.profileButton,
+.topbar,
+.topbar button,
+.ownerPreviewFloat{
+  font-size:var(--cdm-text-md)!important;
+}
+
+.brand h1{font-size:var(--cdm-text-base)!important}
+.brand small{font-size:var(--cdm-text-xs)!important}
+
+.pageTitle span,
+.panelTitle small{
+  font-size:var(--cdm-text-xs)!important;
+}
+
+.pageTitle h2{
+  font-size:var(--cdm-text-2xl)!important;
+  line-height:1.18!important;
+}
+
+.pageTitle p,
+.panelTitle p{
+  font-size:var(--cdm-text-sm)!important;
+  line-height:1.5!important;
+}
+
+.panelTitle h2{
+  font-size:var(--cdm-text-xl)!important;
+  line-height:1.2!important;
+}
+
+.field>span,
+.fieldLabel,
+label.field>span{
+  font-size:var(--cdm-text-sm)!important;
+  line-height:1.35!important;
+}
+
+.primary,
+.ghost,
+.excelBtn,
+.filterBtn,
+.publishBtn{
+  font-size:var(--cdm-text-sm)!important;
+}
+
+table{
+  font-size:var(--cdm-text-sm)!important;
+}
+
+table th{
+  font-size:var(--cdm-text-xs)!important;
+}
+
+.metric small,
+.metric em,
+.channel small,
+.productName small,
+.inventoryToolbar label,
+.filterStrip{
+  font-size:var(--cdm-text-xs)!important;
+}
+
+.metric strong,
+.channel b,
+.productName strong{
+  font-size:var(--cdm-text-md)!important;
+}
+
+.statusBadge,
+.pill{
+  font-size:var(--cdm-text-xs)!important;
+}
+
+/* Cadastro de peça V38 — aumenta sem destruir a estrutura do vídeo */
+.videoExactTitle>div:first-child>span{
+  font-size:11px!important;
+}
+
+.videoExactTitle h2{
+  font-size:24px!important;
+  line-height:1.18!important;
+}
+
+.videoExactTitle p{
+  font-size:12px!important;
+  line-height:1.45!important;
+}
+
+.videoExactTitleMeta small{
+  font-size:10px!important;
+}
+
+.videoExactTitleMeta b{
+  font-size:12px!important;
+}
+
+.videoExactSectionHead h3{
+  font-size:16px!important;
+  line-height:1.25!important;
+}
+
+.videoExactSectionHead p{
+  font-size:11px!important;
+  line-height:1.45!important;
+}
+
+.videoExactFlag b{
+  font-size:12px!important;
+}
+
+.videoExactFlag small{
+  font-size:10px!important;
+}
+
+.videoExactInnovation .productAiPhotoHead h4{
+  font-size:14px!important;
+}
+
+.videoExactInnovation .productAiPhotoHead p,
+.videoExactInnovation .aiPrivacyNote{
+  font-size:11px!important;
+  line-height:1.45!important;
+}
+
+.videoExactInnovation .aiNewBadge{
+  font-size:10px!important;
+}
+
+.videoExactInnovation .aiPhotoButton{
+  font-size:12px!important;
+  min-height:38px!important;
+}
+
+.videoExactInnovation .duplicateDetectorHead b{
+  font-size:13px!important;
+}
+
+.videoExactInnovation .duplicateDetectorHead small{
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+.videoExactInnovation .duplicateDetectorHead button{
+  font-size:11px!important;
+  min-height:36px!important;
+}
+
+.videoExactPage .field>span{
+  font-size:12px!important;
+  line-height:1.35!important;
+}
+
+.videoExactPage input,
+.videoExactPage select,
+.videoExactPage textarea{
+  font-size:13px!important;
+  line-height:1.35!important;
+  min-height:42px!important;
+}
+
+.videoExactPage textarea{
+  min-height:86px!important;
+}
+
+.videoExactCollapse summary{
+  font-size:12px!important;
+}
+
+.videoExactCollapse summary span{
+  font-size:11px!important;
+}
+
+.videoExactReadyHead h4{
+  font-size:14px!important;
+}
+
+.videoExactReadyHead p{
+  font-size:11px!important;
+  line-height:1.45!important;
+}
+
+.videoExactReadyHead b{
+  font-size:20px!important;
+}
+
+.videoExactReadyLegend{
+  font-size:11px!important;
+}
+
+.videoExactChannelIdentity b{
+  font-size:13px!important;
+}
+
+.videoExactChannelIdentity span{
+  font-size:10px!important;
+  line-height:1.35!important;
+}
+
+.videoExactChannelPrice small{
+  font-size:10px!important;
+}
+
+.videoExactChannelPrice span{
+  font-size:11px!important;
+}
+
+.videoExactChannelPrice input{
+  font-size:12px!important;
+  min-height:36px!important;
+}
+
+.videoExactManage{
+  font-size:11px!important;
+  min-height:34px!important;
+}
+
+.videoExactPriceRecommendation small{
+  font-size:10px!important;
+}
+
+.videoExactPriceRecommendation b{
+  font-size:15px!important;
+}
+
+.videoExactPriceRecommendation span{
+  font-size:10px!important;
+}
+
+.videoExactMarkup{
+  font-size:11px!important;
+}
+
+.videoExactMarkup button{
+  font-size:11px!important;
+  min-height:32px!important;
+}
+
+.videoExactSideNav button{
+  font-size:12px!important;
+  min-height:42px!important;
+}
+
+.videoExactSideNav button span{
+  font-size:10px!important;
+}
+
+.videoExactSideSummary>small{
+  font-size:10px!important;
+}
+
+.videoExactSideSummary>b{
+  font-size:13px!important;
+}
+
+.videoExactSideSummary>span{
+  font-size:11px!important;
+}
+
+.videoExactSideSummary em{
+  font-size:10px!important;
+}
+
+.videoExactSideSummary strong{
+  font-size:12px!important;
+}
+
+.videoExactSideActions button{
+  font-size:12px!important;
+  min-height:40px!important;
+}
+
+/* Mídia */
+.videoExactMediaBody .mediaVideoBox b,
+.videoExactMediaBody .mediaAddTile b{
+  font-size:13px!important;
+}
+
+.videoExactMediaBody .mediaVideoBox p,
+.videoExactMediaBody .mediaVideoBox small,
+.videoExactMediaBody .mediaAddTile small,
+.videoExactMediaBody .mediaRailHelp,
+.videoExactMediaBody .imageUrlsAdvanced{
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+/* Mercado Livre */
+.marketConfigModalML .modalHead small{
+  font-size:10px!important;
+}
+
+.marketConfigModalML .modalHead h2{
+  font-size:20px!important;
+}
+
+.marketConfigModalML .modalHead p{
+  font-size:12px!important;
+  line-height:1.45!important;
+}
+
+.videoMlAccount small{
+  font-size:10px!important;
+}
+
+.videoMlAccount b{
+  font-size:13px!important;
+}
+
+.videoMlAccount span{
+  font-size:11px!important;
+}
+
+.videoMlTitleField label>span{
+  font-size:12px!important;
+}
+
+.videoMlTitleField label small{
+  font-size:10px!important;
+}
+
+.mlProfessionalBody .formSectionTitle{
+  font-size:12px!important;
+}
+
+.mlProfessionalBody .choiceCard b{
+  font-size:13px!important;
+}
+
+.mlProfessionalBody .choiceCard small{
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+.mlProfessionalBody .fieldHelp,
+.mlAutoSourceBar{
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+.mlManagedHint span{
+  font-size:11px!important;
+}
+
+.mlManagedHint small{
+  font-size:10px!important;
+}
+
+.marketConfigModalML .modalFootInfo b{
+  font-size:12px!important;
+}
+
+.marketConfigModalML .modalFootInfo small{
+  font-size:10px!important;
+}
+
+.marketConfigModalML .modalFoot button{
+  font-size:12px!important;
+  min-height:38px!important;
+}
+
+/* Formulários, cartões e textos menores em outras telas */
+.productSectionHead span{
+  font-size:10px!important;
+}
+
+.productSectionHead h3{
+  font-size:17px!important;
+}
+
+.productSectionHead p{
+  font-size:12px!important;
+}
+
+.productQuickSummary>small{
+  font-size:10px!important;
+}
+
+.productQuickSummary>b{
+  font-size:13px!important;
+}
+
+.productQuickSummary>span,
+.productQuickSummary em{
+  font-size:11px!important;
+}
+
+.productQuickSummary strong{
+  font-size:12px!important;
+}
+
+.productStepNav button{
+  font-size:12px!important;
+}
+
+.productStepNav button span{
+  font-size:10px!important;
+}
+
+.pricingMetric small,
+.pricingMetric span{
+  font-size:11px!important;
+}
+
+.pricingMetric strong{
+  font-size:20px!important;
+}
+
+/* Mobile: mantém legibilidade em telas menores */
+@media(max-width:720px){
+  body{font-size:13px!important}
+  .videoExactTitle h2{font-size:21px!important}
+  .videoExactSectionHead h3{font-size:15px!important}
+  .videoExactPage input,
+  .videoExactPage select,
+  .videoExactPage textarea{font-size:13px!important}
+}
