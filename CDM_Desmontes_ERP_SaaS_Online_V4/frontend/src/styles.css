@@ -2325,3 +2325,67 @@ table{font-size:12px}
     flex:1;
   }
 }
+
+/* CDM V35 — Atributos automáticos Mercado Livre */
+.mlAutoSourceBar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:11px 13px;
+  border:1px solid rgba(34,197,94,.2);
+  border-radius:12px;
+  background:rgba(34,197,94,.055);
+  font-size:9px;
+  color:var(--muted);
+}
+.mlAutoSourceBar b{color:var(--text)}
+.mlAutoSourceBadge{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:4px 9px;
+  border-radius:999px;
+  background:rgba(34,197,94,.13);
+  color:#86efac;
+  font-weight:900;
+  letter-spacing:.03em;
+}
+.mlManagedField{
+  padding:13px;
+  border:1px solid rgba(59,130,246,.16);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(35,48,70,.42),rgba(18,26,40,.48));
+}
+.mlManagedField.readOnly{
+  border-color:rgba(34,197,94,.16);
+}
+.mlManagedField .field{
+  margin:0;
+}
+.mlManagedField select,
+.mlManagedField input{
+  margin-bottom:0;
+}
+.mlManagedField.readOnly input{
+  opacity:.85;
+  cursor:default;
+  background:rgba(15,23,42,.7);
+}
+.mlManagedHint{
+  display:grid;
+  gap:3px;
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px solid rgba(148,163,184,.1);
+}
+.mlManagedHint span{
+  font-size:9px;
+  font-weight:800;
+  color:#86efac;
+}
+.mlManagedHint small{
+  font-size:8px;
+  line-height:1.45;
+  color:var(--muted);
+}

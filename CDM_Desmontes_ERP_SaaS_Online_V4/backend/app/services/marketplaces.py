@@ -648,6 +648,7 @@ def _extra_ml_attributes(product:Product):
         return []
 
     segment=_ml_vehicle_segment(product)
+    managed_ids={"BRAND","MODEL","PART_NUMBER","OEM","ITEM_CONDITION","VEHICLE_TYPE"}
 
     if isinstance(raw,list):
         return [
@@ -655,7 +656,7 @@ def _extra_ml_attributes(product:Product):
             if isinstance(x,dict)
             and x.get("id")
             and not str(x.get("id") or "").startswith("_CDM_")
-            and not (segment and str(x.get("id") or "")=="VEHICLE_TYPE")
+            and str(x.get("id") or "") not in managed_ids
         ]
 
     if not isinstance(raw,dict):
@@ -666,7 +667,7 @@ def _extra_ml_attributes(product:Product):
         aid=str(aid)
         if aid.startswith("_CDM_"):
             continue
-        if segment and aid=="VEHICLE_TYPE":
+        if aid in managed_ids:
             continue
         if value in (None,""):
             continue
