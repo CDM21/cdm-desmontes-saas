@@ -1,10 +1,11 @@
 import os
+import hmac
 import gzip
 import json
 import hashlib
 import uuid
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import inspect, select, func, text
@@ -123,9 +124,11 @@ def offsite_backup_status(db:Session=Depends(get_db),user=Depends(current_user))
     except Exception as exc:
         recent=[]
         error=str(exc)[:1000]
+    external_cron=(os.getenv("BACKUP_CRON_EXTERNAL") or "").strip().lower() in {"1","true","yes","on"}
     return {
         "configured":cfg["configured"],
-        "automatic_enabled":cfg["automatic_enabled"],
+        "automatic_enabled":bool(cfg["automatic_enabled"] or external_cron),
+        "mode":"render-cron" if external_cron else ("internal" if cfg["automatic_enabled"] else "disabled"),
         "interval_hours":cfg["interval_hours"],
         "bucket":cfg["bucket"] if cfg["configured"] else "",
         "prefix":cfg["prefix"],
@@ -150,6 +153,49 @@ def offsite_backup_run(db:Session=Depends(get_db),user=Depends(current_user)):
     })
     db.commit()
     return result
+
+@router.post("/backup/offsite/cron")
+def offsite_backup_cron(
+    x_cdm_backup_token: str = Header(default="", alias="X-CDM-Backup-Token"),
+    db: Session = Depends(get_db),
+):
+    expected=(os.getenv("BACKUP_CRON_TOKEN") or "").strip()
+    supplied=(x_cdm_backup_token or "").strip()
+    if not expected or not supplied or not hmac.compare_digest(supplied, expected):
+        raise HTTPException(401,"Não autorizado")
+
+    try:
+        result=upload_offsite()
+        db.add(AuditLog(
+            company_id=None,
+            user_id=None,
+            action="backup.offsite.cron",
+            entity="database",
+            entity_id="",
+            details_json=json.dumps({
+                "backup_id":result["backup_id"],
+                "sha256":result["sha256"],
+                "bytes":result["bytes"],
+                "key":result["key"],
+            },ensure_ascii=False,default=str)[:8000],
+        ))
+        db.commit()
+        return result
+    except Exception as exc:
+        db.rollback()
+        try:
+            db.add(AuditLog(
+                company_id=None,
+                user_id=None,
+                action="backup.offsite.cron.error",
+                entity="database",
+                entity_id="",
+                details_json=json.dumps({"error":str(exc)[:1000]},ensure_ascii=False),
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+        raise HTTPException(503,f"Falha no backup automático externo: {exc}")
 
 @router.get("/overview")
 def overview(db:Session=Depends(get_db),user=Depends(current_user)):

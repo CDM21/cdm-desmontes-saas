@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 
@@ -58,6 +59,10 @@ def _loop():
 
 def start_backup_scheduler():
     global _started
+    external_cron=(os.getenv("BACKUP_CRON_EXTERNAL") or "").strip().lower() in {"1","true","yes","on"}
+    if external_cron:
+        print("CDM offsite backup: scheduler interno desativado; Render Cron ativo.")
+        return False
     cfg = offsite_config()
     if not cfg["configured"]:
         print("CDM offsite backup: aguardando credenciais S3/R2.")
