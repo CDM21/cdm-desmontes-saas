@@ -272,11 +272,11 @@ def _photo_usage_payload(row: PhotoAiUsage):
         },
         "basic": {
             "provider": "cdm_basic",
-            "label": "Fundo Branco CDM",
+            "label": "Fundo Branco CDM Pro",
             "unlimited": True,
             "used": max(0, int(row.basic_used or 0)),
         },
-        "default_mode": "auto",
+        "default_mode": "basic",
     }
 
 
@@ -412,13 +412,13 @@ def _call_cdm_basic(raw: bytes) -> bytes:
                 [sys.executable, str(worker), str(src), str(dst)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=35,
+                timeout=65,
                 check=False,
             )
         except subprocess.TimeoutExpired:
             raise HTTPException(
                 504,
-                "O Fundo Branco CDM demorou demais nesta foto. Tente outra imagem.",
+                "O Fundo Branco CDM Pro demorou demais nesta foto. Tente outra imagem.",
             )
 
         if proc.returncode != 0 or not dst.exists():
@@ -435,12 +435,12 @@ def _call_cdm_basic(raw: bytes) -> bytes:
 
 
 def _normalize_photo_mode(mode: str) -> str:
-    value = (mode or "auto").strip().lower()
+    value = (mode or "basic").strip().lower()
     if value in {"premium", "ia", "ai", "photoroom"}:
         return "premium"
     if value in {"basic", "basico", "básico", "cdm", "cdm_basic"}:
         return "basic"
-    return "auto"
+    return "basic"
 
 
 @router.get("/photo-ai-status")
@@ -455,7 +455,7 @@ def photo_ai_status(
 @router.post("/remove-background")
 def remove_product_background(
     file: UploadFile = File(...),
-    mode: str = Form("auto"),
+    mode: str = Form("basic"),
     db: Session = Depends(get_db),
     user=Depends(active_user),
 ):

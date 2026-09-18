@@ -1174,7 +1174,7 @@ async function optimizeProductImageUpload(file){
   }
 }
 
-async function prepareProductImage(file,removeBg=true,mode='auto'){
+async function prepareProductImage(file,removeBg=true,mode='basic'){
   if(removeBg){
     const formData=new FormData()
     const uploadFile=await optimizeProductImageUpload(file)
@@ -1184,7 +1184,7 @@ async function prepareProductImage(file,removeBg=true,mode='auto'){
     try{
       const response=await api.post('/products/remove-background',formData,{
         responseType:'arraybuffer',
-        timeout:50000
+        timeout:80000
       })
       const contentType=response.headers?.['content-type']||'image/jpeg'
       window.__cdmLastPhotoEngine=response.headers?.['x-cdm-photo-ai']||''
@@ -1197,8 +1197,8 @@ async function prepareProductImage(file,removeBg=true,mode='auto'){
         reader.readAsDataURL(blob)
       })
     }catch(e){
-      console.error('CDM Photo AI V43 / Photoroom:',e)
-      throw new Error('A IA profissional não conseguiu tratar esta foto')
+      console.error('CDM Fundo Branco Pro V47:',e)
+      throw new Error('O Fundo Branco CDM Pro não conseguiu tratar esta foto')
     }
   }
 
@@ -1305,7 +1305,7 @@ function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
 // CDM PRODUCT IMAGES V2
 function ProductImages({form,setForm,notice}){
  const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
- const [photoMode,setPhotoMode]=useState('auto'),[photoStatus,setPhotoStatus]=useState(null),[lastPhotoEngine,setLastPhotoEngine]=useState('')
+ const [photoMode,setPhotoMode]=useState('basic'),[photoStatus,setPhotoStatus]=useState(null),[lastPhotoEngine,setLastPhotoEngine]=useState('')
  const images=imageList(form.image_urls)
  const effectivePhotoMode=photoMode==='auto'?(photoStatus?.premium?.remaining>0?'premium':'basic'):photoMode
  async function refreshPhotoStatus(){
@@ -1393,7 +1393,7 @@ function ProductImages({form,setForm,notice}){
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,650))
      await refreshPhotoStatus()
-     notice(window.__cdmLastPhotoEngine==='photoroom_basic'?'Foto Premium IA pronta':'Fundo Branco CDM pronto')
+     notice(window.__cdmLastPhotoEngine==='photoroom_basic'?'Foto Premium IA pronta':'Fundo Branco CDM Pro pronto')
    }catch(e){notice('Não foi possível tratar esta imagem')}
    finally{setBusy(false);setRaceDone(false)}
  }
@@ -1439,11 +1439,11 @@ function ProductImages({form,setForm,notice}){
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Tratamento profissional de fotos</b><br/>Você tem uma franquia mensal de <b>{photoStatus?.premium?.limit??200} Fotos Premium IA</b>. Quando ela acabar, o modo Automático continua funcionando com o <b>Fundo Branco CDM ilimitado</b>.</div></div>
+   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Fundo Branco CDM Pro · ilimitado</b><br/>Recorte inteligente local, fundo branco puro e enquadramento mais profissional, sem cobrança por foto.</div></div>
 
    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10,margin:'0 0 14px'}}>
      <button type="button" onClick={()=>setPhotoMode('auto')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='auto'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='auto'?'#eef7ff':'#fff',cursor:'pointer'}}>
-       <b style={{display:'block'}}>Automático · Recomendado</b>
+       <b style={{display:'block'}}>Automático · opcional</b>
        <small>Usa IA enquanto houver saldo e depois muda para o CDM.</small>
      </button>
      <button type="button" onClick={()=>setPhotoMode('premium')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='premium'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='premium'?'#eef7ff':'#fff',cursor:'pointer'}}>
@@ -1451,16 +1451,16 @@ function ProductImages({form,setForm,notice}){
        <small>{photoStatus?`${photoStatus.premium.remaining} restantes de ${photoStatus.premium.limit}`:'Carregando franquia...'}</small>
      </button>
      <button type="button" onClick={()=>setPhotoMode('basic')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='basic'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='basic'?'#eef7ff':'#fff',cursor:'pointer'}}>
-       <b style={{display:'block'}}>⬜ Fundo Branco CDM</b>
-       <small>Ilimitado · não consome Foto Premium IA.</small>
+       <b style={{display:'block'}}>⭐ Fundo Branco CDM Pro · Recomendado</b>
+       <small>Ilimitado · recorte local · fundo branco puro · sem custo por foto.</small>
      </button>
    </div>
 
    <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',margin:'0 0 14px',padding:'9px 11px',border:'1px solid #d7e1e8',borderRadius:8,background:'#f8fbfd'}}>
-     <span><b>Modo selecionado:</b> {photoMode==='premium'?'Foto Premium IA':photoMode==='basic'?'Fundo Branco CDM':'Automático'}</span>
+     <span><b>Modo selecionado:</b> {photoMode==='premium'?'Foto Premium IA':photoMode==='basic'?'Fundo Branco CDM Pro':'Automático'}</span>
      {photoStatus&&<span><b>IA:</b> {photoStatus.premium.used}/{photoStatus.premium.limit} usadas este mês</span>}
      {photoStatus&&<span><b>CDM:</b> ilimitado</span>}
-     {lastPhotoEngine&&<span><b>Última foto:</b> {lastPhotoEngine==='photoroom_basic'?'Premium IA':'Fundo Branco CDM'}</span>}
+     {lastPhotoEngine&&<span><b>Última foto:</b> {window.__cdmLastPhotoEngine==='photoroom_basic'?'Premium IA':'Fundo Branco CDM Pro'}</span>}
    </div>
 
    <div className="mediaStudioGrid">

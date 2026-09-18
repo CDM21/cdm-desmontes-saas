@@ -600,7 +600,7 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-PART_AI_MODEL_DEFAULT = "gemini-2.5-flash-lite"
+PART_AI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
 PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
@@ -969,7 +969,7 @@ REGRAS:
         "warnings": [str(x).strip()[:240] for x in warnings[:6] if str(x).strip()],
         "photos_analyzed": len(image_parts),
         "provider": "gemini",
-        "model": model,
+        "ai_model": model,
         "usage": usage,
     }
 
