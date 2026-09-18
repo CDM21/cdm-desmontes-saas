@@ -1477,7 +1477,6 @@ function ProductImages({form,setForm,notice}){
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
-             <button type="button" className="v40WhiteBtn" disabled={busy} onClick={()=>whiten(i)} title="Refazer foto profissional: fundo branco, peça inteira e centralizada">✎</button>
              {i!==0&&<button type="button" onClick={()=>principal(i)} title="Usar como principal">★</button>}
            </div>
 
@@ -1497,7 +1496,7 @@ function ProductImages({form,setForm,notice}){
 
        <div className="mediaRailHelp">
          <span>Clique na foto para ampliar</span>
-         <span>✎ refaz fundo branco profissional</span><span>★ define a principal</span>
+         <span>★ define a principal</span>
          <span>← → altera a ordem</span>
        </div>
      </section>
