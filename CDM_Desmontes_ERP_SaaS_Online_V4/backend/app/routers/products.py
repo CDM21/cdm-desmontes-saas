@@ -1,16 +1,15 @@
 import base64
 import io
 import os
-import time
 import re
 import unicodedata
 
 import cv2
 import numpy as np
 import httpx
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageEnhance
 from difflib import SequenceMatcher
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -197,377 +196,125 @@ def find_product_duplicates(
 
 
 
-# CDM PHOTO AI V42 — remove.bg + BiRefNet (Replicate)
-REMOVE_BG_API_URL = "https://api.remove.bg/v1.0/removebg"
-REPLICATE_PREDICTIONS_URL = "https://api.replicate.com/v1/predictions"
-REPLICATE_BIREFNET_VERSION = "sprited/birefnet:21f2c4a9159af128ab9b9126401eebe7f8c5310841ed628b74a4c462df00da67"
+# CDM PHOTO AI V43 — Photoroom
+PHOTOROOM_EDIT_URL = "https://image-api.photoroom.com/v2/edit"
 
 
-def _remove_bg_error_message(response):
+def _photoroom_error_message(response):
     status = int(response.status_code or 0)
+
     if status in {401, 403}:
-        return "A chave do remove.bg não foi aceita. Revise REMOVE_BG_API_KEY no Render."
+        return "A chave do Photoroom não foi aceita. Revise PHOTOROOM_API_KEY no Render."
     if status == 402:
-        return "Os créditos do remove.bg acabaram ou não permitem esta resolução."
+        return "O Photoroom recusou o processamento por falta de créditos/plano."
+    if status == 413:
+        return "A foto é grande demais para o Photoroom."
     if status == 429:
-        return "O remove.bg recebeu muitas fotos ao mesmo tempo. Tente novamente em alguns segundos."
+        return "O Photoroom recebeu muitas fotos ao mesmo tempo. Tente novamente em alguns segundos."
     if status >= 500:
-        return "O remove.bg está temporariamente indisponível. Tente novamente."
+        return "O Photoroom está temporariamente indisponível. Tente novamente."
 
     try:
         payload = response.json()
-        errors = payload.get("errors") or []
-        if errors:
-            first = errors[0] or {}
-            title = str(first.get("title") or first.get("code") or "").strip()
-            if title:
-                return f"remove.bg: {title[:240]}"
-    except Exception:
-        pass
-
-    text = (response.text or "").strip().replace("\n", " ")
-    if text:
-        return f"remove.bg: {text[:240]}"
-    return f"remove.bg recusou a imagem (HTTP {status})."
-
-
-def _replicate_error_message(response):
-    status = int(response.status_code or 0)
-    if status in {401, 403}:
-        return "O token do Replicate não foi aceito. Revise REPLICATE_API_TOKEN no Render."
-    if status == 402:
-        return "O Replicate recusou a cobrança desta execução. Revise o billing/créditos."
-    if status == 429:
-        return "O Replicate recebeu muitos pedidos ao mesmo tempo. Tente novamente em alguns segundos."
-    if status >= 500:
-        return "O Replicate está temporariamente indisponível. Tente novamente."
-
-    try:
-        payload = response.json()
-        detail = payload.get("detail")
+        detail = (
+            payload.get("message")
+            or payload.get("detail")
+            or payload.get("error")
+        )
         if detail:
-            return f"Replicate: {str(detail)[:240]}"
-        title = payload.get("title")
-        if title:
-            return f"Replicate: {str(title)[:240]}"
+            return f"Photoroom: {str(detail)[:260]}"
     except Exception:
         pass
 
     text = (response.text or "").strip().replace("\n", " ")
     if text:
-        return f"Replicate: {text[:240]}"
-    return f"Replicate recusou a imagem (HTTP {status})."
-
-
-def _normalize_provider(value: str):
-    raw = (value or "").strip().lower()
-    mapping = {
-        "": "auto",
-        "auto": "auto",
-        "automatico": "auto",
-        "automático": "auto",
-        "remove_bg": "remove_bg",
-        "remove.bg": "remove_bg",
-        "removebg": "remove_bg",
-        "premium": "remove_bg",
-        "birefnet": "birefnet",
-        "economica": "birefnet",
-        "econômica": "birefnet",
-        "replicate": "birefnet",
-    }
-    return mapping.get(raw, "auto")
-
-
-def _prepare_birefnet_input(raw: bytes) -> tuple[bytes, str]:
-    """Mantém ótima qualidade e evita mandar Data URI gigante ao Replicate."""
-    try:
-        img = Image.open(io.BytesIO(raw))
-        img = ImageOps.exif_transpose(img).convert("RGB")
-    except Exception:
-        return raw, "image/jpeg"
-
-    max_side = 2048
-    scale = min(1.0, max_side / max(img.width, img.height))
-    if scale < 1:
-        img = img.resize(
-            (max(1, round(img.width * scale)), max(1, round(img.height * scale))),
-            Image.Resampling.LANCZOS,
-        )
-
-    best = None
-    for quality in (92, 88, 84, 80, 76):
-        out = io.BytesIO()
-        img.save(out, format="JPEG", quality=quality, subsampling=0, optimize=True)
-        best = out.getvalue()
-        if len(best) <= 900 * 1024:
-            break
-
-    return best or raw, "image/jpeg"
-
-
-def _white_catalog_jpeg(image_bytes: bytes, output_size=1600, safe_object=1260) -> bytes:
-    pil = Image.open(io.BytesIO(image_bytes))
-    pil = ImageOps.exif_transpose(pil).convert("RGBA")
-
-    alpha = pil.getchannel("A")
-    bbox = alpha.getbbox()
-    if bbox:
-        pil = pil.crop(bbox)
-
-    w, h = pil.size
-    if w < 2 or h < 2:
-        raise ValueError("A IA retornou uma imagem inválida.")
-
-    fit = min(safe_object / max(w, 1), safe_object / max(h, 1), 1.9)
-    nw = max(1, int(round(w * fit)))
-    nh = max(1, int(round(h * fit)))
-    pil = pil.resize((nw, nh), Image.Resampling.LANCZOS)
-
-    bg = Image.new("RGBA", (output_size, output_size), (255, 255, 255, 255))
-    x = (output_size - nw) // 2
-    y = (output_size - nh) // 2
-    bg.alpha_composite(pil, (x, y))
-
-    out = io.BytesIO()
-    bg.convert("RGB").save(out, format="JPEG", quality=95, subsampling=0)
-    return out.getvalue()
-
-
-def _call_remove_bg(raw: bytes, filename: str, content_type: str) -> bytes:
-    api_key = (os.getenv("REMOVE_BG_API_KEY") or "").strip()
-    if not api_key:
-        raise HTTPException(503, "A chave REMOVE_BG_API_KEY não está configurada no Render.")
-
-    try:
-        with httpx.Client(
-            timeout=httpx.Timeout(40.0, connect=10.0),
-            follow_redirects=True,
-        ) as client:
-            response = client.post(
-                REMOVE_BG_API_URL,
-                headers={"X-Api-Key": api_key, "Accept": "image/jpeg"},
-                files={"image_file": (filename, raw, content_type)},
-                data={
-                    "size": "auto",
-                    "type": "auto",
-                    "type_level": "latest",
-                    "format": "jpg",
-                    "bg_color": "ffffff",
-                    "crop": "true",
-                    "crop_margin": "10%",
-                    "shadow_type": "none",
-                },
-            )
-    except httpx.TimeoutException:
-        raise HTTPException(504, "A IA remove.bg demorou demais. Tente novamente.")
-    except httpx.HTTPError:
-        raise HTTPException(502, "Não foi possível conectar ao remove.bg.")
-
-    if response.status_code != 200:
-        raise HTTPException(
-            response.status_code if 400 <= response.status_code < 500 else 502,
-            _remove_bg_error_message(response),
-        )
-    if not response.content:
-        raise HTTPException(502, "O remove.bg retornou uma imagem vazia.")
-    return response.content
-
-
-def _call_birefnet(raw: bytes, filename: str, content_type: str) -> bytes:
-    token = (os.getenv("REPLICATE_API_TOKEN") or "").strip()
-    if not token:
-        raise HTTPException(503, "O token REPLICATE_API_TOKEN não está configurado no Render.")
-
-    prepared, prepared_type = _prepare_birefnet_input(raw)
-    data_url = "data:%s;base64,%s" % (
-        prepared_type,
-        base64.b64encode(prepared).decode("ascii"),
-    )
-
-    try:
-        with httpx.Client(
-            timeout=httpx.Timeout(70.0, connect=10.0),
-            follow_redirects=True,
-        ) as client:
-            create = client.post(
-                REPLICATE_PREDICTIONS_URL,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                    "Prefer": "wait=45",
-                },
-                json={
-                    "version": REPLICATE_BIREFNET_VERSION,
-                    "input": {
-                        "image": data_url,
-                        "variant": "general-hr",
-                        "resolution": 0,
-                        "output_format": "cutout",
-                        "mask_blur": 0,
-                        "mask_offset": 0,
-                        "refine_fg": True,
-                        "precision": "fp16",
-                    },
-                },
-            )
-    except httpx.TimeoutException:
-        raise HTTPException(504, "A IA BiRefNet demorou demais. Tente novamente.")
-    except httpx.HTTPError:
-        raise HTTPException(502, "Não foi possível conectar ao Replicate / BiRefNet.")
-
-    if create.status_code not in (200, 201):
-        raise HTTPException(
-            create.status_code if 400 <= create.status_code < 500 else 502,
-            _replicate_error_message(create),
-        )
-
-    try:
-        prediction = create.json()
-    except Exception:
-        raise HTTPException(502, "Resposta inválida do Replicate.")
-
-    status = str(prediction.get("status") or "").lower()
-    poll_url = ((prediction.get("urls") or {}).get("get") or "").strip()
-
-    if status not in {"succeeded", "failed", "canceled"} and poll_url:
-        try:
-            with httpx.Client(
-                timeout=httpx.Timeout(35.0, connect=10.0),
-                follow_redirects=True,
-            ) as client:
-                for _ in range(12):
-                    poll = client.get(
-                        poll_url,
-                        headers={"Authorization": f"Bearer {token}"},
-                    )
-                    if poll.status_code != 200:
-                        break
-                    prediction = poll.json()
-                    status = str(prediction.get("status") or "").lower()
-                    if status in {"succeeded", "failed", "canceled"}:
-                        break
-                    time.sleep(1.2)
-        except Exception:
-            pass
-
-    if status != "succeeded":
-        error = str(prediction.get("error") or "").strip()
-        if error:
-            raise HTTPException(502, f"BiRefNet: {error[:240]}")
-        raise HTTPException(502, "O BiRefNet não conseguiu finalizar esta foto.")
-
-    output = prediction.get("output")
-    output_url = str(
-        output[0] if isinstance(output, list) and output else output or ""
-    ).strip()
-    if not output_url:
-        raise HTTPException(502, "O BiRefNet não retornou a imagem tratada.")
-
-    try:
-        with httpx.Client(
-            timeout=httpx.Timeout(40.0, connect=10.0),
-            follow_redirects=True,
-        ) as client:
-            asset = client.get(output_url)
-    except httpx.TimeoutException:
-        raise HTTPException(504, "A imagem final do BiRefNet demorou demais para baixar.")
-    except httpx.HTTPError:
-        raise HTTPException(502, "Não foi possível baixar a imagem final do BiRefNet.")
-
-    if asset.status_code != 200 or not asset.content:
-        raise HTTPException(502, "Não foi possível baixar a imagem tratada do BiRefNet.")
-
-    try:
-        return _white_catalog_jpeg(asset.content)
-    except Exception:
-        raise HTTPException(502, "O BiRefNet retornou uma imagem inválida.")
+        return f"Photoroom: {text[:260]}"
+    return f"Photoroom recusou a imagem (HTTP {status})."
 
 
 @router.get("/photo-ai-status")
 def photo_ai_status(user=Depends(active_user)):
-    remove_bg_key = (os.getenv("REMOVE_BG_API_KEY") or "").strip()
-    replicate_key = (os.getenv("REPLICATE_API_TOKEN") or "").strip()
+    key = (os.getenv("PHOTOROOM_API_KEY") or "").strip()
     return {
-        "version": "v42",
-        "providers": {
-            "remove_bg": {
-                "label": "remove.bg",
-                "configured": bool(remove_bg_key),
-                "mode": "premium",
-            },
-            "birefnet": {
-                "label": "BiRefNet",
-                "configured": bool(replicate_key),
-                "mode": "economy",
-            },
-        },
-        "default_provider": "auto",
-        "auto_strategy": "birefnet_then_remove_bg",
+        "version": "v43",
+        "provider": "photoroom",
+        "label": "Photoroom",
+        "configured": bool(key),
     }
 
 
 @router.post("/remove-background")
 def remove_product_background(
     file: UploadFile = File(...),
-    provider: str = Form("auto"),
     user=Depends(active_user),
 ):
     raw = file.file.read()
+
     if not raw:
         raise HTTPException(400, "Imagem vazia")
+
     if len(raw) > 15 * 1024 * 1024:
         raise HTTPException(413, "A imagem deve ter no máximo 15 MB")
 
+    api_key = (os.getenv("PHOTOROOM_API_KEY") or "").strip()
+    if not api_key:
+        raise HTTPException(
+            503,
+            "A IA de fotos ainda não está configurada. Defina PHOTOROOM_API_KEY no Render."
+        )
+
     content_type = (file.content_type or "image/jpeg").split(";")[0].strip()
     filename = (file.filename or "produto.jpg")[:180]
-    chosen = _normalize_provider(provider)
 
-    if chosen == "remove_bg":
-        providers_to_try = ["remove_bg"]
-    elif chosen == "birefnet":
-        providers_to_try = ["birefnet"]
-    else:
-        providers_to_try = ["birefnet", "remove_bg"]
-
-    errors = []
-    for current in providers_to_try:
-        try:
-            result = (
-                _call_birefnet(raw, filename, content_type)
-                if current == "birefnet"
-                else _call_remove_bg(raw, filename, content_type)
-            )
-
-            return Response(
-                content=result,
-                media_type="image/jpeg",
+    try:
+        with httpx.Client(
+            timeout=httpx.Timeout(55.0, connect=10.0),
+            follow_redirects=True,
+        ) as client:
+            response = client.post(
+                PHOTOROOM_EDIT_URL,
                 headers={
-                    "Cache-Control": "no-store",
-                    "X-CDM-Photo-AI": current,
-                    "X-CDM-Photo-AI-Requested": chosen,
-                    "X-CDM-Photo-AI-Version": "v42",
-                    "Access-Control-Expose-Headers": "X-CDM-Photo-AI,X-CDM-Photo-AI-Requested,X-CDM-Photo-AI-Version",
+                    "x-api-key": api_key,
+                    "Accept": "image/jpeg, application/json",
+                },
+                files={
+                    "imageFile": (filename, raw, content_type),
+                },
+                data={
+                    "removeBackground": "true",
+                    "background.color": "FFFFFF",
+                    "padding": "0.12",
+                    "outputSize": "1600x1600",
+                    "export.format": "jpeg",
                 },
             )
-        except HTTPException as e:
-            detail = e.detail if isinstance(e.detail, str) else str(e.detail)
-            errors.append({
-                "provider": current,
-                "status": e.status_code,
-                "detail": detail,
-            })
+    except httpx.TimeoutException:
+        raise HTTPException(504, "O Photoroom demorou demais para tratar esta foto.")
+    except httpx.HTTPError:
+        raise HTTPException(502, "Não foi possível conectar ao Photoroom.")
 
-    if errors:
-        last = errors[-1]
-        details = " | ".join(
-            f"{x['provider']}: {x['detail']}" for x in errors
-        )
+    if response.status_code != 200:
         raise HTTPException(
-            last["status"] if isinstance(last["status"], int) else 502,
-            f"Não foi possível tratar a foto com nenhuma IA. {details[:500]}",
+            response.status_code if 400 <= response.status_code < 500 else 502,
+            _photoroom_error_message(response),
         )
 
-    raise HTTPException(502, "Não foi possível tratar a foto com nenhuma IA.")
+    result = response.content
+    if not result:
+        raise HTTPException(502, "O Photoroom retornou uma imagem vazia.")
+
+    media_type = (response.headers.get("content-type") or "image/jpeg").split(";")[0]
+
+    return Response(
+        content=result,
+        media_type=media_type,
+        headers={
+            "Cache-Control": "no-store",
+            "X-CDM-Photo-AI": "photoroom",
+            "X-CDM-Photo-AI-Version": "v43",
+            "Access-Control-Expose-Headers": "X-CDM-Photo-AI,X-CDM-Photo-AI-Version",
+        },
+    )
 
 @router.post("")
 def create_product(data:ProductIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","stock"))):

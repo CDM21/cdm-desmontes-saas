@@ -1135,23 +1135,6 @@ const productEmpty={sku:'',name:'',category:'',part_group:'',brand:'',model:'',y
 function imageList(value){const v=value||'';return (v.includes('data:image/')?v.split(/\n/):v.split(/\n|,/)).map(x=>x.trim()).filter(Boolean)}
 function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
 function loadImage(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src})}
-function getPhotoAiProvider(){
-  try{
-    const raw=(localStorage.getItem('cdm_photo_ai_provider')||'auto').trim()
-    return ['auto','remove_bg','birefnet'].includes(raw)?raw:'auto'
-  }catch(e){
-    return 'auto'
-  }
-}
-function savePhotoAiProvider(value){
-  try{localStorage.setItem('cdm_photo_ai_provider',value||'auto')}catch(e){}
-}
-function labelPhotoAiProvider(value){
-  if(value==='birefnet')return 'BiRefNet'
-  if(value==='remove_bg')return 'remove.bg'
-  return 'Automático'
-}
-
 async function optimizeProductImageUpload(file){
   try{
     if(!file||!file.type?.startsWith('image/'))return file
@@ -1191,12 +1174,11 @@ async function optimizeProductImageUpload(file){
   }
 }
 
-async function prepareProductImage(file,removeBg=true,provider='auto'){
+async function prepareProductImage(file,removeBg=true){
   if(removeBg){
     const formData=new FormData()
     const uploadFile=await optimizeProductImageUpload(file)
     formData.append('file',uploadFile,uploadFile.name||'produto.jpg')
-    formData.append('provider',provider||'auto')
 
     try{
       const response=await api.post('/products/remove-background',formData,{
@@ -1204,7 +1186,6 @@ async function prepareProductImage(file,removeBg=true,provider='auto'){
         timeout:50000
       })
       const contentType=response.headers?.['content-type']||'image/jpeg'
-      window.__cdmPhotoAiLastProvider=response.headers?.['x-cdm-photo-ai']||provider||'auto'
       const blob=new Blob([response.data],{type:contentType})
       if(!blob.size)throw new Error('Imagem processada vazia')
       return await new Promise((resolve,reject)=>{
@@ -1214,7 +1195,7 @@ async function prepareProductImage(file,removeBg=true,provider='auto'){
         reader.readAsDataURL(blob)
       })
     }catch(e){
-      console.error('CDM Photo AI V42:',e)
+      console.error('CDM Photo AI V43 / Photoroom:',e)
       throw new Error('A IA profissional não conseguiu tratar esta foto')
     }
   }
@@ -1322,12 +1303,10 @@ function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
 // CDM PRODUCT IMAGES V2
 function ProductImages({form,setForm,notice}){
  const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
- const [photoAiProvider,setPhotoAiProviderState]=useState(()=>getPhotoAiProvider())
- const [lastPhotoAiUsed,setLastPhotoAiUsed]=useState('')
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?`IA ${labelPhotoAiProvider(photoAiProvider)} trabalhando...`:'Finalizando foto profissional...'
+ const progressText=raceDone?'Foto profissional pronta!':elapsed<1?'Preparando a foto...':elapsed<4?'Photoroom removendo o fundo...':'Finalizando fundo branco profissional...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1368,22 +1347,20 @@ function ProductImages({form,setForm,notice}){
      for(const f of Array.from(files).slice(0,remaining)){
        if(!f.type.startsWith('image/'))continue
        try{
-         const processed=await prepareProductImage(f,removeBg,photoAiProvider)
-         arr.push(processed)
-         if(removeBg)setLastPhotoAiUsed(window.__cdmPhotoAiLastProvider||photoAiProvider)
+         arr.push(await prepareProductImage(f,removeBg))
        }catch(e){
          if(removeBg){
-           arr.push(await prepareProductImage(f,false,photoAiProvider))
            fallbackCount++
-         }else{
-           throw e
+           console.error('Photoroom não tratou a foto:',e)
+           continue
          }
+         throw e
        }
      }
      save([...images,...arr])
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,350))
-     notice(fallbackCount?`${arr.length} foto(s) adicionada(s). A IA não tratou ${fallbackCount}; mantive a original para não perder a foto.`:`${arr.length} foto(s) profissional(is) criada(s) pela IA`)
+     notice(fallbackCount?`${arr.length} foto(s) profissional(is) adicionada(s). ${fallbackCount} foto(s) não foram adicionadas porque o Photoroom não conseguiu tratá-las.`:`${arr.length} foto(s) profissional(is) criada(s) pelo Photoroom`)
    }catch(e){
      notice('Não foi possível carregar esta foto')
    }finally{setBusy(false);setRaceDone(false)}
@@ -1397,15 +1374,14 @@ function ProductImages({form,setForm,notice}){
      const value=images[i]
      const blob=await fetch(value).then(r=>r.blob())
      const file=new File([blob],`produto-${i}.jpg`,{type:blob.type||'image/jpeg'})
-     const out=await prepareProductImage(file,true,photoAiProvider)
-     setLastPhotoAiUsed(window.__cdmPhotoAiLastProvider||photoAiProvider)
+     const out=await prepareProductImage(file,true)
      const next=[...images]
      next[i]=out
      save(next)
      if(zoom===value)setZoom(out)
      setRaceDone(true)
      await new Promise(r=>setTimeout(r,650))
-     notice(`Foto profissional pronta pela IA: ${labelPhotoAiProvider(window.__cdmPhotoAiLastProvider||photoAiProvider)}`)
+     notice('Foto profissional pronta pelo Photoroom: fundo branco e peça preservada')
    }catch(e){notice('Não foi possível tratar esta imagem')}
    finally{setBusy(false);setRaceDone(false)}
  }
@@ -1451,18 +1427,9 @@ function ProductImages({form,setForm,notice}){
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V42 · Teste de IA</b><br/>Escolha <b>BiRefNet</b> para testar a opção econômica, <b>remove.bg</b> para comparar com a atual ou <b>Automático</b> para tentar BiRefNet primeiro e usar remove.bg somente se precisar.</div></div>
+   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Foto Profissional V43 · Photoroom</b><br/>O CDM usa o Photoroom para remover o fundo de verdade, colocar fundo branco puro e manter a peça centralizada com margem profissional para os anúncios.</div></div>
 
-   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',margin:'0 0 12px',padding:'9px 11px',border:'1px solid #d7e1e8',borderRadius:8,background:'#f8fbfd'}}>
-     <b style={{fontSize:12}}>IA da foto:</b>
-     <select value={photoAiProvider} onChange={e=>{const next=e.target.value;setPhotoAiProviderState(next);savePhotoAiProvider(next)}} style={{padding:'7px 9px',border:'1px solid #c5d2da',borderRadius:7,background:'#fff'}}>
-       <option value="auto">Automático — BiRefNet primeiro</option>
-       <option value="birefnet">BiRefNet — econômico</option>
-       <option value="remove_bg">remove.bg — premium</option>
-     </select>
-     <span style={{fontSize:12}}>Selecionada: <b>{labelPhotoAiProvider(photoAiProvider)}</b></span>
-     {lastPhotoAiUsed&&<span style={{fontSize:12,padding:'4px 7px',borderRadius:999,background:'#eaf4ff'}}><b>Última foto:</b> {labelPhotoAiProvider(lastPhotoAiUsed)}</span>}
-   </div>\n\n   <div className="mediaStudioGrid">
+   <div className="mediaStudioGrid">
      <section className="mediaPhotoBox">
        <div className="mediaThumbRail">
          {images.map((src,i)=><article className={'mediaThumbCard '+(i===0?'principal':'')} key={`${i}-${src.slice(0,28)}`}>
