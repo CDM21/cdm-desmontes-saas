@@ -1304,17 +1304,12 @@ function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
 
 // CDM PRODUCT IMAGES V2
 function ProductImages({form,setForm,notice}){
- const [removeBg,setRemoveBg]=useState(true),[busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
- const [photoMode,setPhotoMode]=useState('basic'),[photoStatus,setPhotoStatus]=useState(null),[lastPhotoEngine,setLastPhotoEngine]=useState('')
+ const [busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
+ const [pendingPreviews,setPendingPreviews]=useState([])
  const images=imageList(form.image_urls)
- const effectivePhotoMode=photoMode==='auto'?(photoStatus?.premium?.remaining>0?'premium':'basic'):photoMode
- async function refreshPhotoStatus(){
-   try{const r=await api.get('/products/photo-ai-status');setPhotoStatus(r.data||null)}catch(e){}
- }
- useEffect(()=>{refreshPhotoStatus()},[])
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Foto pronta!':elapsed<1?'Preparando a foto...':effectivePhotoMode==='premium'?'Foto Premium IA removendo o fundo...':'Fundo Branco CDM trabalhando...'
+ const progressText=raceDone?'Fotos prontas!':elapsed<1?'Preparando as fotos...':'CDM Pro removendo o fundo e refinando...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -1347,55 +1342,45 @@ function ProductImages({form,setForm,notice}){
    if(!files?.length)return
    const remaining=Math.max(0,8-images.length)
    if(!remaining)return notice('Limite de 8 fotos atingido')
+
+   const selected=Array.from(files).filter(f=>f.type.startsWith('image/')).slice(0,remaining)
+   if(!selected.length)return notice('Selecione uma imagem válida')
+
+   const stamp=Date.now()
+   const previews=selected.map((file,i)=>({id:`${stamp}-${i}`,url:URL.createObjectURL(file),name:file.name||`Foto ${i+1}`}))
+   setPendingPreviews(previews)
    setBusy(true)
    setRaceDone(false)
+
+   const completed=[]
+   let failed=0
    try{
-     const arr=[]
-     let fallbackCount=0
-     for(const f of Array.from(files).slice(0,remaining)){
-       if(!f.type.startsWith('image/'))continue
+     for(let i=0;i<selected.length;i++){
+       const file=selected[i]
+       const preview=previews[i]
        try{
-         arr.push(await prepareProductImage(f,removeBg,photoMode))
-         if(removeBg)setLastPhotoEngine(window.__cdmLastPhotoEngine||'')
+         const out=await prepareProductImage(file,true,'basic')
+         completed.push(out)
+         save([...images,...completed])
        }catch(e){
-         if(removeBg){
-           fallbackCount++
-           console.error('Tratamento de foto não concluído:',e)
-           continue
-         }
-         throw e
+         failed++
+         console.error('CDM Pro não concluiu o tratamento da foto:',e)
+       }finally{
+         setPendingPreviews(current=>current.filter(item=>item.id!==preview.id))
        }
      }
-     save([...images,...arr])
-     if(removeBg)await refreshPhotoStatus()
+
      setRaceDone(true)
-     await new Promise(r=>setTimeout(r,350))
-     notice(fallbackCount?`${arr.length} foto(s) profissional(is) adicionada(s). ${fallbackCount} foto(s) não foram adicionadas porque o tratamento de fundo não foi concluído.`:`${arr.length} foto(s) tratada(s) com sucesso`)
+     await new Promise(r=>setTimeout(r,220))
+     notice(failed?`${completed.length} foto(s) adicionada(s) pelo CDM Pro. ${failed} foto(s) não foram concluídas.`:`${completed.length} foto(s) tratada(s) pelo CDM Pro`)
    }catch(e){
      notice('Não foi possível carregar esta foto')
-   }finally{setBusy(false);setRaceDone(false)}
- }
-
- async function whiten(i){
-   if(busy)return
-   setBusy(true)
-   setRaceDone(false)
-   try{
-     const value=images[i]
-     const blob=await fetch(value).then(r=>r.blob())
-     const file=new File([blob],`produto-${i}.jpg`,{type:blob.type||'image/jpeg'})
-     const out=await prepareProductImage(file,true,photoMode)
-     setLastPhotoEngine(window.__cdmLastPhotoEngine||'')
-     const next=[...images]
-     next[i]=out
-     save(next)
-     if(zoom===value)setZoom(out)
-     setRaceDone(true)
-     await new Promise(r=>setTimeout(r,650))
-     await refreshPhotoStatus()
-     notice(window.__cdmLastPhotoEngine==='photoroom_basic'?'Foto Premium IA pronta':'Fundo Branco CDM Pro pronto')
-   }catch(e){notice('Não foi possível tratar esta imagem')}
-   finally{setBusy(false);setRaceDone(false)}
+   }finally{
+     setPendingPreviews([])
+     window.setTimeout(()=>previews.forEach(item=>URL.revokeObjectURL(item.url)),500)
+     setBusy(false)
+     setRaceDone(false)
+   }
  }
 
  function remove(i){
@@ -1431,36 +1416,23 @@ function ProductImages({form,setForm,notice}){
        <h3>Fotos da peça</h3>
        <p>Organize as imagens que serão usadas no estoque e nos canais de venda.</p>
      </div>
-     <label className="inlineCheck mediaWhiteToggle">
-       <input type="checkbox" checked={removeBg} onChange={e=>setRemoveBg(e.target.checked)}/>
-       <span>Tratar fundo da foto</span>
-     </label>
    </div>
 
    {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
-   <div className="mediaStudioV40Hint"><span>✨</span><div><b>Fundo Branco CDM Pro · ilimitado</b><br/>Recorte inteligente local, fundo branco puro e enquadramento mais profissional, sem cobrança por foto.</div></div>
-
-   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10,margin:'0 0 14px'}}>
-     <button type="button" onClick={()=>setPhotoMode('auto')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='auto'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='auto'?'#eef7ff':'#fff',cursor:'pointer'}}>
-       <b style={{display:'block'}}>Automático · opcional</b>
-       <small>Usa IA enquanto houver saldo e depois muda para o CDM.</small>
-     </button>
-     <button type="button" onClick={()=>setPhotoMode('premium')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='premium'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='premium'?'#eef7ff':'#fff',cursor:'pointer'}}>
-       <b style={{display:'block'}}>✨ Foto Premium IA</b>
-       <small>{photoStatus?`${photoStatus.premium.remaining} restantes de ${photoStatus.premium.limit}`:'Carregando franquia...'}</small>
-     </button>
-     <button type="button" onClick={()=>setPhotoMode('basic')} style={{textAlign:'left',padding:12,borderRadius:10,border:photoMode==='basic'?'2px solid #1577d3':'1px solid #d7e1e8',background:photoMode==='basic'?'#eef7ff':'#fff',cursor:'pointer'}}>
-       <b style={{display:'block'}}>⭐ Fundo Branco CDM Pro · Recomendado</b>
-       <small>Ilimitado · recorte local · fundo branco puro · sem custo por foto.</small>
-     </button>
-   </div>
-
-   <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',margin:'0 0 14px',padding:'9px 11px',border:'1px solid #d7e1e8',borderRadius:8,background:'#f8fbfd'}}>
-     <span><b>Modo selecionado:</b> {photoMode==='premium'?'Foto Premium IA':photoMode==='basic'?'Fundo Branco CDM Pro':'Automático'}</span>
-     {photoStatus&&<span><b>IA:</b> {photoStatus.premium.used}/{photoStatus.premium.limit} usadas este mês</span>}
-     {photoStatus&&<span><b>CDM:</b> ilimitado</span>}
-     {lastPhotoEngine&&<span><b>Última foto:</b> {window.__cdmLastPhotoEngine==='photoroom_basic'?'Premium IA':'Fundo Branco CDM Pro'}</span>}
+   <div className="cdmProOnlyCard">
+     <div className="cdmProOnlyBrand">
+       <span className="cdmProOnlyBadge">CDM</span>
+       <div className="cdmProOnlyCopy">
+         <b>CDM Pro</b>
+         <span>Recorte inteligente local, fundo branco puro e enquadramento profissional, sem cobrança por foto.</span>
+       </div>
+     </div>
+     <div className="cdmProOnlyFeatures">
+       <span>⚡ Prévia imediata</span>
+       <span>✓ Fundo branco automático</span>
+       <span>∞ Ilimitado</span>
+     </div>
    </div>
 
    <div className="mediaStudioGrid">
@@ -1483,6 +1455,13 @@ function ProductImages({form,setForm,notice}){
            <div className="mediaThumbOrder">
              <button type="button" disabled={i===0} onClick={()=>move(i,-1)}>←</button>
              <button type="button" disabled={i===images.length-1} onClick={()=>move(i,1)}>→</button>
+           </div>
+         </article>)}
+
+         {pendingPreviews.map((item,i)=><article className="mediaThumbCard mediaPendingCard" key={item.id}>
+           <div className="mediaThumbImage mediaPendingImage">
+             <img src={item.url} alt={`Prévia ${i+1} em processamento`}/>
+             <span className="mediaPendingOverlay">CDM Pro processando...</span>
            </div>
          </article>)}
 
