@@ -221,9 +221,11 @@ def update_draft(doc_id:int,data:FiscalIn,db:Session=Depends(get_db),user=Depend
 def _nfe_payload(row,company,tax):
     sec=json.loads(row.sections_json or "{}");item=sec.get("items") or {};dest=sec.get("recipient") or {};transport=sec.get("transport") or {};financial=sec.get("financial") or {};tribut=sec.get("taxation") or {}
     qty=float(item.get("quantity") or 1);unit=float(item.get("unit_value") or 0);total=round(qty*unit,2)
-    ncm=str(item.get("ncm") or tribut.get("ncm") or (tax.ncm_default if tax else ""))
-    cfop=str(item.get("cfop") or tribut.get("cfop") or (tax.cfop_default if tax else "5102"))
+    ncm=_digits(item.get("ncm") or tribut.get("ncm") or (tax.ncm_default if tax else ""))
+    cfop=_digits(item.get("cfop") or tribut.get("cfop") or (tax.cfop_default if tax else "5102"))
     if not item.get("description") or total<=0 or not ncm:raise HTTPException(400,"Complete descrição, valor e NCM do item antes de emitir")
+    if len(ncm)!=8:raise HTTPException(400,"O NCM do item deve ter exatamente 8 números")
+    if len(cfop)!=4:raise HTTPException(400,"O CFOP deve ter exatamente 4 números")
     cpfcnpj=_digits(dest.get("cpf_cnpj"))
     payload={
       "natureza_operacao":row.operation_nature or "Venda de mercadoria","data_emissao":datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),

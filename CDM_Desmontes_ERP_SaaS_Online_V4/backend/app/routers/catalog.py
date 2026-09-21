@@ -183,13 +183,25 @@ def update_location(location_id:int,data:LocationIn,db:Session=Depends(get_db),u
 @router.get("/tax")
 def tax(db:Session=Depends(get_db),user=Depends(active_user)):
     row=db.query(TaxConfig).filter(TaxConfig.company_id==user.company_id).first()
-    if not row: row=TaxConfig(company_id=user.company_id);db.add(row);db.commit();db.refresh(row)
+    if not row:
+        row=TaxConfig(company_id=user.company_id);db.add(row);db.commit();db.refresh(row)
+    # Limpa valores legados impossíveis no NCM (ex.: autofill de e-mail do navegador).
+    raw_ncm=str(row.ncm_default or "").strip()
+    digits="".join(ch for ch in raw_ncm if ch.isdigit())
+    if raw_ncm and (len(digits)!=8 or digits!=raw_ncm):
+        row.ncm_default="";db.commit();db.refresh(row)
     return row
 @router.put("/tax")
 def update_tax(data:TaxIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):
     row=db.query(TaxConfig).filter(TaxConfig.company_id==user.company_id).first()
     if not row: row=TaxConfig(company_id=user.company_id);db.add(row)
-    for k,v in data.model_dump().items(): setattr(row,k,v)
+    payload=data.model_dump()
+    raw_ncm=str(payload.get("ncm_default") or "").strip()
+    ncm="".join(ch for ch in raw_ncm if ch.isdigit())
+    if raw_ncm and len(ncm)!=8:
+        raise HTTPException(400,"O NCM padrão deve ter 8 números ou ficar em branco")
+    payload["ncm_default"]=ncm
+    for k,v in payload.items(): setattr(row,k,v)
     db.commit();db.refresh(row);return row
 @router.get("/users")
 def users(db:Session=Depends(get_db),user=Depends(require_roles("owner","admin"))):

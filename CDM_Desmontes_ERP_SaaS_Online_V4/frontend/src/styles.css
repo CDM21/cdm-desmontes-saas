@@ -4128,3 +4128,43 @@ table th{
   .fiscalTitleActions{width:100%;justify-content:flex-start}
 }
 /* END CDM V14.2 */
+
+/* CDM V14.3 - CONECTAR E PRONTO */
+.ownerPreviewFloat{
+  width:44px!important;height:44px!important;min-height:44px!important;
+  max-width:44px!important;padding:0!important;border-radius:50%!important;
+  right:14px!important;bottom:14px!important;
+}
+.ownerPreviewFloatText{display:none!important}
+.ownerPreviewFloatIcon{width:28px!important;height:28px!important;font-size:16px}
+
+.fiscalSetupV143{display:grid;gap:14px;padding:18px;margin-top:0}
+.fiscalSetupTop{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:2px 2px 13px;border-bottom:1px solid var(--line)}
+.fiscalSetupTop>div:first-child>span{font-size:10px;letter-spacing:.1em;font-weight:900;color:#6f8fe8}
+.fiscalSetupTop h2{margin:4px 0 5px;font-size:22px}.fiscalSetupTop p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.fiscalSetupV143 .fiscalSetupProgress{padding-top:0}
+
+.integrationRefresh{background:#ffffff10!important;color:#fff!important;border-color:#ffffff2d!important}
+.integrationCompactSummary{display:flex;align-items:center;gap:10px;margin:-4px 0 14px;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12px;color:var(--muted)}
+.integrationCompactSummary b{color:var(--text)}.integrationCompactSummary i{width:4px;height:4px;border-radius:50%;background:var(--line)}.integrationCompactSummary .hasIssue{color:#d49327}
+.integrationSimpleGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.integrationSimpleCard{display:grid!important;gap:10px;padding:18px!important;min-height:250px;align-content:start}
+.integrationSimpleCard.connected{border-color:#20a15d45}.integrationSimpleCard.warning,.integrationSimpleCard.error{border-color:#d59a2855}.integrationSimpleCard.setup{opacity:.88}
+.integrationSimpleTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.integrationSimpleCard h3{font-size:18px;margin:2px 0 0}.integrationSimpleCard>p{font-size:12px!important;line-height:1.5!important;min-height:54px!important;margin:0!important;color:var(--muted)}
+.integrationAccount{display:grid;gap:3px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--soft)}.integrationAccount b{font-size:12px}.integrationAccount span{font-size:10px;color:var(--muted)}
+.integrationPrimaryAction{margin-top:auto}.integrationPrimaryAction button{width:100%;min-height:42px;font-size:12px}
+.integrationHelpSimple{display:flex;align-items:center;gap:12px;padding:13px 15px}.integrationHelpSimple b{white-space:nowrap}.integrationHelpSimple span{font-size:12px;color:var(--muted);line-height:1.45}
+
+.billingV143{display:grid;gap:18px;padding:20px}
+.billingPlanIntro{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.billingPlanIntro small{font-size:10px;color:#6f8fe8;font-weight:900;letter-spacing:.08em}.billingPlanIntro h2{font-size:30px;margin:4px 0 5px}.billingPlanIntro h2 span{font-size:13px;color:var(--muted);font-weight:600}.billingPlanIntro p{margin:0;color:var(--muted);font-size:12px}
+.billingFounder,.billingFee{padding:9px 12px;border-radius:999px;background:#2878ff12;border:1px solid #2878ff38;font-size:11px;white-space:nowrap}.billingFee.paid,.billingFounder{background:#20a15d12;border-color:#20a15d45;color:#20a15d}
+.billingFlow{display:grid;grid-template-columns:1fr 40px 1fr 40px 1fr;align-items:center;gap:8px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.billingFlow article{display:flex;align-items:center;gap:10px;opacity:.58}.billingFlow article.current,.billingFlow article.done{opacity:1}.billingFlow article>b{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--panel);border:1px solid var(--line);font-size:11px}.billingFlow article.done>b{background:#20a15d;color:#fff;border-color:#20a15d}.billingFlow article.current>b{background:#2878ff;color:#fff;border-color:#2878ff}.billingFlow article strong,.billingFlow article span{display:block}.billingFlow article strong{font-size:12px}.billingFlow article span{font-size:10px;color:var(--muted);margin-top:2px}.billingFlow>i{height:2px;background:var(--line)}
+.billingPlatformNotice{display:grid;gap:4px;padding:12px 14px;border:1px solid #d59a2845;border-radius:10px;background:#d59a2810}.billingPlatformNotice b{font-size:12px}.billingPlatformNotice span{font-size:11px;color:var(--muted)}
+.billingCheckoutBox{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px;border:1px solid var(--line);border-radius:12px}.billingCheckoutBox>div{display:grid;gap:3px}.billingCheckoutBox small{font-size:9px;color:#6f8fe8;font-weight:900}.billingCheckoutBox b{font-size:15px}.billingCheckoutBox span{font-size:11px;color:var(--muted)}.billingCheckoutBox button{min-width:240px;min-height:44px;font-size:12px}
+.billingSafe{display:flex;align-items:center;gap:8px}.billingSafe>span{margin-right:auto;font-size:11px;color:var(--muted)}
+
+@media(max-width:950px){.integrationSimpleGrid{grid-template-columns:1fr}.billingFlow{grid-template-columns:1fr}.billingFlow>i{width:2px;height:18px;margin-left:14px}.billingCheckoutBox{align-items:stretch;flex-direction:column}.billingCheckoutBox button{width:100%;min-width:0}}
+@media(max-width:720px){.fiscalSetupTop,.billingPlanIntro{flex-direction:column}.integrationCompactSummary{align-items:flex-start;flex-wrap:wrap}.integrationHelpSimple{align-items:flex-start;flex-direction:column}.billingSafe{align-items:stretch;flex-direction:column}.billingSafe>span{margin-right:0}.billingSafe button{width:100%}}
+/* END CDM V14.3 */

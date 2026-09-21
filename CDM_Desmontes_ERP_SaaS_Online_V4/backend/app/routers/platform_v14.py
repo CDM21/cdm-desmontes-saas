@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..admin import audit, platform_admin_emails, require_platform_admin
@@ -67,7 +67,7 @@ _ensure_v14_tables()
 def v14_ping():
     return {
         "ok": True,
-        "version": "14.2",
+        "version": "14.3",
         "founder_limit": FOUNDER_LIMIT,
         "monthly_price": _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE),
         "implementation_fee": _money_env("CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE),
@@ -87,21 +87,51 @@ def _platform_admin_company_ids(db: Session):
 
 
 def _sync_founders(db: Session):
-    # Regra determinística: os 10 primeiros clientes reais são fundadores.
-    # A empresa usada pelo administrador da plataforma é excluída.
+    """Persiste as 10 primeiras vagas para não mudar quem é fundador no futuro."""
     admin_company_ids = _platform_admin_company_ids(db)
-    companies = db.query(Company).order_by(
-        Company.created_at.asc(), Company.id.asc()
-    ).all()
-    eligible = [c for c in companies if c.id not in admin_company_ids][:FOUNDER_LIMIT]
-    rows = []
-    for slot, company in enumerate(eligible, start=1):
-        rows.append({
-            "company_id": int(company.id),
-            "slot": slot,
-            "assigned_at": getattr(company, "created_at", None),
-        })
-    return rows
+
+    # Remove eventual empresa administrativa que tenha sido incluída por versão antiga.
+    if admin_company_ids:
+        db.execute(
+            text("DELETE FROM founder_program WHERE company_id IN :ids").bindparams(
+                bindparam("ids", expanding=True)
+            ),
+            {"ids": list(admin_company_ids)},
+        )
+        db.commit()
+
+    existing = db.execute(
+        text("SELECT company_id, slot, assigned_at FROM founder_program ORDER BY slot ASC")
+    ).mappings().all()
+    used_companies = {int(r["company_id"]) for r in existing}
+    used_slots = {int(r["slot"]) for r in existing}
+
+    if len(existing) < FOUNDER_LIMIT:
+        companies = db.query(Company).order_by(Company.created_at.asc(), Company.id.asc()).all()
+        candidates = [
+            c for c in companies
+            if c.id not in admin_company_ids and c.id not in used_companies
+        ]
+        free_slots = [n for n in range(1, FOUNDER_LIMIT + 1) if n not in used_slots]
+        for slot, company in zip(free_slots, candidates):
+            db.execute(
+                text(
+                    "INSERT INTO founder_program (company_id, slot, assigned_at) "
+                    "VALUES (:company_id,:slot,:assigned_at)"
+                ),
+                {
+                    "company_id": int(company.id),
+                    "slot": int(slot),
+                    "assigned_at": getattr(company, "created_at", None) or datetime.utcnow(),
+                },
+            )
+        db.commit()
+
+    rows = db.execute(
+        text("SELECT company_id, slot, assigned_at FROM founder_program ORDER BY slot ASC")
+    ).mappings().all()
+    return [dict(r) for r in rows[:FOUNDER_LIMIT]]
+
 
 def _founder_for_company(db: Session, company_id: int):
     for row in _sync_founders(db):
@@ -338,6 +368,49 @@ def admin_founders(db: Session = Depends(get_db), user=Depends(current_user)):
             "CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE
         ),
         "founders": founders,
+    }
+
+
+@router.get("/admin/billing-overview")
+def admin_billing_overview(db: Session = Depends(get_db), user=Depends(current_user)):
+    require_platform_admin(user)
+    _sync_founders(db)
+    companies = {int(c.id): c for c in db.query(Company).all()}
+    rows = db.execute(
+        text(
+            "SELECT company_id, amount, status, provider, external_payment_id, paid_at "
+            "FROM setup_fee_ledger ORDER BY company_id ASC"
+        )
+    ).mappings().all()
+    items = []
+    paid_total = 0.0
+    counts = {"paid": 0, "pending": 0, "waived": 0}
+    for raw in rows:
+        row = dict(raw)
+        status = str(row.get("status") or "pending")
+        counts[status] = counts.get(status, 0) + 1
+        if status == "paid":
+            paid_total += float(row.get("amount") or 0)
+        company = companies.get(int(row["company_id"]))
+        items.append({
+            **row,
+            "company_name": company.trade_name if company else f"Empresa #{row['company_id']}",
+        })
+    active_subscriptions = db.query(Subscription).filter(Subscription.status == "active").count()
+    return {
+        "implementation": {
+            "paid": counts.get("paid", 0),
+            "pending": counts.get("pending", 0),
+            "waived": counts.get("waived", 0),
+            "received_total": round(paid_total, 2),
+            "standard_fee": _money_env("CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE),
+        },
+        "subscriptions": {
+            "active": active_subscriptions,
+            "monthly_price": _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE),
+            "projected_mrr": round(active_subscriptions * _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE), 2),
+        },
+        "items": items,
     }
 
 

@@ -7,6 +7,7 @@ import './styles.css'
 const API=import.meta.env.VITE_API_URL || ((location.hostname==='localhost'||location.hostname==='127.0.0.1')?'http://localhost:8000/api':'/api')
 const api=axios.create({baseURL:API})
 const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+const cleanNcm=v=>String(v||'').replace(/\D/g,'').slice(0,8)
 const FALLBACK_VEHICLE_BRANDS=['Agrale','Alfa Romeo','Audi','BMW','BYD','CAOA Chery','Chery','Chevrolet','Chrysler','Citroën','Dodge','Fiat','Ford','Geely','GWM','Honda','Hyundai','Iveco','JAC','Jaguar','Jeep','Kia','Land Rover','Lexus','Mercedes-Benz','Mini','Mitsubishi','Nissan','Peugeot','Porsche','RAM','Renault','Subaru','Suzuki','Toyota','Volkswagen','Volvo']
 const fmtDate=v=>v?new Date(v).toLocaleDateString('pt-BR'):'—'
 const statusPt=v=>({trial:'Teste',active:'Ativa',pending:'Pendente',past_due:'Atrasada',canceled:'Cancelada',inactive:'Inativa',paid:'Pago',published:'Publicado',processing:'Processando',queued:'Na fila',draft:'Rascunho',authorized:'Autorizada',approved:'Aprovada',rejected:'Rejeitada',cancelled:'Cancelada',disconnected:'Desconectado',connected:'Conectado',needs_connection:'Conectar conta',needs_product_data:'Completar produto',sold_out:'Sem estoque',sync_error:'Erro de sincronização',error:'Erro',paused:'Pausado',closed:'Encerrado',open:'Aberto',normal:'Normal',received:'Recebido',available:'Disponível',sold:'Vendido',completed:'Concluído',finished:'Finalizado',blocked:'Bloqueado',cancelled_by_user:'Cancelada pelo usuário',rascunho:'Rascunho',autorizada:'Autorizada',rejeitada:'Rejeitada',processando:'Processando'}[String(v||'').toLowerCase()]||v||'—')
@@ -227,7 +228,7 @@ function App(){
  }
  useEffect(()=>{if(logged)load()},[logged,ownerPreview])
  useEffect(()=>{if(session&&!canAccessTab(session?.user?.role,tab,session?.is_platform_admin))setTab('dashboard')},[tab,session])
- useEffect(()=>{const q=new URLSearchParams(location.search);const integration=q.get('integration');const status=q.get('status');if(integration){setTab('marketplaces');setTimeout(()=>notice(status==='connected'?`${marketName(integration)} conectado com sucesso`:`Não foi possível conectar ${marketName(integration)}`),300);history.replaceState({},'',location.pathname)}},[])
+ useEffect(()=>{const q=new URLSearchParams(location.search);const integration=q.get('integration');const status=q.get('status');const billingReturn=q.get('billing');if(integration){setTab('marketplaces');setTimeout(()=>notice(status==='connected'?`${marketName(integration)} conectado com sucesso`:`Não foi possível conectar ${marketName(integration)}`),300);history.replaceState({},'',location.pathname);return}if(billingReturn==='return'){setTab('billing');setTimeout(async()=>{await load();notice(q.get('stage')==='implementation'?'Pagamento recebido. Confira a implantação e continue para a mensalidade.':'Pagamento retornou do Mercado Pago. Atualizando sua assinatura...')},350);history.replaceState({},'',location.pathname)}},[])
  function notice(t){setToast(t);setTimeout(()=>setToast(''),3800)}
  const publicParams=new URLSearchParams(location.search)
  const publicStore=publicParams.get('loja'),warrantyToken=publicParams.get('garantia')
@@ -290,9 +291,11 @@ function OwnerPortal({session,onPreview}){
  const [lastUpdate,setLastUpdate]=useState(null)
  const [readiness,setReadiness]=useState(null)
  const [founders,setFounders]=useState(null)
- const [v14Errors,setV14Errors]=useState({founders:'',readiness:''})
+ const [billingOverview,setBillingOverview]=useState(null)
+ const [v14Errors,setV14Errors]=useState({founders:'',readiness:'',billing:''})
  const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
  const founderMap=new Map((founders?.founders||[]).map(x=>[Number(x.company_id),Number(x.slot)]))
+ const setupFeeMap=new Map((billingOverview?.items||[]).map(x=>[Number(x.company_id),x]))
  const statusMeta={active:['Ativa','success'],trial:['Teste','info'],past_due:['Atrasada','danger'],blocked:['Bloqueada','dark'],canceled:['Cancelada','muted'],inactive:['Inativa','muted']}
  const pop=t=>{setToast(t);setTimeout(()=>setToast(''),3200)}
 
@@ -301,19 +304,24 @@ function OwnerPortal({session,onPreview}){
    try{
      const r=await api.get('/admin/dashboard-v2')
      setData(r.data||{})
-     const [readinessR,foundersR]=await Promise.all([
+     const [readinessR,foundersR,billingR]=await Promise.all([
        api.get('/v14/admin/platform-readiness')
          .then(x=>({ok:true,data:x.data}))
          .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`})),
        api.get('/v14/admin/founders')
          .then(x=>({ok:true,data:x.data}))
-         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`}))
+         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`})),
+       api.get('/v14/admin/billing-overview')
+         .then(x=>({ok:true,data:x.data}))
+         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na cobrança V14'}`}))
      ])
      setReadiness(readinessR.ok?readinessR.data:null)
      setFounders(foundersR.ok?foundersR.data:null)
+     setBillingOverview(billingR.ok?billingR.data:null)
      setV14Errors({
        readiness:readinessR.ok?'':readinessR.error,
-       founders:foundersR.ok?'':foundersR.error
+       founders:foundersR.ok?'':foundersR.error,
+       billing:billingR.ok?'':billingR.error
      })
      setLastUpdate(new Date())
    }catch(e){pop(erroPt(e.response?.data?.detail)||'Erro ao carregar o Portal do Dono')}
@@ -425,7 +433,7 @@ function OwnerPortal({session,onPreview}){
        <section className="ownerTableCard">
          <div className="ownerCompanyRow head"><span>Empresa</span><span>Status</span><span>Vencimento</span><span>Uso</span><span>Ações</span></div>
          {shown.map(c=><div className="ownerCompanyRow" key={c.id}>
-           <div className="ownerCompanyIdentity"><b>{c.trade_name}</b><span>{c.email||c.cnpj||'Sem contato'}</span><small>Empresa #{c.id} · criada {c.created_at?new Date(c.created_at).toLocaleDateString('pt-BR'):'—'}{founderMap.has(Number(c.id))?` · Fundador #${founderMap.get(Number(c.id))}`:''}</small></div>
+           <div className="ownerCompanyIdentity"><b>{c.trade_name}</b><span>{c.email||c.cnpj||'Sem contato'}</span><small>Empresa #{c.id} · criada {c.created_at?new Date(c.created_at).toLocaleDateString('pt-BR'):'—'}{founderMap.has(Number(c.id))?` · Fundador #${founderMap.get(Number(c.id))}`:setupFeeMap.get(Number(c.id))?` · Implantação ${setupFeeMap.get(Number(c.id)).status==='paid'?'paga':'pendente'}`:''}</small></div>
            <div>{badge(c)}</div>
            <div className="ownerExpiry"><b>{expiry(c)}</b><small>{c.provider||c.subscription_status||'manual'}</small></div>
            <div className="ownerUsage"><span><b>{c.users}</b> usuários</span><span><b>{c.products}</b> peças</span><span><b>{c.sales}</b> vendas</span></div>
@@ -441,11 +449,11 @@ function OwnerPortal({session,onPreview}){
          <article className="main"><span>MRR PREVISTO</span><b>{money(mrr)}</b><small>{s.active||0} assinaturas ativas</small></article>
          <article><span>ARR PREVISTO</span><b>{money(arr)}</b><small>MRR × 12 meses</small></article>
          <article><span>MENSALIDADE</span><b>{money(s.monthly_price||350)}</b><small>Plano profissional</small></article>
-         <article><span>BASE EM TESTE</span><b>{s.trial||0}</b><small>Potenciais novos assinantes</small></article>
+         <article><span>IMPLANTAÇÕES RECEBIDAS</span><b>{money(billingOverview?.implementation?.received_total||0)}</b><small>{billingOverview?.implementation?.paid||0} pagas · {billingOverview?.implementation?.pending||0} pendentes</small></article>
        </div>
        <section className="ownerCard ownerRevenueExplain">
-         <div><span>RECEITA RECEBIDA NO MÊS</span><h3>Aguardando conciliação de pagamentos</h3><p>O sistema já controla assinatura, vencimento e status. Para mostrar exatamente quanto dinheiro caiu no mês, cada cobrança aprovada precisa ser registrada pelo Mercado Pago. Até essa etapa ficar concluída, o painel usa MRR previsto e não apresenta projeção como dinheiro recebido.</p></div>
-         <div className="ownerRevenueSteps"><span className="done">✓ Assinaturas</span><span className="done">✓ Vencimentos</span><span className="done">✓ Bloqueio manual</span><span>○ Conciliação financeira Mercado Pago</span></div>
+         <div><span>COBRANÇA AUTOMÁTICA</span><h3>Implantação + mensalidade separadas com segurança</h3><p>A implantação é conciliada como pagamento único aprovado no Mercado Pago. A mensalidade permanece recorrente. O MRR continua sendo projeção até a conciliação individual das cobranças mensais.</p></div>
+         <div className="ownerRevenueSteps"><span className="done">✓ Regra dos 10 fundadores</span><span className="done">✓ Implantação única</span><span className="done">✓ Assinatura mensal</span><span className="done">✓ Webhook + reconciliação</span></div>
        </section>
      </>}
 
@@ -453,7 +461,7 @@ function OwnerPortal({session,onPreview}){
      {section==='revenue'&&<section className="ownerCard v14FounderCard">
        <div className="ownerCardHead">
          <div><span>PROGRAMA FUNDADORES</span><h3>Regra dos 10 primeiros clientes</h3></div>
-         <span className="pill neutral">{founders?`${founders.assigned||0}/${founders.limit||10} vagas usadas`:'V14.1'}</span>
+         <span className="pill neutral">{founders?`${founders.assigned||0}/${founders.limit||10} vagas usadas`:'V14.3'}</span>
        </div>
        <div className="v14FounderStats">
          <div><small>FUNDADORES</small><b>{founders?.assigned??'-'}</b></div>
@@ -524,7 +532,7 @@ function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClos
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V14.2 Cliente Independente</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V14.3 Conectar e Pronto</small></div>
    </aside>
  </>
 }
@@ -648,8 +656,31 @@ function CompanyInfo({session,reload,notice}){
  <div className="subscriptionBox"><div><small>ASSINATURA</small><b>Plano {session?.subscription?.plan||'mensal'}</b><span>Situação: {statusPt(session?.subscription?.status)} · vencimento {fmtDate(session?.subscription?.expires_at)}</span></div><span className={['active','trial'].includes(session?.subscription?.status)?'pill success':'pill warn'}>{statusPt(session?.subscription?.status)}</span></div><button className="primary" onClick={save}>Salvar informações</button></section>
 }
 
-function BillingPage({billing,session,refresh,notice}){const price=Number(billing?.monthly_price||350);async function checkout(){try{const r=await api.post('/billing/checkout');if(!r.data.checkout_url)return notice('O Mercado Pago não retornou o endereço de pagamento');location.href=r.data.checkout_url}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível abrir a assinatura')}}async function sync(){try{await api.post('/billing/sync');await refresh();notice('Situação da assinatura atualizada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível sincronizar')}}async function cancel(){if(!confirm('Cancelar a renovação desta assinatura?'))return;try{await api.post('/billing/cancel');await refresh();notice('Assinatura cancelada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível cancelar')}}const active=['active','trial'].includes(session?.subscription?.status);return <><div className="pageTitle"><div><span>PLANO CDM</span><h2>Assinatura mensal</h2><p>Venda o acesso ao seu ERP por assinatura recorrente.</p></div><span className={active?'statusBadge':'statusBadge bad'}>{statusPt(session?.subscription?.status)}</span></div><div className="billingHero panel"><div><small>PLANO PROFISSIONAL</small><h2>{money(price)} <span>/ mês</span></h2><p>Uma empresa por assinatura, com usuários, estoque, veículos, vendas e integrações separados.</p><Checklist items={['7 dias de teste para novos cadastros','Cadastro de sucatas e peças','Mercado Livre, Shopee e OLX por empresa','Estoque, vendas e financeiro','Assistente CDM automático por empresa','Inteligência de preço, radar e desmonte','Renovação mensal via Mercado Pago']}/></div><div className="billingAction"><span className={billing?.checkout_provider_configured?'pill success':'pill warn'}>{billing?.checkout_provider_configured?'Mercado Pago configurado':'Pagamento recorrente ainda não configurado'}</span><button className="primary bigBtn" disabled={!billing?.checkout_provider_configured} onClick={checkout}>Assinar por {money(price)} / mês →</button>{session?.subscription?.external_subscription_id&&<><button className="ghost full" onClick={sync}>Atualizar situação da assinatura</button><button className="ghost full dangerOutline" onClick={cancel}>Cancelar assinatura</button></>}<small>O cliente paga diretamente na página de pagamento do Mercado Pago. O CDM nunca recebe a senha da conta bancária do cliente.</small></div></div></>}
-
+function BillingPage({billing,session,refresh,notice}){
+ const price=Number(billing?.monthly_price||350),quote=billing?.quote||{},sub=billing?.subscription||session?.subscription||{}
+ const founder=!!billing?.founder,fee=Number(billing?.implementation_fee||quote.implementation_fee||0),feeDue=Number(billing?.implementation_fee_due_now||quote.implementation_fee_due_now||0)
+ const feeStatus=billing?.implementation_fee_status||quote.implementation_fee_status||'pending',stage=billing?.activation_stage||(feeDue>0?'implementation':'subscription'),active=!!billing?.active
+ async function checkout(){try{const r=await api.post('/billing/checkout');if(r.data?.active){notice('Seu plano já está ativo');await refresh();return}if(!r.data?.checkout_url)return notice('O Mercado Pago não retornou o endereço de pagamento');location.href=r.data.checkout_url}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível abrir o pagamento')}}
+ async function sync(){try{await api.post('/billing/sync');await refresh();notice('Pagamentos atualizados')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível atualizar agora')}}
+ async function cancel(){if(!confirm('Cancelar a renovação desta assinatura?'))return;try{await api.post('/billing/cancel');await refresh();notice('Assinatura cancelada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível cancelar')}}
+ const primaryLabel=active?'Plano ativo':stage==='implementation'?`Pagar implantação de ${money(feeDue)}`:`Ativar plano por ${money(price)} / mês`
+ return <>
+  <div className="pageTitle billingTitle"><div><span>PLANO CDM</span><h2>Ative seu acesso</h2><p>O CDM mostra somente o próximo passo. Pagamentos são processados pelo Mercado Pago.</p></div><span className={active?'statusBadge':'statusBadge bad'}>{active?'Ativo':'Configuração'}</span></div>
+  <section className="panel billingV143">
+   <div className="billingPlanIntro"><div><small>PLANO PROFISSIONAL</small><h2>{money(price)} <span>/ mês</span></h2><p>Estoque, veículos, vendas, financeiro, NF-e e integrações em uma conta por empresa.</p></div>{founder?<span className="billingFounder">★ Cliente fundador{billing?.founder_slot?` #${billing.founder_slot}`:''} · implantação grátis</span>:<span className={feeStatus==='paid'?'billingFee paid':'billingFee'}>{feeStatus==='paid'?'✓ Implantação paga':`Implantação única: ${money(fee)}`}</span>}</div>
+   <div className="billingFlow">
+    <article className={(founder||feeStatus==='paid'||feeDue===0)?'done':stage==='implementation'?'current':''}><b>{founder||feeStatus==='paid'||feeDue===0?'✓':'1'}</b><div><strong>Implantação</strong><span>{founder?'Grátis para os 10 primeiros clientes':feeStatus==='paid'?'Pagamento confirmado':`${money(fee)} uma única vez`}</span></div></article>
+    <i/>
+    <article className={active?'done':stage==='subscription'?'current':''}><b>{active?'✓':'2'}</b><div><strong>Mensalidade</strong><span>{active?'Assinatura ativa':`${money(price)} por mês`}</span></div></article>
+    <i/>
+    <article className={active?'done':''}><b>{active?'✓':'3'}</b><div><strong>Pronto</strong><span>{active?'Acesso liberado':'Liberação automática após confirmação'}</span></div></article>
+   </div>
+   {!billing?.checkout_provider_configured&&<div className="billingPlatformNotice"><b>Pagamento online em preparação</b><span>Você não precisa configurar nada. Assim que o Mercado Pago da plataforma estiver habilitado, este botão será liberado automaticamente.</span></div>}
+   <div className="billingCheckoutBox"><div><small>PRÓXIMO PASSO</small><b>{active?'Nenhuma ação necessária':stage==='implementation'?'Pagar a implantação':'Ativar a assinatura mensal'}</b><span>{active?'Seu plano está funcionando normalmente.':stage==='implementation'?`Depois da confirmação, você segue para a mensalidade de ${money(price)}.`:'A renovação será mensal pelo Mercado Pago.'}</span></div><button className="primary" disabled={!billing?.checkout_provider_configured||active} onClick={checkout}>{primaryLabel} →</button></div>
+   <div className="billingSafe"><span>🔒 O pagamento acontece no ambiente seguro do Mercado Pago.</span><button className="ghost" onClick={sync}>Atualizar pagamentos</button>{sub?.external_subscription_id&&<button className="ghost dangerOutline" onClick={cancel}>Cancelar renovação</button>}</div>
+  </section>
+ </>
+}
 // CDM QR CODE V2
 function QRCodeModule({products=[],locations=[]}){
  const [mode,setMode]=useState('product'),[selectedId,setSelectedId]=useState(''),[search,setSearch]=useState('')
@@ -2244,7 +2275,7 @@ function SuppliersModule({rows,refresh,notice}){
  </>
 }
 
-function TaxConfig({data,refresh,notice}){const empty={state:'RJ',tax_profile:'Simples Nacional',operation_nature:'Venda de mercadoria',regime:'Simples Nacional',crt:'1',cfop_default:'5102',ncm_default:'',csosn_default:'102',icms_cst:'',icms_rate:0,pis_cst:'49',pis_rate:0,cofins_cst:'49',cofins_rate:0,ipi_cst:'53',ipi_rate:0,ibs_cbs_notes:'',notes:''},[form,setForm]=useState({...empty,...(data||{})}),[tab,setTab]=useState('initial'),[open,setOpen]=useState(false);useEffect(()=>data&&setForm({...empty,...data}),[data]);async function save(){try{await api.put('/catalog/tax',form);await refresh();setOpen(false);notice('Configuração tributária salva')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar configuração')}}const tabs=[['initial','Configuração Inicial'],['icms','ICMS'],['pis','PIS'],['cofins','COFINS'],['ipi','IPI'],['ibscbs','IBS / CBS']];return <><div className="pageTitle"><div><span>FISCAL</span><h2>Configuração Tributária</h2><p>Padrões fiscais usados nas operações da empresa.</p></div><button className="primary" onClick={()=>setOpen(true)}>＋ Cadastrar nova configuração tributária</button></div><section className="panel taxSummary"><div><small>UF</small><b>{form.state||'—'}</b></div><div><small>Perfil tributário</small><b>{form.tax_profile||form.regime}</b></div><div><small>Natureza da operação</small><b>{form.operation_nature||'—'}</b></div><div><small>CFOP padrão</small><b>{form.cfop_default||'—'}</b></div></section>{open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal xl"><div className="modalHead"><div><small>TRIBUTAÇÃO</small><h2>Cadastrar nova Configuração Tributária</h2><p>Configure cada grupo de impostos usando as abas.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div><div className="taxTabs">{tabs.map(([k,l])=><button className={tab===k?'active':''} key={k} onClick={()=>setTab(k)}>{l}</button>)}</div><div className="modalBody">{tab==='initial'&&<div className="formGrid three"><Field label="UF *"><input value={form.state} onChange={e=>setForm({...form,state:e.target.value.toUpperCase()})}/></Field><Field label="Perfil Tributário *"><select value={form.tax_profile} onChange={e=>setForm({...form,tax_profile:e.target.value,regime:e.target.value})}><option>Simples Nacional</option><option>Lucro Presumido</option><option>Lucro Real</option></select></Field><Field label="Natureza da Operação *"><input value={form.operation_nature} onChange={e=>setForm({...form,operation_nature:e.target.value})}/></Field><Field label="CRT"><input value={form.crt} onChange={e=>setForm({...form,crt:e.target.value})}/></Field><Field label="CFOP padrão"><input value={form.cfop_default} onChange={e=>setForm({...form,cfop_default:e.target.value})}/></Field><Field label="NCM padrão"><input value={form.ncm_default} onChange={e=>setForm({...form,ncm_default:e.target.value})}/></Field><Field label="CSOSN padrão"><input value={form.csosn_default} onChange={e=>setForm({...form,csosn_default:e.target.value})}/></Field></div>}{tab==='icms'&&<div className="formGrid two"><Field label="CST / CSOSN ICMS"><input value={form.icms_cst} onChange={e=>setForm({...form,icms_cst:e.target.value})}/></Field><Field label="Alíquota ICMS (%)"><input type="number" step="0.01" value={form.icms_rate} onChange={e=>setForm({...form,icms_rate:+e.target.value})}/></Field></div>}{tab==='pis'&&<div className="formGrid two"><Field label="CST PIS"><input value={form.pis_cst} onChange={e=>setForm({...form,pis_cst:e.target.value})}/></Field><Field label="Alíquota PIS (%)"><input type="number" step="0.01" value={form.pis_rate} onChange={e=>setForm({...form,pis_rate:+e.target.value})}/></Field></div>}{tab==='cofins'&&<div className="formGrid two"><Field label="CST COFINS"><input value={form.cofins_cst} onChange={e=>setForm({...form,cofins_cst:e.target.value})}/></Field><Field label="Alíquota COFINS (%)"><input type="number" step="0.01" value={form.cofins_rate} onChange={e=>setForm({...form,cofins_rate:+e.target.value})}/></Field></div>}{tab==='ipi'&&<div className="formGrid two"><Field label="CST IPI"><input value={form.ipi_cst} onChange={e=>setForm({...form,ipi_cst:e.target.value})}/></Field><Field label="Alíquota IPI (%)"><input type="number" step="0.01" value={form.ipi_rate} onChange={e=>setForm({...form,ipi_rate:+e.target.value})}/></Field></div>}{tab==='ibscbs'&&<Field label="IBS / CBS" wide><textarea placeholder="Regras e observações para IBS/CBS" value={form.ibs_cbs_notes} onChange={e=>setForm({...form,ibs_cbs_notes:e.target.value})}/></Field>}</div><div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar configuração</button></div></div></div>}</>}
+function TaxConfig({data,refresh,notice}){const empty={state:'RJ',tax_profile:'Simples Nacional',operation_nature:'Venda de mercadoria',regime:'Simples Nacional',crt:'1',cfop_default:'5102',ncm_default:'',csosn_default:'102',icms_cst:'',icms_rate:0,pis_cst:'49',pis_rate:0,cofins_cst:'49',cofins_rate:0,ipi_cst:'53',ipi_rate:0,ibs_cbs_notes:'',notes:''},[form,setForm]=useState({...empty,...(data||{})}),[tab,setTab]=useState('initial'),[open,setOpen]=useState(false);useEffect(()=>data&&setForm({...empty,...data}),[data]);async function save(){try{await api.put('/catalog/tax',form);await refresh();setOpen(false);notice('Configuração tributária salva')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar configuração')}}const tabs=[['initial','Configuração Inicial'],['icms','ICMS'],['pis','PIS'],['cofins','COFINS'],['ipi','IPI'],['ibscbs','IBS / CBS']];return <><div className="pageTitle"><div><span>FISCAL</span><h2>Configuração Tributária</h2><p>Padrões fiscais usados nas operações da empresa.</p></div><button className="primary" onClick={()=>setOpen(true)}>＋ Cadastrar nova configuração tributária</button></div><section className="panel taxSummary"><div><small>UF</small><b>{form.state||'—'}</b></div><div><small>Perfil tributário</small><b>{form.tax_profile||form.regime}</b></div><div><small>Natureza da operação</small><b>{form.operation_nature||'—'}</b></div><div><small>CFOP padrão</small><b>{form.cfop_default||'—'}</b></div></section>{open&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setOpen(false)}><div className="v8Modal xl"><div className="modalHead"><div><small>TRIBUTAÇÃO</small><h2>Cadastrar nova Configuração Tributária</h2><p>Configure cada grupo de impostos usando as abas.</p></div><button className="iconClose" onClick={()=>setOpen(false)}>×</button></div><div className="taxTabs">{tabs.map(([k,l])=><button className={tab===k?'active':''} key={k} onClick={()=>setTab(k)}>{l}</button>)}</div><div className="modalBody">{tab==='initial'&&<div className="formGrid three"><Field label="UF *"><input value={form.state} onChange={e=>setForm({...form,state:e.target.value.toUpperCase()})}/></Field><Field label="Perfil Tributário *"><select value={form.tax_profile} onChange={e=>setForm({...form,tax_profile:e.target.value,regime:e.target.value})}><option>Simples Nacional</option><option>Lucro Presumido</option><option>Lucro Real</option></select></Field><Field label="Natureza da Operação *"><input value={form.operation_nature} onChange={e=>setForm({...form,operation_nature:e.target.value})}/></Field><Field label="CRT"><input value={form.crt} onChange={e=>setForm({...form,crt:e.target.value})}/></Field><Field label="CFOP padrão"><input value={form.cfop_default} onChange={e=>setForm({...form,cfop_default:e.target.value})}/></Field><Field label="NCM padrão"><input inputMode="numeric" autoComplete="off" maxLength="8" value={cleanNcm(form.ncm_default)} onChange={e=>setForm({...form,ncm_default:cleanNcm(e.target.value)})} placeholder="8 números"/></Field><Field label="CSOSN padrão"><input value={form.csosn_default} onChange={e=>setForm({...form,csosn_default:e.target.value})}/></Field></div>}{tab==='icms'&&<div className="formGrid two"><Field label="CST / CSOSN ICMS"><input value={form.icms_cst} onChange={e=>setForm({...form,icms_cst:e.target.value})}/></Field><Field label="Alíquota ICMS (%)"><input type="number" step="0.01" value={form.icms_rate} onChange={e=>setForm({...form,icms_rate:+e.target.value})}/></Field></div>}{tab==='pis'&&<div className="formGrid two"><Field label="CST PIS"><input value={form.pis_cst} onChange={e=>setForm({...form,pis_cst:e.target.value})}/></Field><Field label="Alíquota PIS (%)"><input type="number" step="0.01" value={form.pis_rate} onChange={e=>setForm({...form,pis_rate:+e.target.value})}/></Field></div>}{tab==='cofins'&&<div className="formGrid two"><Field label="CST COFINS"><input value={form.cofins_cst} onChange={e=>setForm({...form,cofins_cst:e.target.value})}/></Field><Field label="Alíquota COFINS (%)"><input type="number" step="0.01" value={form.cofins_rate} onChange={e=>setForm({...form,cofins_rate:+e.target.value})}/></Field></div>}{tab==='ipi'&&<div className="formGrid two"><Field label="CST IPI"><input value={form.ipi_cst} onChange={e=>setForm({...form,ipi_cst:e.target.value})}/></Field><Field label="Alíquota IPI (%)"><input type="number" step="0.01" value={form.ipi_rate} onChange={e=>setForm({...form,ipi_rate:+e.target.value})}/></Field></div>}{tab==='ibscbs'&&<Field label="IBS / CBS" wide><textarea placeholder="Regras e observações para IBS/CBS" value={form.ibs_cbs_notes} onChange={e=>setForm({...form,ibs_cbs_notes:e.target.value})}/></Field>}</div><div className="modalFoot"><button className="ghost" onClick={()=>setOpen(false)}>Cancelar</button><button className="primary" onClick={save}>Salvar configuração</button></div></div></div>}</>}
 
 
 function LabelsModule({tab,products,company}){
@@ -2587,165 +2618,27 @@ function ShippingPanel({sales,refresh,notice}){
 function Marketplaces({data,listings,products,refresh,notice,focus,subscription}){
  const filtered=focus&&['mercadolivre','shopee','olx'].includes(focus)?data.filter(m=>m.id===focus):data
  const [diagData,setDiagData]=useState(null),[diagBusy,setDiagBusy]=useState('')
- const connectedCount=filtered.filter(m=>m.connected).length
- const readyCount=filtered.filter(m=>m.app_ready&&!m.connected).length
- const setupCount=filtered.filter(m=>!m.app_ready).length
- const issueCount=filtered.reduce((a,m)=>a+Number(m.issues||0),0)
-
- const stateOf=m=>{
-   if(m.connected&&m.last_error)return {key:'warning',label:'Conectado com alerta',text:'A conta está conectada, mas existe um erro recente para revisar.'}
-   if(m.connected)return {key:'connected',label:'Conectado',text:'Conta autorizada e pronta para operar neste canal.'}
-   if(!m.app_ready)return {key:'setup',label:'Disponível em breve',text:'Este canal ainda está sendo liberado para conexão automática. Você não precisa configurar chaves técnicas.'}
-   if(m.last_error)return {key:'error',label:'Erro de conexão',text:'A aplicação está configurada, mas a última tentativa apresentou erro.'}
-   return {key:'ready',label:'Pronto para conectar',text:'A aplicação está configurada. Falta apenas autorizar a conta da empresa.'}
- }
-
- async function connect(m){
-   try{
-     const r=await api.get(`/marketplaces/${m}/authorize`)
-     location.href=r.data.url
-   }catch(e){
-     notice(erroPt(e.response?.data?.detail)||'Não foi possível iniciar a conexão')
-   }
- }
-
- async function remove(m){
-   if(!confirm(`Desconectar ${marketName(m)} desta empresa?`))return
-   try{
-     await api.delete(`/marketplaces/${m}/connection`)
-     await refresh()
-     notice(`${marketName(m)} desconectado`)
-   }catch(e){
-     notice('Erro ao desconectar')
-   }
- }
-
- async function pub(id){
-   try{
-     await api.post(`/marketplaces/products/${id}/publish-all`)
-     await refresh()
-     notice('Publicação processada')
-   }catch(e){
-     notice(erroPt(e.response?.data?.detail)||'Erro ao publicar')
-   }
- }
-
- async function diag(m){
-   setDiagBusy(m)
-   try{
-     const r=await api.get(`/marketplaces/${m}/diagnostics`)
-     setDiagData({...r.data,id:m})
-   }catch(e){
-     notice('Não foi possível executar o diagnóstico')
-   }finally{
-     setDiagBusy('')
-   }
- }
-
- async function reloadStatus(){
-   try{
-     await refresh()
-     notice('Status das integrações atualizado')
-   }catch(e){
-     notice('Não foi possível atualizar agora')
-   }
- }
-
+ const connectedCount=filtered.filter(m=>m.connected).length,issueCount=filtered.reduce((a,m)=>a+Number(m.issues||0),0)
+ const stateOf=m=>m.connected&&m.last_error?{key:'warning',label:'Conectado com alerta',text:'Sua conta está conectada, mas há uma pendência recente.'}:m.connected?{key:'connected',label:'Conectado',text:m.account_name?`Conta ${m.account_name} conectada.`:'Sua conta está conectada e pronta para usar.'}:!m.app_ready?{key:'setup',label:'Em preparação',text:'O CDM está finalizando a liberação deste canal. Você não precisa informar nenhuma chave.'}:m.last_error?{key:'error',label:'Reconectar',text:'A última autorização não foi concluída. Tente conectar novamente.'}:{key:'ready',label:'Conectar conta',text:'Clique em conectar, faça login no marketplace e autorize o CDM.'}
+ async function connect(m){try{const r=await api.get(`/marketplaces/${m}/authorize`);location.href=r.data.url}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível iniciar a conexão')}}
+ async function remove(m){if(!confirm(`Desconectar ${marketName(m)} desta empresa?`))return;try{await api.delete(`/marketplaces/${m}/connection`);setDiagData(null);await refresh();notice(`${marketName(m)} desconectado`)}catch(e){notice('Erro ao desconectar')}}
+ async function pub(id){try{await api.post(`/marketplaces/products/${id}/publish-all`);await refresh();notice('Publicação processada')}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao publicar')}}
+ async function diag(m){setDiagBusy(m);try{const r=await api.get(`/marketplaces/${m}/diagnostics`);setDiagData({...r.data,id:m})}catch(e){notice('Não foi possível verificar a conta agora')}finally{setDiagBusy('')}}
+ async function reloadStatus(){try{await refresh();notice('Contas atualizadas')}catch(e){notice('Não foi possível atualizar agora')}}
  return <>
-   <div className="pageTitle marketplaceTitle integrationCenterTitle">
-     <div>
-       <span>CENTRAL DE INTEGRAÇÕES</span>
-       <h2>{focus&&['mercadolivre','shopee','olx'].includes(focus)?marketName(focus):'Status dos canais de venda'}</h2>
-       <p>Veja rapidamente o que está conectado, o que já pode ser autorizado e o que ainda precisa de configuração.</p>
-     </div>
-     <div className="integrationTitleActions">
-       <span className={['active','trial'].includes(subscription?.status)?'statusBadge':'statusBadge bad'}>Plano: {statusPt(subscription?.status)}</span>
-       <button className="ghost" onClick={reloadStatus}>↻ Atualizar status</button>
-     </div>
-   </div>
-
-   <div className="integrationSummary">
-     <div><small>Canais exibidos</small><strong>{filtered.length}</strong><span>nesta tela</span></div>
-     <div className={connectedCount?'ok':''}><small>Conectados</small><strong>{connectedCount}</strong><span>contas autorizadas</span></div>
-     <div className={readyCount?'ready':''}><small>Prontos para conectar</small><strong>{readyCount}</strong><span>falta autorização</span></div>
-     <div className={setupCount?'warn':''}><small>Em liberação</small><strong>{setupCount}</strong><span>canais ainda indisponíveis</span></div>
-     <div className={issueCount?'bad':''}><small>Pendências de anúncios</small><strong>{issueCount}</strong><span>itens para revisar</span></div>
-   </div>
-
-   <div className="marketGrid integrationMarketGrid">
-     {filtered.map(m=>{
-       const state=stateOf(m)
-       return <div className={'marketCard integrationMarketCard '+state.key} key={m.id}>
-         <div className="integrationCardTop">
-           <MarketLogo id={m.id} large/>
-           <span className={'channelState '+state.key}><i/>{state.label}</span>
-         </div>
-         <div className="marketBody">
-           <h3>{marketName(m.id)}</h3>
-           <p>{marketDesc(m.id)}</p>
-           <div className="integrationStateText">{state.text}</div>
-
-           <div className="marketStats integrationStats">
-             <span><b>{m.published||0}</b><small>publicados</small></span>
-             <span><b>{m.processing||0}</b><small>processando</small></span>
-             <span className={Number(m.issues||0)>0?'hasIssue':''}><b>{m.issues||0}</b><small>pendências</small></span>
-           </div>
-
-           <div className="integrationChecklist">
-             <div className={m.app_ready?'done':'todo'}><i/>{m.app_ready?'Conexão automática disponível':'Aguardando liberação do canal'}</div>
-             <div className={m.connected?'done':'todo'}><i/>{m.connected?`Conta autorizada${m.account_name?`: ${m.account_name}`:''}`:'Autorizar conta da empresa'}</div>
-             <div className={Number(m.issues||0)===0?'done':'attention'}><i/>{Number(m.issues||0)===0?'Sem pendências de anúncios':`${m.issues} pendência(s) de anúncio`}</div>
-           </div>
-
-           {m.last_error&&<div className="marketError integrationError"><b>Último erro registrado</b><span>{erroPt(m.last_error)}</span></div>}
-
-           <div className="integrationCardActions">
-             {m.connected
-               ? <button className="ghost" onClick={()=>remove(m.id)}>Desconectar</button>
-               : <button className="primary" disabled={!m.app_ready} onClick={()=>connect(m.id)}>Conectar {marketName(m.id)}</button>}
-             <button className="ghost" disabled={diagBusy===m.id} onClick={()=>diag(m.id)}>{diagBusy===m.id?'Verificando...':'Ver situação'}</button>
-           </div>
-         </div>
-       </div>
-     })}
-   </div>
-
-   <section className="panel info integrationHelp">
-     <div>
-       <h3>O que fazer em cada situação</h3>
-       <p><b>Conectado:</b> pronto para usar. <b>Pronto para conectar:</b> clique em conectar e autorize sua conta. <b>Disponível em breve:</b> o canal ainda aguarda liberação da própria plataforma. <b>Com alerta:</b> abra “Ver situação” para saber o que precisa corrigir.</p>
-     </div>
-     <p className="muted">Você nunca precisa copiar chaves técnicas para usar os canais. Quando a plataforma permite, o CDM faz a autorização pela própria conta do marketplace.</p>
-   </section>
-
-   <section className="panel">
-     <PanelHead eyebrow="PUBLICAÇÃO" title="Central de anúncios" text="Acompanhe o retorno por canal."/>
-     <div className="tableWrap"><table><thead><tr><th>Produto</th><th>Mercado Livre</th><th>Shopee</th><th>OLX</th><th>Ação</th></tr></thead><tbody>
-       {products.map(p=><tr key={p.id}><td><b>{p.name}</b><small className="block">{p.sku}</small></td>{['mercadolivre','shopee','olx'].map(m=>{const r=listings.find(x=>x.product_id===p.id&&x.marketplace===m);return <td key={m}><Status r={r}/></td>})}<td><button className="ghost" onClick={()=>pub(p.id)}>Publicar em todos</button></td></tr>)}
-     </tbody></table></div>
-   </section>
-
-   {diagData&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setDiagData(null)}>
-     <div className="v8Modal medium integrationDiagModal">
-       <div className="modalHead">
-         <div><small>SITUAÇÃO DO CANAL</small><h2>{marketName(diagData.id)}</h2><p>O CDM verifica a conexão e mostra somente o que você precisa saber.</p></div>
-         <button className="iconClose" onClick={()=>setDiagData(null)}>×</button>
-       </div>
-       <div className="modalBody">
-         <div className="diagStatusGrid">
-           <div className={diagData.app_ready?'ok':'warn'}><small>Aplicação</small><strong>{diagData.app_ready?'Configurada':'Pendente'}</strong></div>
-           <div className={diagData.connected?'ok':'warn'}><small>Conta</small><strong>{diagData.connected?'Conectada':'Desconectada'}</strong></div>
-           <div><small>Situação</small><strong>{statusPt(diagData.status)}</strong></div>
-         </div>
-         {diagData.last_error
-           ? <div className="marketError integrationError"><b>Último erro</b><span>{erroPt(diagData.last_error)}</span></div>
-           : <div className="diagOk">✓ Nenhum erro recente informado pelo canal.</div>}
-       </div>
-     </div>
-   </div>}
+  <div className="pageTitle marketplaceTitle integrationCenterTitle"><div><span>CONTAS CONECTADAS</span><h2>{focus&&['mercadolivre','shopee','olx'].includes(focus)?marketName(focus):'Marketplaces'}</h2><p>Conecte sua conta com login e autorização. O cliente nunca precisa copiar token, chave ou segredo.</p></div><button className="ghost integrationRefresh" onClick={reloadStatus}>↻ Atualizar</button></div>
+  <div className="integrationCompactSummary"><span><b>{connectedCount}</b> conectado(s)</span><i/> <span>{filtered.length-connectedCount} para conectar</span>{issueCount>0&&<><i/><span className="hasIssue"><b>{issueCount}</b> pendência(s)</span></>}</div>
+  <div className="marketGrid integrationSimpleGrid">{filtered.map(m=>{const state=stateOf(m);return <article className={'marketCard integrationSimpleCard '+state.key} key={m.id}>
+   <div className="integrationSimpleTop"><MarketLogo id={m.id} large/><span className={'channelState '+state.key}><i/>{state.label}</span></div>
+   <h3>{marketName(m.id)}</h3><p>{state.text}</p>
+   {m.connected&&<div className="integrationAccount"><b>{m.account_name||'Conta autorizada'}</b><span>{m.published||0} anúncios publicados{Number(m.issues||0)>0?` · ${m.issues} pendência(s)`:''}</span></div>}
+   <div className="integrationPrimaryAction">{m.connected?<button className="primary" onClick={()=>diag(m.id)}>{diagBusy===m.id?'Verificando...':'Gerenciar conta'}</button>:m.app_ready?<button className="primary" onClick={()=>connect(m.id)}>Conectar {marketName(m.id)} →</button>:<button className="ghost" disabled>Disponível em breve</button>}</div>
+  </article>})}</div>
+  <section className="panel integrationHelpSimple"><b>Como funciona?</b><span>Você clica em conectar, entra na própria conta do marketplace e autoriza. O CDM recebe a autorização e volta conectado automaticamente.</span></section>
+  <section className="panel"><PanelHead eyebrow="ANÚNCIOS" title="Publicações" text="Veja somente o que precisa de atenção."/><div className="tableWrap"><table><thead><tr><th>Produto</th><th>Mercado Livre</th><th>Shopee</th><th>OLX</th><th>Ação</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><b>{p.name}</b><small className="block">{p.sku}</small></td>{['mercadolivre','shopee','olx'].map(m=>{const r=listings.find(x=>x.product_id===p.id&&x.marketplace===m);return <td key={m}><Status r={r}/></td>})}<td><button className="ghost" onClick={()=>pub(p.id)}>Publicar</button></td></tr>)}</tbody></table></div></section>
+  {diagData&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setDiagData(null)}><div className="v8Modal medium integrationDiagModal"><div className="modalHead"><div><small>CONTA CONECTADA</small><h2>{marketName(diagData.id)}</h2><p>Somente informações úteis para manter a integração funcionando.</p></div><button className="iconClose" onClick={()=>setDiagData(null)}>×</button></div><div className="modalBody"><div className="diagStatusGrid"><div className={diagData.connected?'ok':'warn'}><small>Conta</small><strong>{diagData.connected?'Conectada':'Desconectada'}</strong></div><div><small>Situação</small><strong>{statusPt(diagData.status)}</strong></div></div>{diagData.last_error?<div className="marketError integrationError"><b>O que precisa de atenção</b><span>{erroPt(diagData.last_error)}</span></div>:<div className="diagOk">✓ Tudo certo com esta conexão.</div>}{diagData.connected&&<button className="ghost dangerOutline full" onClick={()=>remove(diagData.id)}>Desconectar esta conta</button>}</div></div></div>}
  </>
 }
-
 function Status({r}){if(!r)return <span className="pill neutral">Não enviado</span>;if(r.status==='published')return <span className="pill success">Publicado</span>;if(['processing','queued','pending'].includes(r.status))return <span className="pill neutral">Processando</span>;return <span className="pill warn" title={erroPt(r.error_message)}>{r.status==='needs_connection'?'Conectar conta':r.status==='needs_product_data'?'Completar produto':'Pendência'}</span>}
 function MarketLogo({id,large}) {return <div className={'marketLogo '+id+(large?' large':'')}>{id==='mercadolivre'?'ML':id==='shopee'?'SH':'OLX'}</div>}
 
@@ -2754,7 +2647,7 @@ function FiscalModule({tab,notice}){
  const companyEmpty={trade_name:'',legal_name:'',cnpj:'',state_registration:'',tax_regime:'Simples Nacional',email:'',phone:'',responsible_name:'',rg:'',cpf:'',issuing_agency:'',cep:'',state:'RJ',city:'',address:'',number:'',complement:'',logo_url:''}
  const taxEmpty={state:'RJ',tax_profile:'Simples Nacional',operation_nature:'Venda de mercadoria',regime:'Simples Nacional',crt:'1',cfop_default:'5102',ncm_default:'',csosn_default:'102',icms_cst:'',icms_rate:0,pis_cst:'49',pis_rate:0,cofins_cst:'49',cofins_rate:0,ipi_cst:'53',ipi_rate:0,ibs_cbs_notes:'',notes:''}
  const pickCompany=(x={})=>Object.fromEntries(Object.keys(companyEmpty).map(k=>[k,x?.[k]??companyEmpty[k]]))
- const pickTax=(x={})=>Object.fromEntries(Object.keys(taxEmpty).map(k=>[k,x?.[k]??taxEmpty[k]]))
+ const pickTax=(x={})=>{const out=Object.fromEntries(Object.keys(taxEmpty).map(k=>[k,x?.[k]??taxEmpty[k]]));out.ncm_default=cleanNcm(out.ncm_default);return out}
  const [form,setForm]=useState(fiscalEmpty),[section,setSection]=useState('identification'),[docs,setDocs]=useState([]),[docId,setDocId]=useState(null),[busy,setBusy]=useState(false),[setup,setSetup]=useState(null),[cert,setCert]=useState(null),[certPass,setCertPass]=useState(''),[setupBusy,setSetupBusy]=useState(false),[cancelId,setCancelId]=useState(null),[cancelReason,setCancelReason]=useState('')
  const [companyForm,setCompanyForm]=useState(companyEmpty),[taxForm,setTaxForm]=useState(taxEmpty),[lookupBusy,setLookupBusy]=useState(false),[showSetup,setShowSetup]=useState(false)
  const setSec=(key,field,value)=>setForm(f=>({...f,sections:{...f.sections,[key]:{...(f.sections?.[key]||{}),[field]:value}}}))
@@ -2783,12 +2676,11 @@ function FiscalModule({tab,notice}){
  ]
  const fiscalDone=fiscalChecks.filter(x=>x.done).length
  const fiscalPct=setup.percent??Math.round(fiscalDone/fiscalChecks.length*100)
- if(showSetup||!setup.ready)return <>
-   <div className="pageTitle fiscalSetupTitle"><div><span>CONFIGURAÇÃO FISCAL</span><h2>Deixe a NF-e pronta em poucos minutos</h2><p>Preencha, valide e teste nesta única tela. Depois o CDM cuida do fluxo de emissão.</p></div><div className="fiscalTitleActions"><span className={'fiscalEnv '+(setup.environment==='producao'?'production':'')}>{setup.environment==='producao'?'PRODUÇÃO':'HOMOLOGAÇÃO'}</span>{setup.ready&&<button className="ghost" onClick={()=>setShowSetup(false)}>Voltar para emissão</button>}</div></div>
-   <section className="panel fiscalSetupV142">
+ if(showSetup||!setup.ready)return <section className="panel fiscalSetupV143">
+     <div className="fiscalSetupTop"><div><span>CONFIGURAÇÃO FISCAL</span><h2>NF-e simples, passo a passo</h2><p>Faça esta configuração uma vez. Depois o CDM cuida da emissão e do acompanhamento.</p></div><div className="fiscalTitleActions"><span className={'fiscalEnv '+(setup.environment==='producao'?'production':'')}>{setup.environment==='producao'?'PRODUÇÃO':'HOMOLOGAÇÃO'}</span>{setup.ready&&<button className="ghost" onClick={()=>setShowSetup(false)}>Ir para emissão</button>}</div></div>
      <div className="fiscalSetupProgress"><div><b>{setup.ready?'Configuração concluída':`${fiscalDone} de ${fiscalChecks.length} etapas concluídas`}</b><span>{setup.ready?'Sua empresa está pronta para emitir NF-e.':'O CDM mostra somente o que ainda falta.'}</span></div><strong>{fiscalPct}%</strong></div>
      <div className="fiscalProgressBar"><i style={{width:`${fiscalPct}%`}}/></div>
-     {!setup.service_available&&<div className="fiscalServiceNotice"><b>Serviço fiscal temporariamente indisponível</b><span>A configuração pode ser preenchida, mas a validação do certificado será liberada quando o emissor fiscal estiver disponível.</span></div>}
+     {!setup.service_available&&<div className="fiscalServiceNotice"><b>Emissor fiscal em preparação</b><span>Você pode preencher os dados normalmente. A validação do certificado será liberada automaticamente quando o serviço fiscal da plataforma estiver ativado.</span></div>}
      <div className="fiscalQuickChecks">{fiscalChecks.map(x=><span className={x.done?'done':''} key={x.id}><i>{x.done?'✓':'•'}</i>{x.label}</span>)}</div>
 
      <article className={'fiscalSetupCard '+(setup.company_ready?'done':'')}>
@@ -2800,7 +2692,7 @@ function FiscalModule({tab,notice}){
 
      <article className={'fiscalSetupCard '+(setup.tax_ready?'done':'')}>
        <div className="fiscalSetupCardHead"><b>{setup.tax_ready?'✓':'2'}</b><div><h3>Tributação básica</h3><p>Defina os padrões principais. Cada peça pode ter NCM próprio na hora da emissão.</p></div><span>{setup.tax_ready?'Concluído':'Confirmar com contador'}</span></div>
-       <div className="fiscalTaxGrid"><Field label="Regime"><select value={taxForm.tax_profile||taxForm.regime} onChange={e=>setTaxForm({...taxForm,tax_profile:e.target.value,regime:e.target.value})}><option>Simples Nacional</option><option>MEI</option><option>Lucro Presumido</option><option>Lucro Real</option></select></Field><Field label="CFOP padrão"><input value={taxForm.cfop_default||''} onChange={e=>setTaxForm({...taxForm,cfop_default:e.target.value})} placeholder="5102"/></Field><Field label="CSOSN / CST padrão"><input value={taxForm.csosn_default||''} onChange={e=>setTaxForm({...taxForm,csosn_default:e.target.value})} placeholder="102"/></Field><Field label="NCM padrão (opcional)"><input value={taxForm.ncm_default||''} onChange={e=>setTaxForm({...taxForm,ncm_default:e.target.value})} placeholder="Pode deixar vazio e informar por peça"/></Field></div>
+       <div className="fiscalTaxGrid"><Field label="Regime"><select value={taxForm.tax_profile||taxForm.regime} onChange={e=>setTaxForm({...taxForm,tax_profile:e.target.value,regime:e.target.value})}><option>Simples Nacional</option><option>MEI</option><option>Lucro Presumido</option><option>Lucro Real</option></select></Field><Field label="CFOP padrão"><input value={taxForm.cfop_default||''} onChange={e=>setTaxForm({...taxForm,cfop_default:e.target.value})} placeholder="5102"/></Field><Field label="CSOSN / CST padrão"><input value={taxForm.csosn_default||''} onChange={e=>setTaxForm({...taxForm,csosn_default:e.target.value})} placeholder="102"/></Field><Field label="NCM padrão (opcional)"><input inputMode="numeric" autoComplete="off" maxLength="8" value={cleanNcm(taxForm.ncm_default)} onChange={e=>setTaxForm({...taxForm,ncm_default:cleanNcm(e.target.value)})} placeholder="8 números ou deixe vazio"/></Field></div>
        <div className="fiscalCardActions"><small>As regras fiscais variam por operação. Confirme estes padrões com seu contador antes de usar Produção.</small><button className="primary" disabled={setupBusy} onClick={saveTax}>{setup.tax_ready?'Salvar alterações':'Salvar tributação'}</button></div>
      </article>
 
@@ -2818,15 +2710,14 @@ function FiscalModule({tab,notice}){
        {setup.last_test_status==='ok'&&<div className="fiscalReadyMessage"><b>✓ Sua empresa está pronta para emitir NF-e</b><span>O CDM pode enviar a nota e acompanhar o retorno automaticamente.</span>{setup.ready&&<button className="primary" onClick={()=>setShowSetup(false)}>Ir para emissão de NF-e →</button>}</div>}
      </article>
    </section>
- </>
  const tabs=[['identification','Identificação'],['recipient','Destinatário'],['items','Itens'],['transport','Transporte'],['financial','Financeiro'],['taxation','Tributação']],items=form.sections?.items||{},recipient=form.sections?.recipient||{},transport=form.sections?.transport||{},financial=form.sections?.financial||{},taxation=form.sections?.taxation||{}
  return <><div className="pageTitle fiscalTitle"><div><span>FISCAL</span><h2>Emitir NF-e</h2><p>Ambiente configurado e pronto. O CDM envia e acompanha o retorno automaticamente.</p></div><div className="fiscalTitleActions"><span className={'fiscalEnv '+(setup.environment==='producao'?'production':'')}>{setup.environment==='producao'?'PRODUÇÃO':'HOMOLOGAÇÃO'}</span><button className="ghost" onClick={()=>setShowSetup(true)}>Configuração fiscal</button></div></div><section className="panel fiscalPanel"><div className="fiscalTabs">{tabs.map(([k,l])=><button className={section===k?'active':''} key={k} onClick={()=>setSection(k)}>{l}</button>)}</div>
  {section==='identification'&&<div className="formGrid three fiscalForm"><Field label="Série"><input value={form.series} onChange={e=>setForm({...form,series:e.target.value})}/></Field><Field label="Número (opcional)"><input value={form.number} onChange={e=>setForm({...form,number:e.target.value})}/></Field><Field label="Tipo"><select value={form.operation_type} onChange={e=>setForm({...form,operation_type:e.target.value})}><option value="saida">Saída</option><option value="entrada">Entrada</option></select></Field><Field label="Finalidade"><select value={form.purpose} onChange={e=>setForm({...form,purpose:e.target.value})}><option value="normal">Normal</option><option value="complementar">Complementar</option><option value="ajuste">Ajuste</option><option value="devolucao">Devolução</option></select></Field><Field label="Natureza da operação"><input value={form.operation_nature} onChange={e=>setForm({...form,operation_nature:e.target.value})}/></Field><Field label="Pedido / referência"><input value={form.order_number} onChange={e=>setForm({...form,order_number:e.target.value})}/></Field></div>}
  {section==='recipient'&&<div className="formGrid three fiscalForm">{[['Nome / Razão Social','name'],['CPF / CNPJ','cpf_cnpj'],['CEP','cep'],['UF','state'],['Cidade','city'],['Endereço','address'],['Número','number'],['Bairro','neighborhood']].map(([l,k])=><Field key={k} label={l}><input value={recipient[k]||''} onChange={e=>setSec('recipient',k,e.target.value)}/></Field>)}<Field label="Inscrição Estadual"><input value={form.recipient_ie} onChange={e=>setForm({...form,recipient_ie:e.target.value})}/></Field></div>}
- {section==='items'&&<div className="fiscalSectionEditor"><div className="formGrid three"><Field label="Descrição da peça"><input value={items.description||''} onChange={e=>setSec('items','description',e.target.value)}/></Field><Field label="SKU"><input value={items.sku||''} onChange={e=>setSec('items','sku',e.target.value)}/></Field><Field label="Quantidade"><input type="number" min="1" value={items.quantity??1} onChange={e=>setSec('items','quantity',+e.target.value)}/></Field><Field label="Unidade"><input value={items.unit||'UN'} onChange={e=>setSec('items','unit',e.target.value.toUpperCase())}/></Field><Field label="Valor unitário"><input type="number" step="0.01" value={items.unit_value??0} onChange={e=>setSec('items','unit_value',+e.target.value)}/></Field><Field label="NCM"><input value={items.ncm||''} onChange={e=>setSec('items','ncm',e.target.value)}/></Field><Field label="CFOP"><input value={items.cfop||'5102'} onChange={e=>setSec('items','cfop',e.target.value)}/></Field></div><div className="fiscalTotalPreview"><span>Total do item</span><b>{money(Number(items.quantity||0)*Number(items.unit_value||0))}</b></div></div>}
+ {section==='items'&&<div className="fiscalSectionEditor"><div className="formGrid three"><Field label="Descrição da peça"><input value={items.description||''} onChange={e=>setSec('items','description',e.target.value)}/></Field><Field label="SKU"><input value={items.sku||''} onChange={e=>setSec('items','sku',e.target.value)}/></Field><Field label="Quantidade"><input type="number" min="1" value={items.quantity??1} onChange={e=>setSec('items','quantity',+e.target.value)}/></Field><Field label="Unidade"><input value={items.unit||'UN'} onChange={e=>setSec('items','unit',e.target.value.toUpperCase())}/></Field><Field label="Valor unitário"><input type="number" step="0.01" value={items.unit_value??0} onChange={e=>setSec('items','unit_value',+e.target.value)}/></Field><Field label="NCM"><input inputMode="numeric" autoComplete="off" maxLength="8" value={cleanNcm(items.ncm)} onChange={e=>setSec('items','ncm',cleanNcm(e.target.value))}/></Field><Field label="CFOP"><input value={items.cfop||'5102'} onChange={e=>setSec('items','cfop',e.target.value)}/></Field></div><div className="fiscalTotalPreview"><span>Total do item</span><b>{money(Number(items.quantity||0)*Number(items.unit_value||0))}</b></div></div>}
  {section==='transport'&&<div className="formGrid three"><Field label="Frete"><select value={transport.freight_mode||'sem_frete'} onChange={e=>setSec('transport','freight_mode',e.target.value)}><option value="sem_frete">Sem frete</option><option value="emitente">Por conta do emitente</option><option value="destinatario">Por conta do destinatário</option><option value="terceiros">Por conta de terceiros</option></select></Field><Field label="Transportadora"><input value={transport.carrier||''} onChange={e=>setSec('transport','carrier',e.target.value)}/></Field><Field label="Placa"><input value={transport.plate||''} onChange={e=>setSec('transport','plate',e.target.value.toUpperCase())}/></Field></div>}
  {section==='financial'&&<div className="formGrid three"><Field label="Forma de pagamento"><select value={financial.payment_method||'pix'} onChange={e=>setSec('financial','payment_method',e.target.value)}><option value="pix">PIX</option><option value="dinheiro">Dinheiro</option><option value="cartao_credito">Cartão de crédito</option><option value="cartao_debito">Cartão de débito</option><option value="boleto">Boleto</option><option value="transferencia">Transferência</option></select></Field><Field label="Valor"><input type="number" step="0.01" min="0" value={financial.amount??0} onChange={e=>setSec('financial','amount',+e.target.value)}/></Field><Field label="Parcelas"><input type="number" min="1" value={financial.installments??1} onChange={e=>setSec('financial','installments',+e.target.value)}/></Field></div>}
- {section==='taxation'&&<div className="formGrid three"><Field label="Regime tributário"><select value={taxation.regime||'Simples Nacional'} onChange={e=>setSec('taxation','regime',e.target.value)}><option>Simples Nacional</option><option>Lucro Presumido</option><option>Lucro Real</option></select></Field><Field label="CFOP"><input value={taxation.cfop||'5102'} onChange={e=>setSec('taxation','cfop',e.target.value)}/></Field><Field label="NCM"><input value={taxation.ncm||''} onChange={e=>setSec('taxation','ncm',e.target.value)}/></Field><Field label="CSOSN / CST"><input value={taxation.csosn||'102'} onChange={e=>setSec('taxation','csosn',e.target.value)}/></Field></div>}
+ {section==='taxation'&&<div className="formGrid three"><Field label="Regime tributário"><select value={taxation.regime||'Simples Nacional'} onChange={e=>setSec('taxation','regime',e.target.value)}><option>Simples Nacional</option><option>Lucro Presumido</option><option>Lucro Real</option></select></Field><Field label="CFOP"><input value={taxation.cfop||'5102'} onChange={e=>setSec('taxation','cfop',e.target.value)}/></Field><Field label="NCM"><input inputMode="numeric" autoComplete="off" maxLength="8" value={cleanNcm(taxation.ncm)} onChange={e=>setSec('taxation','ncm',cleanNcm(e.target.value))}/></Field><Field label="CSOSN / CST"><input value={taxation.csosn||'102'} onChange={e=>setSec('taxation','csosn',e.target.value)}/></Field></div>}
  <div className="fiscalActions"><button className="primary" disabled={busy} onClick={emit}>{busy?'Processando...':'Emitir NF-e'}</button><button className="ghost" disabled={busy} onClick={saveDraft}>Salvar rascunho</button><button className="ghost" onClick={newDraft}>Nova nota</button></div><div className="fiscalWarning">{setup.environment==='homologacao'?'Você está em HOMOLOGAÇÃO: as notas são somente testes e não têm valor fiscal.':'Você está em PRODUÇÃO: emissões têm valor fiscal. Confira os dados antes de enviar.'}</div></section></>
 }
 
