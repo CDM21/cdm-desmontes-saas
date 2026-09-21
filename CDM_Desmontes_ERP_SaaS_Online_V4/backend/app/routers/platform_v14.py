@@ -1,4 +1,4 @@
-import os
+﻿import os
 import time
 from datetime import datetime, timedelta
 
@@ -67,7 +67,7 @@ _ensure_v14_tables()
 def v14_ping():
     return {
         "ok": True,
-        "version": "14.3",
+        "version": "14.3.1",
         "founder_limit": FOUNDER_LIMIT,
         "monthly_price": _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE),
         "implementation_fee": _money_env("CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE),
@@ -117,7 +117,7 @@ def _sync_founders(db: Session):
             db.execute(
                 text(
                     "INSERT INTO founder_program (company_id, slot, assigned_at) "
-                    "VALUES (:company_id,:slot,:assigned_at)"
+                    "VALUES (:company_id,:slot,:assigned_at) ON CONFLICT DO NOTHING"
                 ),
                 {
                     "company_id": int(company.id),
@@ -790,3 +790,4 @@ def platform_readiness(
             "Mercado Pago real", "Mercado Livre", "Shopee", "OLX", "Fiscal homologado"
         ],
     }
+
