@@ -1,6 +1,7 @@
 import os
 import hashlib
 import hmac
+import time
 from datetime import datetime, timedelta
 
 import httpx
@@ -9,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ..admin import require_platform_admin
 from ..db import get_db
 from ..deps import current_user
 from ..models import Company, Subscription
@@ -287,6 +289,104 @@ def _subscription_checkout(db: Session, user, company: Company, payer_email: str
         "kind": "subscription",
         "price": _monthly_price(),
     }
+
+
+
+_MP_HEALTH_CACHE = {"checked_at": None, "data": None}
+
+
+def _implementation_fee():
+    try:
+        return float(os.getenv("CDM_IMPLEMENTATION_FEE", "1500").replace(",", "."))
+    except Exception:
+        return 1500.0
+
+
+def _mercadopago_health(force: bool = False):
+    """Valida a credencial sem criar pagamento, preferencia ou assinatura."""
+    now = datetime.utcnow()
+    cached_at = _MP_HEALTH_CACHE.get("checked_at")
+    cached_data = _MP_HEALTH_CACHE.get("data")
+    if (
+        not force
+        and cached_at is not None
+        and cached_data is not None
+        and (now - cached_at).total_seconds() < 300
+    ):
+        return cached_data
+
+    token = _mp_token()
+    webhook_configured = bool(os.getenv("MP_WEBHOOK_SECRET", "").strip())
+    base = {
+        "token_configured": bool(token),
+        "valid": False,
+        "ready": False,
+        "api_status": None,
+        "latency_ms": None,
+        "webhook_configured": webhook_configured,
+        "payment_methods_count": 0,
+        "pix_available": False,
+        "monthly_price": _monthly_price(),
+        "implementation_fee": _implementation_fee(),
+        "checked_at": now.isoformat() + "Z",
+        "message": "",
+    }
+
+    if not token:
+        base["message"] = "Credencial do Mercado Pago nao configurada no servidor."
+        _MP_HEALTH_CACHE.update({"checked_at": now, "data": base})
+        return base
+
+    started = time.perf_counter()
+    try:
+        with httpx.Client(timeout=15) as client:
+            response = client.get(
+                "https://api.mercadopago.com/v1/payment_methods",
+                headers=_mp_headers(),
+            )
+        base["latency_ms"] = round((time.perf_counter() - started) * 1000)
+        base["api_status"] = response.status_code
+
+        if response.status_code == 200:
+            payload = response.json()
+            methods = payload if isinstance(payload, list) else []
+            active_ids = {
+                str(item.get("id") or "").lower()
+                for item in methods
+                if str(item.get("status") or "").lower() == "active"
+            }
+            base["valid"] = True
+            base["payment_methods_count"] = len(methods)
+            base["pix_available"] = "pix" in active_ids
+            base["ready"] = bool(webhook_configured)
+            base["message"] = (
+                "Credencial autenticada pelo Mercado Pago e webhook configurado."
+                if base["ready"]
+                else "Credencial autenticada. Falta configurar a assinatura segura do webhook."
+            )
+        elif response.status_code in {401, 403}:
+            base["message"] = "O Mercado Pago recusou a credencial configurada."
+        else:
+            base["message"] = (
+                f"O Mercado Pago respondeu com HTTP {response.status_code}. "
+                "Tente validar novamente em alguns instantes."
+            )
+    except httpx.RequestError:
+        base["message"] = "Nao foi possivel alcancar a API do Mercado Pago neste momento."
+    except Exception:
+        base["message"] = "Falha ao validar a integracao do Mercado Pago."
+
+    _MP_HEALTH_CACHE.update({"checked_at": now, "data": base})
+    return base
+
+
+@router.get("/admin/mercadopago-health")
+def mercadopago_health(
+    refresh: bool = False,
+    user=Depends(current_user),
+):
+    require_platform_admin(user)
+    return _mercadopago_health(force=refresh)
 
 
 @router.get("/status")

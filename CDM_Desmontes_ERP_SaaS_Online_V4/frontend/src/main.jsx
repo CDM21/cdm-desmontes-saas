@@ -292,7 +292,9 @@ function OwnerPortal({session,onPreview}){
  const [readiness,setReadiness]=useState(null)
  const [founders,setFounders]=useState(null)
  const [billingOverview,setBillingOverview]=useState(null)
- const [v14Errors,setV14Errors]=useState({founders:'',readiness:'',billing:''})
+ const [mpHealth,setMpHealth]=useState(null)
+ const [mpTesting,setMpTesting]=useState(false)
+ const [v14Errors,setV14Errors]=useState({founders:'',readiness:'',billing:'',mercadopago:''})
  const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
  const founderMap=new Map((founders?.founders||[]).map(x=>[Number(x.company_id),Number(x.slot)]))
  const setupFeeMap=new Map((billingOverview?.items||[]).map(x=>[Number(x.company_id),x]))
@@ -304,7 +306,7 @@ function OwnerPortal({session,onPreview}){
    try{
      const r=await api.get('/admin/dashboard-v2')
      setData(r.data||{})
-     const [readinessR,foundersR,billingR]=await Promise.all([
+     const [readinessR,foundersR,billingR,mpHealthR]=await Promise.all([
        api.get('/v14/admin/platform-readiness')
          .then(x=>({ok:true,data:x.data}))
          .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`})),
@@ -313,15 +315,20 @@ function OwnerPortal({session,onPreview}){
          .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`})),
        api.get('/v14/admin/billing-overview')
          .then(x=>({ok:true,data:x.data}))
-         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na cobrança V14'}`}))
+         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na cobrança V14'}`})),
+       api.get('/billing/admin/mercadopago-health')
+         .then(x=>({ok:true,data:x.data}))
+         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha ao validar Mercado Pago'}`}))
      ])
      setReadiness(readinessR.ok?readinessR.data:null)
      setFounders(foundersR.ok?foundersR.data:null)
      setBillingOverview(billingR.ok?billingR.data:null)
+     setMpHealth(mpHealthR.ok?mpHealthR.data:null)
      setV14Errors({
        readiness:readinessR.ok?'':readinessR.error,
        founders:foundersR.ok?'':foundersR.error,
-       billing:billingR.ok?'':billingR.error
+       billing:billingR.ok?'':billingR.error,
+       mercadopago:mpHealthR.ok?'':mpHealthR.error
      })
      setLastUpdate(new Date())
    }catch(e){pop(erroPt(e.response?.data?.detail)||'Erro ao carregar o Portal do Dono')}
@@ -329,6 +336,16 @@ function OwnerPortal({session,onPreview}){
  }
  useEffect(()=>{load();const t=setInterval(()=>load(true),60000);return()=>clearInterval(t)},[])
 
+ async function testMercadoPago(){
+   setMpTesting(true)
+   try{
+     const r=await api.get('/billing/admin/mercadopago-health?refresh=true')
+     setMpHealth(r.data||null)
+     if(r.data?.valid)pop(r.data?.ready?'Mercado Pago validado e pronto':'Mercado Pago validado; revise o webhook')
+     else pop(r.data?.message||'Mercado Pago nao foi validado')
+   }catch(e){pop(erroPt(e.response?.data?.detail)||'Nao foi possivel testar o Mercado Pago')}
+   finally{setMpTesting(false)}
+ }
  async function act(c,action){
    try{
      if(action==='trial')await api.post(`/admin/companies/${c.id}/trial?days=7`)
@@ -486,7 +503,7 @@ function OwnerPortal({session,onPreview}){
          <article><span>VENDAS</span><b>{s.sales_total||0}</b><small>registradas pelos clientes</small></article>
        </div>
        <div className="ownerOverviewGrid">
-         <section className="ownerCard"><div className="ownerCardHead"><div><span>AUTOMAÇÃO</span><h3>Status do SaaS</h3></div></div><div className="ownerAutomationList"><div><i/>Vencimento automático habilitado</div><div><i/>Atualização do painel a cada 60 segundos</div><div><i/>Isolamento por empresa ativo</div><div className="pending"><i/>Conciliação de pagamentos em evolução</div></div></section>
+         <section className="ownerCard"><div className="ownerCardHead"><div><span>AUTOMAÇÃO</span><h3>Status do SaaS</h3></div></div><div className="ownerAutomationList"><div><i/>Vencimento automático habilitado</div><div><i/>Atualização do painel a cada 60 segundos</div><div><i/>Isolamento por empresa ativo</div><div className={mpHealth?.ready?'':'pending'}><i/>{mpHealth?.ready?'Mercado Pago e conciliação validados':'Mercado Pago aguardando validação'}</div></div></section>
          <section className="ownerCard"><div className="ownerCardHead"><div><span>LOGS</span><h3>Atividades recentes</h3></div></div><div className="ownerLogs">{logs.slice(0,20).map(x=><div key={x.id}><div><b>{x.action}</b><span>{x.entity||'sistema'} {x.entity_id||''}</span></div><small>{x.created_at?new Date(x.created_at).toLocaleString('pt-BR'):'—'}</small></div>)}{!logs.length&&<div className="ownerEmpty">Nenhuma atividade recente.</div>}</div></section>
        </div>
      </>}
@@ -494,7 +511,7 @@ function OwnerPortal({session,onPreview}){
 
      {section==='system'&&<section className="ownerCard v14ReadinessCard">
        <div className="ownerCardHead">
-         <div><span>DIAGNÓSTICO V14.2</span><h3>Segurança, backup e integrações</h3></div>
+         <div><span>DIAGNÓSTICO V14.3.2</span><h3>Segurança, backup e integrações</h3></div>
          <span className="pill neutral">{readiness?.database?.latency_ms!=null?`${readiness.database.latency_ms} ms DB`:'Verificando API'}</span>
        </div>
        {v14Errors.readiness&&<div className="ownerInfoNote"><b>API V14:</b> {v14Errors.readiness}. Agora o erro não fica mais escondido.</div>}
@@ -502,11 +519,29 @@ function OwnerPortal({session,onPreview}){
          <div><small>BANCO DE DADOS</small><b className={readiness?.database?.online?'v14ReadyYes':'v14ReadyNo'}>{readiness?readiness.database?.online?'Online':'Atenção':'Aguardando'}</b></div>
          <div><small>AUDITORIA</small><b>{readiness?`${readiness.audit?.events||0} eventos`:'-'}</b></div>
          <div><small>BACKUP</small><b>{readiness?.backup?.last_download_at?new Date(readiness.backup.last_download_at).toLocaleDateString('pt-BR'):'Ainda não confirmado'}</b></div>
-         <div><small>MERCADO PAGO</small><b className={readiness?.billing?.mercadopago_configured?'v14ReadyYes':'v14ReadyNo'}>{readiness?.billing?.mercadopago_configured?'Credencial pronta':'Aguardando credencial'}</b></div>
+         <div><small>MERCADO PAGO</small><b className={mpHealth?.valid?'v14ReadyYes':'v14ReadyNo'}>{mpHealth?.valid?'Conectado e validado':readiness?.billing?.mercadopago_configured?'Credencial nao validada':'Aguardando credencial'}</b></div>
          <div><small>WEBHOOK SEGURO</small><b className={readiness?.security?.billing_webhook_secret?'v14ReadyYes':'v14ReadyNo'}>{readiness?.security?.billing_webhook_secret?'Configurado':'Pendente'}</b></div>
          <div><small>CRIPTOGRAFIA</small><b className={readiness?.security?.app_encryption_key?'v14ReadyYes':'v14ReadyNo'}>{readiness?.security?.app_encryption_key?'Configurada':'Revisar ambiente'}</b></div>
          <div><small>MARKETPLACES ATIVOS</small><b>{readiness?.integrations?.active_marketplace_connections??'-'}</b></div>
          <div><small>FUNDADORES</small><b>{readiness?`${readiness.founders?.assigned||0}/${readiness.founders?.limit||10}`:'-/10'}</b></div>
+       </div>
+       <div className={`mpHealthPanel ${mpHealth?.ready?'ready':mpHealth?.valid?'partial':'attention'}`}>
+         <div className="mpHealthHead">
+           <div>
+             <small>PAGAMENTOS CDM</small>
+             <b>{mpHealth?.ready?'Mercado Pago conectado e validado':mpHealth?.valid?'Credencial valida · webhook precisa de atencao':'Validacao do Mercado Pago necessaria'}</b>
+             <span>{mpHealth?.message||v14Errors.mercadopago||'O CDM testa a credencial sem criar nenhuma cobranca.'}</span>
+           </div>
+           <button className="ghost" onClick={testMercadoPago} disabled={mpTesting}>{mpTesting?'Testando...':'Testar agora'}</button>
+         </div>
+         <div className="mpHealthFacts">
+           <span><small>API</small><b>{mpHealth?.valid?'Autenticada':'Pendente'}</b></span>
+           <span><small>WEBHOOK</small><b>{mpHealth?.webhook_configured?'Protegido':'Revisar'}</b></span>
+           <span><small>PIX</small><b>{mpHealth?.pix_available?'Disponivel':mpHealth?.valid?'Nao listado':'—'}</b></span>
+           <span><small>IMPLANTACAO</small><b>{money(mpHealth?.implementation_fee||1500)}</b></span>
+           <span><small>MENSALIDADE</small><b>{money(mpHealth?.monthly_price||350)}</b></span>
+         </div>
+         <small className="mpHealthNote">O teste consulta a API oficial do Mercado Pago e nao cria pagamento. O tipo da credencial (teste ou producao) deve permanecer conferido no painel do Mercado Pago; o CDM nunca exibe seu Access Token.</small>
        </div>
      </section>}
 
@@ -532,7 +567,7 @@ function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClos
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V14.3 Conectar e Pronto</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V14.3.2 Pagamentos Validados</small></div>
    </aside>
  </>
 }

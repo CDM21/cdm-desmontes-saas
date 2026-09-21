@@ -4168,3 +4168,24 @@ table th{
 @media(max-width:950px){.integrationSimpleGrid{grid-template-columns:1fr}.billingFlow{grid-template-columns:1fr}.billingFlow>i{width:2px;height:18px;margin-left:14px}.billingCheckoutBox{align-items:stretch;flex-direction:column}.billingCheckoutBox button{width:100%;min-width:0}}
 @media(max-width:720px){.fiscalSetupTop,.billingPlanIntro{flex-direction:column}.integrationCompactSummary{align-items:flex-start;flex-wrap:wrap}.integrationHelpSimple{align-items:flex-start;flex-direction:column}.billingSafe{align-items:stretch;flex-direction:column}.billingSafe>span{margin-right:0}.billingSafe button{width:100%}}
 /* END CDM V14.3 */
+
+/* CDM V14.3.2 - VALIDACAO REAL MERCADO PAGO */
+.mpHealthPanel{margin-top:14px;padding:14px 15px;border:1px solid var(--line);border-radius:12px;background:var(--soft);display:grid;gap:12px}
+.mpHealthPanel.ready{border-color:#20a15d55;background:#20a15d0b}
+.mpHealthPanel.partial{border-color:#d59a2855;background:#d59a280b}
+.mpHealthPanel.attention{border-color:#d3575750;background:#d3575709}
+.mpHealthHead{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.mpHealthHead>div{display:grid;gap:4px}
+.mpHealthHead small{font-size:8px;letter-spacing:.08em;color:var(--muted);font-weight:900}
+.mpHealthHead b{font-size:13px}
+.mpHealthHead span{font-size:10px;color:var(--muted);line-height:1.45}
+.mpHealthHead button{white-space:nowrap}
+.mpHealthFacts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.mpHealthFacts span{display:grid;gap:4px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.mpHealthFacts small{font-size:8px;color:var(--muted);font-weight:900}
+.mpHealthFacts b{font-size:11px}
+.mpHealthNote{font-size:9px;color:var(--muted);line-height:1.5}
+@media(max-width:950px){.mpHealthFacts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.mpHealthHead{align-items:stretch;flex-direction:column}.mpHealthHead button{width:100%}.mpHealthFacts{grid-template-columns:1fr}}
+/* END CDM V14.3.2 */
+

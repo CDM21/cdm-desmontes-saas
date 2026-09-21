@@ -1,4 +1,4 @@
-﻿import os
+import os
 import time
 from datetime import datetime, timedelta
 
@@ -67,7 +67,7 @@ _ensure_v14_tables()
 def v14_ping():
     return {
         "ok": True,
-        "version": "14.3.1",
+        "version": "14.3.2",
         "founder_limit": FOUNDER_LIMIT,
         "monthly_price": _money_env("CDM_MONTHLY_PRICE", DEFAULT_MONTHLY_PRICE),
         "implementation_fee": _money_env("CDM_IMPLEMENTATION_FEE", DEFAULT_IMPLEMENTATION_FEE),
