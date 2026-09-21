@@ -4214,3 +4214,65 @@ table th{
 .loginLegal a{color:var(--muted);text-decoration:none}
 .loginLegal a:hover{color:var(--text);text-decoration:underline}
 .loginLegal span{color:var(--muted)}
+
+/* CDM V15.2 - CADASTRO DE SUCATAS MODERNO */
+.vehicleRegisterPanel{padding:0;overflow:hidden}
+.vehicleRegisterHero{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px 26px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,var(--panel),var(--soft))}
+.vehicleRegisterHero>div:first-child{display:grid;gap:4px}
+.vehicleRegisterHero span{font-size:9px;letter-spacing:1.5px;font-weight:900;color:#6f8fe8}
+.vehicleRegisterHero h2{font-size:24px;margin:0}
+.vehicleRegisterHero p{max-width:720px;margin:2px 0 0;color:var(--muted);font-size:11px;line-height:1.55}
+.vehicleRegisterHeroBadge{min-width:170px;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 14px;display:grid;gap:3px;text-align:right}
+.vehicleRegisterHeroBadge b{font-size:11px}.vehicleRegisterHeroBadge small{font-size:9px;color:var(--muted)}
+
+.vehicleFormSection{padding:22px 26px;border-bottom:1px solid var(--line)}
+.vehicleFormSectionHead{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.vehicleFormSectionHead>div:nth-child(2){display:grid;gap:2px;flex:1}
+.vehicleFormSectionHead b{font-size:13px}.vehicleFormSectionHead span{font-size:10px;color:var(--muted)}
+.vehicleFormSectionHead>strong{font-size:11px;color:var(--muted);background:var(--soft);padding:7px 10px;border-radius:999px}
+.vehicleFormIndex{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:var(--soft);border:1px solid var(--line);font-size:10px;font-weight:900;color:#6f8fe8}
+.vehicleFormGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.vehicleFormGridMain{grid-template-columns:repeat(5,minmax(0,1fr))}
+.vehicleFormGrid .field>span,.vehicleFinanceGrid .field>span{font-size:9px;text-transform:uppercase;letter-spacing:.04em}
+.vehicleFormGrid input,.vehicleFormGrid select,.vehicleFinanceGrid input{height:42px;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:0 11px}
+.vehicleFormGrid input:focus,.vehicleFormGrid select:focus,.vehicleFinanceGrid input:focus{border-color:#6f8fe8;box-shadow:0 0 0 3px rgba(111,143,232,.10)}
+.vehicleFinanceGrid{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:14px;align-items:end}
+.moneyInput{display:flex;align-items:center;background:var(--soft);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.moneyInput>span{padding:0 10px;font-size:10px;color:var(--muted);font-weight:800}
+.moneyInput input{border:0!important;background:transparent!important;box-shadow:none!important;width:100%}
+.vehicleInvestedBox{height:64px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:linear-gradient(135deg,var(--soft),var(--panel));display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;column-gap:15px}
+.vehicleInvestedBox small{font-size:8px;color:var(--muted);letter-spacing:.08em}.vehicleInvestedBox b{grid-row:1/3;grid-column:2;font-size:18px;align-self:center}.vehicleInvestedBox span{font-size:9px;color:var(--muted)}
+
+.vehiclePhotoWorkspace{display:grid;gap:12px}
+.vehiclePhotoDrop{min-height:150px;border:1.5px dashed #657187;border-radius:12px;background:var(--soft);display:grid;place-items:center;align-content:center;gap:5px;text-align:center;cursor:pointer;padding:20px;transition:.15s}
+.vehiclePhotoDrop:hover{border-color:#6f8fe8;background:rgba(111,143,232,.06)}
+.vehiclePhotoDrop input{display:none}
+.vehiclePhotoDropIcon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);font-size:21px;margin-bottom:3px}
+.vehiclePhotoDrop b{font-size:12px}.vehiclePhotoDrop span{font-size:10px;color:var(--muted)}.vehiclePhotoDrop small{font-size:8px;color:var(--muted)}
+.vehiclePhotoPreparing{padding:10px 12px;background:var(--soft);border-radius:8px;color:var(--muted);font-size:10px}
+.vehiclePhotoGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}
+.vehiclePhotoGrid article{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+.vehiclePhotoGrid article.principal{box-shadow:inset 0 0 0 1px #6f8fe8}
+.vehiclePhotoGrid img{width:100%;height:105px;object-fit:cover;display:block;background:#f2f2f2}
+.vehiclePhotoGrid article>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px}
+.vehiclePhotoGrid b{font-size:9px}.vehiclePhotoGrid button{width:25px;height:25px;border-radius:6px;background:var(--soft);color:var(--muted);font-size:15px}
+
+.vehicleRegisterFooter{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 26px;background:var(--soft)}
+.vehicleRegisterFooter>div{display:grid;gap:2px}.vehicleRegisterFooter b{font-size:12px}.vehicleRegisterFooter span{font-size:9px;color:var(--muted)}
+.vehicleRegisterButton{min-width:190px;padding:12px 18px}
+.vehicleManagementModern{margin-top:18px}
+.vehicleListPhoto{width:64px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line);flex:0 0 auto}
+
+@media(max-width:1200px){
+ .vehicleFormGridMain{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .vehicleFormGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ .vehicleRegisterHero,.vehicleRegisterFooter{align-items:stretch;flex-direction:column}
+ .vehicleRegisterHeroBadge{text-align:left;min-width:0}
+ .vehicleFormSection{padding:18px}
+ .vehicleRegisterHero,.vehicleRegisterFooter{padding:18px}
+ .vehicleFormGridMain,.vehicleFormGrid,.vehicleFinanceGrid{grid-template-columns:1fr}
+ .vehicleInvestedBox{height:auto;min-height:64px}
+ .vehicleRegisterButton{width:100%}
+}
