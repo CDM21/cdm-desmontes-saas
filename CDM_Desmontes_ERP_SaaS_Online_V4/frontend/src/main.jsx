@@ -1315,21 +1315,38 @@ function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
    </div>
   </section>
 
-  {!createOnly&&<section className="panel vehicleManagementPanel vehicleManagementModern">
-   <div className="vehicleManagementHead">
+  {!createOnly&&<section className="panel vehicleManagementPanel vehicleManagementModern vehicleCardsSection">
+   <div className="vehicleManagementHead vehicleCardsHead">
     <div><small>SUCATAS CADASTRADAS</small><h2>Veículos no estoque</h2><p>Acompanhe cada veículo desde a entrada até o retorno das peças.</p></div>
     <div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar placa, marca ou modelo..."/><span>{filtered.length} de {data.length}</span></div>
    </div>
-   {filtered.length?<div className="vehicleRows">{filtered.map(v=><div className="vehicleRow360" key={v.id}>
-    <div className="vehicleIdentity">
-     {v.photo_data?<img className="vehicleListPhoto" src={v.photo_data} alt="Foto da sucata"/>:<div className="vehicleBadge">#{v.id}</div>}
-     <div><b>{[v.brand,v.model,v.year].filter(Boolean).join(' ')||'Veículo sem identificação'}</b><small>{v.plate||'Sem placa'} · {v.fuel||'Combustível não informado'} · {v.transmission||'Câmbio não informado'}</small></div>
-    </div>
-    <div className="vehicleQuick"><small>Compra</small><b>{money(v.acquisition_value)}</b></div>
-    <div className="vehicleQuick"><small>Custos</small><b>{money(v.other_costs)}</b></div>
-    <div className="vehicleQuick"><small>Status</small><b>{statusPt(v.status)}</b></div>
-    <div className="vehicleRowActions"><button className="ghost editRegisterBtn" onClick={()=>setEditVehicle(v)}>✎ Editar</button><button className="primary vehicle360Btn" onClick={()=>setOverview(v)}>◉ Visão 360</button></div>
-   </div>)}</div>:<div className="emptyState">Nenhum veículo encontrado.</div>}
+   {filtered.length?<div className="vehicleCardsGrid">{filtered.map(v=>{
+    const title=[v.brand,v.model,v.year].filter(Boolean).join(' ')||'Veículo sem identificação'
+    const statusLabel=statusPt(v.status)
+    const location=v.location||v.stock_location||v.yard_location||'Pátio'
+    return <article className="vehicleStockCard" key={v.id}>
+     <div className="vehicleStockPhotoWrap">
+      {v.photo_data?<img className="vehicleStockPhoto" src={v.photo_data} alt="Foto da sucata"/>:<div className="vehicleStockPhotoPlaceholder"><b>{title}</b><small>Sem foto cadastrada</small></div>}
+      <span className={`vehicleStockStatus ${String(v.status||'').toLowerCase()}`}>{statusLabel}</span>
+     </div>
+     <div className="vehicleStockBody">
+      <h3>{title}</h3>
+      <div className="vehicleStockTags">
+       <span>{v.plate||'Sem placa'}</span>
+       <span>{location}</span>
+      </div>
+      <div className="vehicleStockSub">{v.fuel||'Combustível não informado'} · {v.transmission||'Câmbio não informado'}</div>
+      <div className="vehicleStockMeta">
+       <div><small>Compra</small><b>{money(v.acquisition_value)}</b></div>
+       <div><small>Custos</small><b>{money(v.other_costs)}</b></div>
+      </div>
+      <div className="vehicleStockActions">
+       <button className="ghost editRegisterBtn" onClick={()=>setEditVehicle(v)}>✎ Editar</button>
+       <button className="primary vehicle360Btn" onClick={()=>setOverview(v)}>◉ Visão 360</button>
+      </div>
+     </div>
+    </article>
+   })}</div>:<div className="emptyState">Nenhum veículo encontrado.</div>}
   </section>}
 
   {overview&&<Vehicle360 vehicle={overview} listings={listings} onClose={()=>setOverview(null)}/>}

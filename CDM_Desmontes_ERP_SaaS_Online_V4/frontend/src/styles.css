@@ -4276,3 +4276,33 @@ table th{
  .vehicleInvestedBox{height:auto;min-height:64px}
  .vehicleRegisterButton{width:100%}
 }
+
+/* CDM V15.2.1 - LISTAGEM DE SUCATAS EM CARDS */
+.vehicleCardsSection{padding:16px 16px 18px}
+.vehicleCardsHead{padding:6px 6px 12px}
+.vehicleCardsGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.vehicleStockCard{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--panel),var(--soft));overflow:hidden;display:flex;flex-direction:column;min-height:100%}
+.vehicleStockPhotoWrap{position:relative;background:var(--soft);aspect-ratio:4/3;overflow:hidden}
+.vehicleStockPhoto{width:100%;height:100%;object-fit:cover;display:block}
+.vehicleStockPhotoPlaceholder{width:100%;height:100%;display:grid;place-items:center;align-content:center;gap:6px;padding:18px;text-align:center;background:linear-gradient(135deg,#1a2230,#101722)}
+.vehicleStockPhotoPlaceholder b{font-size:14px;line-height:1.35}
+.vehicleStockPhotoPlaceholder small{font-size:10px;color:var(--muted)}
+.vehicleStockStatus{position:absolute;left:12px;bottom:12px;display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:999px;font-size:11px;font-weight:800;color:#fff;background:#61697a;box-shadow:0 10px 25px rgba(0,0,0,.18)}
+.vehicleStockStatus.recebido,.vehicleStockStatus.ativo,.vehicleStockStatus.disponivel{background:#c82418}
+.vehicleStockStatus.em_desmembramento,.vehicleStockStatus.desmontando,.vehicleStockStatus.processando{background:#e05918}
+.vehicleStockStatus.finalizado,.vehicleStockStatus.vendido{background:#0b8f57}
+.vehicleStockBody{padding:14px;display:grid;gap:10px}
+.vehicleStockBody h3{font-size:16px;line-height:1.25;margin:0;min-height:40px}
+.vehicleStockTags{display:flex;flex-wrap:wrap;gap:8px}
+.vehicleStockTags span{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:7px 10px;background:var(--soft);border:1px solid var(--line);font-size:11px;color:var(--muted);font-weight:700}
+.vehicleStockSub{font-size:11px;color:var(--muted);min-height:16px}
+.vehicleStockMeta{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vehicleStockMeta>div{border:1px solid var(--line);border-radius:10px;background:var(--soft);padding:10px 11px;display:grid;gap:2px}
+.vehicleStockMeta small{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.vehicleStockMeta b{font-size:13px}
+.vehicleStockActions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:2px}
+.vehicleStockActions button{width:100%;justify-content:center}
+@media(max-width:760px){
+ .vehicleCardsSection{padding:12px}
+ .vehicleCardsGrid{grid-template-columns:1fr}
+}
