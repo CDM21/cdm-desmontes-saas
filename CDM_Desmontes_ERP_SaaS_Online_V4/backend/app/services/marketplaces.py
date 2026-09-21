@@ -1278,14 +1278,31 @@ def refresh_listing(db:Session, listing:MarketplaceListing):
             st=str(items[0].get("item_status") or "").lower(); listing.status="published" if "normal" in st else st or listing.status
     elif listing.marketplace=="olx":
         token=decrypt_secret(conn.access_token_enc)
-        with httpx.Client(timeout=30) as c:
-            r=c.get("https://apps.olx.com.br/autoupload/v1/published",params={"fetch_size":200},headers={"Authorization":f"Bearer {token}"})
-        if r.status_code>=400: raise RuntimeError(f"OLX: {r.text[:700]}")
-        data=r.json(); target=_olx_internal_id(listing.company_id,listing.product_id)
-        found=next((x for x in (data.get("data") or []) if str(x.get("id"))==target),None)
-        if found:
-            listing.external_id=str(found.get("list_id") or listing.external_id);listing.status="published";listing.published_at=listing.published_at or datetime.utcnow()
-        elif listing.status=="processing": listing.status="processing"
+        target=_olx_internal_id(listing.company_id,listing.product_id)
+        # Enquanto o external_id contém o token da importação, consultamos o fluxo oficial
+        # da OLX até receber accepted/refused. O token de importação expira em até 7 dias.
+        if listing.status in {"processing","pending","queued"} and listing.external_id:
+            with httpx.Client(timeout=30) as c:
+                r=c.post(f"https://apps.olx.com.br/autoupload/import/{listing.external_id}",json={"access_token":token},headers={"Content-Type":"application/json"})
+            if r.status_code==200:
+                data=r.json() or {}; ads=data.get("ads") or {}; ad=ads.get(target) if isinstance(ads,dict) else next((x for x in ads if str(x.get("id"))==target),None)
+                if ad:
+                    st=str(ad.get("status") or "pending").lower(); messages=ad.get("message") or ad.get("messages") or []
+                    if st in {"accepted","accept"}:
+                        listing.external_id=str(ad.get("list_id") or listing.external_id);listing.status="published";listing.published_at=listing.published_at or datetime.utcnow();listing.error_message=""
+                    elif st in {"refused","error"}:
+                        listing.status="refused";listing.error_message=_safe_error(json.dumps(messages,ensure_ascii=False) if messages else "OLX recusou o anúncio")
+                    else:
+                        listing.status="processing" if st in {"pending","queued"} else st
+            elif r.status_code not in {404}:
+                raise RuntimeError(f"OLX: {r.text[:700]}")
+        # Se já temos list_id, consultamos o status atual do anúncio diretamente.
+        if listing.status=="published" and listing.external_id and str(listing.external_id).isdigit():
+            with httpx.Client(timeout=30) as c:
+                r=c.get(f"https://apps.olx.com.br/autoupload/ads/{listing.external_id}",headers={"Authorization":f"Bearer {token}"})
+            if r.status_code==200:
+                data=r.json() or {}; st=str(data.get("status") or "accepted").lower()
+                listing.status="published" if st=="accepted" else ("removed" if st=="deleted" else st)
     listing.error_message="";db.commit();db.refresh(listing);return listing
 
 

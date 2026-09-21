@@ -414,6 +414,24 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class FiscalConfig(Base):
+    __tablename__ = "fiscal_configs"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), unique=True, index=True, nullable=False)
+    provider = Column(String(40), default="focusnfe")
+    environment = Column(String(30), default="homologacao")
+    provider_company_id = Column(String(120), default="")
+    production_token_enc = Column(Text, default="")
+    homologation_token_enc = Column(Text, default="")
+    certificate_name = Column(String(255), default="")
+    certificate_uploaded = Column(Boolean, default=False)
+    setup_status = Column(String(40), default="pending")
+    last_test_status = Column(String(40), default="")
+    last_error = Column(Text, default="")
+    auto_issue_sales = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class FiscalDocument(Base):
     __tablename__ = "fiscal_documents"
     id = Column(Integer, primary_key=True)
@@ -431,7 +449,10 @@ class FiscalDocument(Base):
     sections_json = Column(Text, default="{}")
     status = Column(String(40), default="rascunho")
     provider_response = Column(Text, default="")
+    provider_ref = Column(String(120), default="")
     access_key = Column(String(60), default="")
+    xml_url = Column(Text, default="")
+    danfe_url = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

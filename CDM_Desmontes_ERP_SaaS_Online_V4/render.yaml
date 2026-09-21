@@ -21,3 +21,7 @@ services:
         generateValue: true
       - key: CDM_MONTHLY_PRICE
         value: "350"
+      - key: FOCUS_NFE_MASTER_TOKEN
+        sync: false
+      - key: CDM_INTEGRATION_POLL_SECONDS
+        value: "60"

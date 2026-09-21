@@ -5,8 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .db import Base, engine
 from .backup_scheduler import start_backup_scheduler
+from .integration_scheduler import start_integration_scheduler
 from sqlalchemy import inspect, text
-from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence, platform_v14
+from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence, platform_v14, onboarding
 
 Base.metadata.create_all(bind=engine)
 
@@ -15,6 +16,7 @@ def ensure_v8_schema():
     """Migração leve para instalações V4/V5/V6/V7 já existentes no Render."""
     additions={
         "users":{"token_version":"INTEGER DEFAULT 0","last_login_at":"TIMESTAMP NULL"},
+        "companies":{"neighborhood":"VARCHAR(120) DEFAULT ''"},
         "vehicles":{
             "plate":"VARCHAR(20) DEFAULT ''",
             "vin":"VARCHAR(80) DEFAULT ''",
@@ -31,11 +33,14 @@ def ensure_v8_schema():
             "status":"VARCHAR(30) DEFAULT 'received'",
             "created_at":"TIMESTAMP NULL"
         },
+        "marketplace_listings":{"sync_token":"VARCHAR(220) DEFAULT ''"},
+        "fiscal_documents":{"provider_ref":"VARCHAR(120) DEFAULT ''","environment":"VARCHAR(20) DEFAULT 'homologation'","protocol":"VARCHAR(120) DEFAULT ''","xml_url":"TEXT DEFAULT ''","danfe_url":"TEXT DEFAULT ''","last_status_message":"TEXT DEFAULT ''","cancel_reason":"TEXT DEFAULT ''","authorized_at":"TIMESTAMP NULL","cancelled_at":"TIMESTAMP NULL"},
         "products":{"publish_mercadolivre":"BOOLEAN DEFAULT TRUE","publish_shopee":"BOOLEAN DEFAULT TRUE","publish_olx":"BOOLEAN DEFAULT TRUE","ml_has_warranty":"BOOLEAN DEFAULT FALSE","ml_warranty_text":"VARCHAR(180) DEFAULT ''","ml_shipping_mode":"VARCHAR(60) DEFAULT ''","ml_free_shipping":"BOOLEAN DEFAULT FALSE","ml_local_pickup":"BOOLEAN DEFAULT TRUE","ml_attributes_json":"TEXT DEFAULT '{}'","ml_store_id":"VARCHAR(80) DEFAULT ''","ml_network_node_id":"VARCHAR(120) DEFAULT ''","quality_grade":"VARCHAR(10) DEFAULT 'B'","quality_notes":"TEXT DEFAULT ''","warranty_days":"INTEGER DEFAULT 90","public_catalog":"BOOLEAN DEFAULT TRUE"},
         "sales":{"source":"VARCHAR(40) DEFAULT 'manual'","external_order_id":"VARCHAR(180) DEFAULT ''","shipping_status":"VARCHAR(40) DEFAULT 'awaiting_separation'","carrier_name":"VARCHAR(120) DEFAULT ''","tracking_code":"VARCHAR(180) DEFAULT ''","shipping_notes":"TEXT DEFAULT ''","shipping_updated_at":"TIMESTAMP NULL","shipped_at":"TIMESTAMP NULL"},
         "locations":{"code":"VARCHAR(40) DEFAULT ''","description":"VARCHAR(180) DEFAULT ''","max_quantity":"INTEGER DEFAULT 0","auto_generate":"BOOLEAN DEFAULT FALSE","active":"BOOLEAN DEFAULT TRUE"},
         "suppliers":{"trade_name":"VARCHAR(180) DEFAULT ''","rg_ie":"VARCHAR(50) DEFAULT ''","mobile":"VARCHAR(40) DEFAULT ''","cep":"VARCHAR(20) DEFAULT ''","city":"VARCHAR(120) DEFAULT ''","state":"VARCHAR(10) DEFAULT ''","number":"VARCHAR(40) DEFAULT ''","address":"VARCHAR(220) DEFAULT ''","neighborhood":"VARCHAR(120) DEFAULT ''","complement":"VARCHAR(160) DEFAULT ''","ibge":"VARCHAR(30) DEFAULT ''","active":"BOOLEAN DEFAULT TRUE"},
-        "tax_configs":{"state":"VARCHAR(10) DEFAULT 'RJ'","tax_profile":"VARCHAR(80) DEFAULT 'Simples Nacional'","operation_nature":"VARCHAR(180) DEFAULT 'Venda de mercadoria'","icms_cst":"VARCHAR(20) DEFAULT ''","icms_rate":"FLOAT DEFAULT 0","pis_cst":"VARCHAR(20) DEFAULT '49'","pis_rate":"FLOAT DEFAULT 0","cofins_cst":"VARCHAR(20) DEFAULT '49'","cofins_rate":"FLOAT DEFAULT 0","ipi_cst":"VARCHAR(20) DEFAULT '53'","ipi_rate":"FLOAT DEFAULT 0","ibs_cbs_notes":"TEXT DEFAULT ''"}
+        "tax_configs":{"state":"VARCHAR(10) DEFAULT 'RJ'","tax_profile":"VARCHAR(80) DEFAULT 'Simples Nacional'","operation_nature":"VARCHAR(180) DEFAULT 'Venda de mercadoria'","icms_cst":"VARCHAR(20) DEFAULT ''","icms_rate":"FLOAT DEFAULT 0","pis_cst":"VARCHAR(20) DEFAULT '49'","pis_rate":"FLOAT DEFAULT 0","cofins_cst":"VARCHAR(20) DEFAULT '49'","cofins_rate":"FLOAT DEFAULT 0","ipi_cst":"VARCHAR(20) DEFAULT '53'","ipi_rate":"FLOAT DEFAULT 0","ibs_cbs_notes":"TEXT DEFAULT ''"},
+        "fiscal_documents":{"provider_ref":"VARCHAR(120) DEFAULT ''","xml_url":"TEXT DEFAULT ''","danfe_url":"TEXT DEFAULT ''"}
     }
     try:
         inspector=inspect(engine);tables=set(inspector.get_table_names())
@@ -55,6 +60,7 @@ app = FastAPI(title="CDM Desmontes ERP API", version="14.0.0")
 @app.on_event("startup")
 def _start_cdm_backup_scheduler():
     start_backup_scheduler()
+    start_integration_scheduler()
 
 
 frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
@@ -98,6 +104,7 @@ app.include_router(sales.router, prefix="/api/sales", tags=["Vendas"])
 app.include_router(finance.router, prefix="/api/finance", tags=["Financeiro"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notificações"])
 app.include_router(fiscal.router, prefix="/api/fiscal", tags=["Fiscal"])
+app.include_router(onboarding.router, prefix="/api/onboarding", tags=["Onboarding"])
 app.include_router(intelligence.router, prefix="/api/intelligence", tags=["Inteligência CDM"])
 app.include_router(platform_v14.router, prefix="/api/v14", tags=["CDM V14"])
 app.include_router(marketplaces.router, prefix="/api/marketplaces", tags=["Marketplaces"])
