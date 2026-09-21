@@ -4046,3 +4046,85 @@ table th{
 @media(max-width:650px){.fiscalSetupHead,.fiscalEnvironment{align-items:stretch;flex-direction:column}.fiscalEnvironment>div:last-child{display:grid}.fiscalCertificateBox,.companyLookupBar{grid-template-columns:1fr}.companyLookupBar>small,.fiscalCertificateBox>button{grid-column:auto}.fiscalStandalone{align-items:stretch;flex-direction:column}.fiscalSetupSteps>div{grid-template-columns:30px 1fr}.fiscalSetupSteps>div button{grid-column:1/-1}}
 /* CDM SELF-SERVICE ONBOARDING + FISCAL */
 .cdmOnboardingSteps button span small{display:block;font-weight:500;opacity:.65;margin-top:3px;font-size:11px}.cdmOnboardingTip{margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:rgba(30,130,255,.05);font-size:13px}.cnpjAssist{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;margin-bottom:18px;border:1px solid var(--border);border-radius:14px;background:rgba(30,130,255,.05)}.cnpjAssist div{display:flex;flex-direction:column;gap:4px}.cnpjAssist span{font-size:12px;opacity:.7}.fiscalSetupWizard{display:flex;flex-direction:column;gap:18px}.setupHero{padding:16px;border-radius:14px;background:rgba(30,130,255,.08);border:1px solid var(--border)}.setupHero div{display:flex;flex-direction:column;gap:5px}.setupSteps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.setupSteps article{display:flex;gap:14px;border:1px solid var(--border);border-radius:14px;padding:16px;background:var(--panel)}.setupSteps article> b{display:grid;place-items:center;min-width:34px;height:34px;border-radius:50%;background:rgba(150,150,150,.12)}.setupSteps article.done> b{background:rgba(28,180,90,.13);color:#1cb45a}.setupSteps article div{display:flex;flex-direction:column;gap:8px;min-width:0}.setupSteps article h3,.setupSteps article p{margin:0}.setupSteps article p,.setupSteps article small{font-size:12px;opacity:.72}.setupSteps input,.setupSteps select{width:100%}.fiscalSafety{padding:12px 14px;border-radius:12px;border:1px solid var(--border);font-size:12px;opacity:.85}.rowActions{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:800px){.setupSteps{grid-template-columns:1fr}.cnpjAssist{align-items:stretch;flex-direction:column}}
+
+/* CDM V14.2 - CLIENTE INDEPENDENTE / FISCAL LIMPO */
+.ownerPreviewFloat{
+  left:auto!important;
+  top:auto!important;
+  right:18px!important;
+  bottom:18px!important;
+  z-index:1400!important;
+  min-height:44px;
+  max-width:min(260px,calc(100vw - 36px));
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:10px 14px!important;
+  background:#111820!important;
+  border:1px solid #ffffff24!important;
+  box-shadow:0 14px 35px #0008!important;
+  cursor:pointer!important;
+}
+.ownerPreviewFloatIcon{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#ffffff12}
+.ownerPreviewFloatText{white-space:nowrap}
+
+.fiscalSetupTitle{position:relative;overflow:hidden}
+.fiscalTitleActions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.fiscalTitleActions .ghost{background:#ffffff0f;color:#fff;border-color:#ffffff26}
+.fiscalTitleActions .ghost:hover{background:#ffffff1a}
+.fiscalTitleActions .fiscalEnv{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 12px;border-radius:999px;background:#27447a;color:#dce9ff;border:1px solid #4b6ca8;font-size:11px!important;letter-spacing:.06em}
+.fiscalTitleActions .fiscalEnv.production{background:#7e2026;color:#ffe4e6;border-color:#b83a42}
+
+.fiscalSetupV142{display:grid;gap:14px;padding:18px}
+.fiscalSetupProgress{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:2px 2px 0}
+.fiscalSetupProgress>div{display:grid;gap:3px}.fiscalSetupProgress b{font-size:16px}.fiscalSetupProgress span{font-size:12px;color:var(--muted)}
+.fiscalSetupProgress>strong{font-size:20px;font-variant-numeric:tabular-nums}
+.fiscalProgressBar{height:9px;border-radius:999px;background:var(--soft);overflow:hidden;border:1px solid var(--line)}
+.fiscalProgressBar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2878ff,#20a15d);transition:width .25s ease}
+.fiscalServiceNotice{display:grid;gap:4px;padding:13px 14px;border:1px solid #d59a2855;border-radius:11px;background:#d59a2812}
+.fiscalServiceNotice b{font-size:13px}.fiscalServiceNotice span{font-size:12px;color:var(--muted);line-height:1.45}
+.fiscalQuickChecks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.fiscalQuickChecks span{display:flex;align-items:center;gap:8px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font-size:12px;color:var(--muted)}
+.fiscalQuickChecks span i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);font-style:normal;font-weight:900}
+.fiscalQuickChecks span.done{color:var(--text);border-color:#20a15d55;background:#20a15d0d}.fiscalQuickChecks span.done i{background:#20a15d;color:#fff;border-color:#20a15d}
+
+.fiscalSetupCard{display:grid;gap:14px;padding:17px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.fiscalSetupCard.done{border-color:#20a15d45;box-shadow:inset 3px 0 0 #20a15d}
+.fiscalSetupCardHead{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:12px;align-items:start}
+.fiscalSetupCardHead>b{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--soft);border:1px solid var(--line);font-size:13px}
+.fiscalSetupCard.done .fiscalSetupCardHead>b{background:#20a15d;color:#fff;border-color:#20a15d}
+.fiscalSetupCardHead h3{margin:1px 0 4px;font-size:17px}.fiscalSetupCardHead p{margin:0;font-size:12px;color:var(--muted);line-height:1.45}
+.fiscalSetupCardHead>span{padding:6px 9px;border-radius:999px;background:var(--soft);font-size:10px;color:var(--muted);white-space:nowrap}
+.fiscalSetupCard.done .fiscalSetupCardHead>span{background:#20a15d16;color:#20a15d}
+
+.fiscalCnpjRow{display:grid;grid-template-columns:minmax(220px,360px) auto;gap:9px;align-items:end}
+.fiscalCompanyGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.fiscalTaxGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.fiscalCardActions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:2px}
+.fiscalCardActions>small{max-width:720px;color:var(--muted);font-size:11px;line-height:1.45}
+.fiscalCertificateSimple{display:grid;grid-template-columns:1.2fr 1fr auto;gap:10px;align-items:center}
+.certificateFile{position:relative;min-height:44px;display:flex;align-items:center;padding:0 12px;border:1px dashed var(--line);border-radius:9px;background:var(--soft);cursor:pointer;overflow:hidden}
+.certificateFile span{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.certificateFile input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.certificateOk{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border-radius:10px;background:#20a15d10;border:1px solid #20a15d3d}.certificateOk b{font-size:12px;color:#20a15d}.certificateOk span{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fiscalPrivacy{font-size:11px;color:var(--muted);line-height:1.45}
+.fiscalFinalRow{display:grid;grid-template-columns:minmax(280px,1fr) auto;gap:10px;align-items:end}
+.fiscalSetupError{display:flex;align-items:flex-start;gap:8px;padding:11px 12px;border-radius:10px;background:#d59a2810;border:1px solid #d59a2840}.fiscalSetupError b{font-size:12px;white-space:nowrap}.fiscalSetupError span{font-size:12px;color:var(--muted);line-height:1.45}
+.fiscalReadyMessage{display:grid;gap:6px;padding:15px;border-radius:12px;background:#20a15d10;border:1px solid #20a15d45}.fiscalReadyMessage b{font-size:15px;color:#20a15d}.fiscalReadyMessage span{font-size:12px;color:var(--muted)}.fiscalReadyMessage button{justify-self:start;margin-top:5px}
+
+@media(max-width:1050px){
+  .fiscalCompanyGrid,.fiscalTaxGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fiscalQuickChecks{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .ownerPreviewFloat{right:12px!important;bottom:12px!important}
+  .ownerPreviewFloatText{display:none}.ownerPreviewFloat{width:46px!important;height:46px!important;padding:0!important;border-radius:50%!important}
+  .fiscalSetupV142{padding:12px}
+  .fiscalSetupProgress{align-items:flex-start}.fiscalSetupProgress>strong{font-size:17px}
+  .fiscalQuickChecks,.fiscalCompanyGrid,.fiscalTaxGrid,.fiscalCnpjRow,.fiscalCertificateSimple,.fiscalFinalRow{grid-template-columns:1fr}
+  .fiscalSetupCardHead{grid-template-columns:36px 1fr}.fiscalSetupCardHead>span{grid-column:2;justify-self:start}
+  .fiscalCardActions{align-items:stretch;flex-direction:column}.fiscalCardActions button{width:100%}
+  .fiscalReadyMessage button{width:100%}
+  .fiscalTitleActions{width:100%;justify-content:flex-start}
+}
+/* END CDM V14.2 */

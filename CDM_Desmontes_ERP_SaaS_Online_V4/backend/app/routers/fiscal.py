@@ -46,16 +46,31 @@ def _token(cfg):
 
 def _public_setup(cfg, company=None, tax=None):
     cfg=cfg or FiscalConfig()
+    company_ready=bool(
+        company and len(_digits(company.cnpj))==14 and company.legal_name and company.city
+        and company.state and company.address and _digits(company.state_registration)
+    )
+    tax_ready=bool(tax and tax.cfop_default and tax.csosn_default)
+    certificate_ready=bool(cfg.certificate_uploaded)
+    connection_ready=bool(_token(cfg))
+    checks=[
+        {"id":"company","label":"Dados da empresa","done":company_ready},
+        {"id":"tax","label":"Tributação","done":tax_ready},
+        {"id":"certificate","label":"Certificado A1","done":certificate_ready},
+        {"id":"connection","label":"Conexão fiscal","done":connection_ready},
+    ]
+    completed=sum(1 for x in checks if x["done"])
     return {
         "provider":cfg.provider or "focusnfe","environment":cfg.environment or "homologacao",
         "provider_company_id":cfg.provider_company_id or "","certificate_name":cfg.certificate_name or "",
-        "certificate_uploaded":bool(cfg.certificate_uploaded),"setup_status":cfg.setup_status or "pending",
+        "certificate_uploaded":certificate_ready,"setup_status":cfg.setup_status or "pending",
         "last_test_status":cfg.last_test_status or "","last_error":cfg.last_error or "",
         "auto_issue_sales":bool(cfg.auto_issue_sales),
         "has_production_token":bool(cfg.production_token_enc),"has_homologation_token":bool(cfg.homologation_token_enc),
-        "company_ready":bool(company and _digits(company.cnpj) and company.legal_name and company.city and company.state),
-        "tax_ready":bool(tax and tax.cfop_default and (tax.ncm_default or tax.csosn_default)),
-        "ready":bool(cfg.setup_status in {"ready","configured"} and cfg.certificate_uploaded and _token(cfg)),
+        "company_ready":company_ready,"tax_ready":tax_ready,"connection_ready":connection_ready,
+        "service_available":bool((os.getenv("FOCUS_MASTER_TOKEN") or "").strip()),
+        "checks":checks,"completed":completed,"total":len(checks),"percent":round(completed/len(checks)*100),
+        "ready":bool(cfg.setup_status=="ready" and company_ready and tax_ready and certificate_ready and connection_ready),
     }
 
 def serialize(row):
@@ -127,7 +142,18 @@ def lookup_cnpj(cnpj:str,user=Depends(active_user)):
         with httpx.Client(timeout=20) as c:r=c.get(f"https://brasilapi.com.br/api/cnpj/v1/{value}")
         if r.status_code>=400:raise HTTPException(404,"CNPJ não encontrado na consulta pública")
         d=r.json()
-        return {"cnpj":value,"legal_name":d.get("razao_social") or "","trade_name":d.get("nome_fantasia") or d.get("razao_social") or "","email":d.get("email") or "","phone":d.get("ddd_telefone_1") or "","cep":_digits(d.get("cep")),"state":d.get("uf") or "","city":d.get("municipio") or "","address":d.get("logradouro") or "","number":d.get("numero") or "","complement":d.get("complemento") or ""}
+        ies=d.get("inscricoes_estaduais") or []
+        active_ie=next((x for x in ies if x.get("ativo") is True),ies[0] if ies else {})
+        ie=str(active_ie.get("inscricao_estadual") or active_ie.get("numero") or "")
+        tax_regime="MEI" if d.get("opcao_pelo_mei") else ("Simples Nacional" if d.get("opcao_pelo_simples") else "")
+        return {
+            "cnpj":value,"legal_name":d.get("razao_social") or "",
+            "trade_name":d.get("nome_fantasia") or d.get("razao_social") or "",
+            "state_registration":ie,"tax_regime":tax_regime,
+            "email":d.get("email") or "","phone":d.get("ddd_telefone_1") or d.get("ddd_telefone_2") or "",
+            "cep":_digits(d.get("cep")),"state":d.get("uf") or "","city":d.get("municipio") or "",
+            "address":d.get("logradouro") or "","number":d.get("numero") or "","complement":d.get("complemento") or ""
+        }
     except HTTPException:raise
     except Exception as exc:raise HTTPException(502,f"Não foi possível consultar o CNPJ agora: {str(exc)[:120]}")
 
@@ -137,9 +163,11 @@ async def upload_certificate(certificate:UploadFile=File(...),password:str=Form(
     if not company or len(_digits(company.cnpj))!=14:raise HTTPException(400,"Cadastre um CNPJ válido nos dados da empresa antes do certificado")
     name=(certificate.filename or "certificado.pfx")
     if not name.lower().endswith((".pfx",".p12")):raise HTTPException(400,"Envie um certificado digital A1 no formato .pfx ou .p12")
+    master=(os.getenv("FOCUS_MASTER_TOKEN") or "").strip()
+    if not master:
+        raise HTTPException(503,"A emissão fiscal ainda não está disponível para configuração nesta instalação. Tente novamente mais tarde.")
     content=await certificate.read()
     if not content or len(content)>8*1024*1024:raise HTTPException(400,"Certificado vazio ou acima de 8 MB")
-    master=(os.getenv("FOCUS_MASTER_TOKEN") or "").strip()
     if master:
         payload=_focus_company_payload(company,tax,base64.b64encode(content).decode(),password)
         try:
@@ -165,10 +193,11 @@ def test_setup(db:Session=Depends(get_db),user=Depends(active_user)):
     company=db.get(Company,user.company_id);tax=db.query(TaxConfig).filter(TaxConfig.company_id==user.company_id).first();cfg=_config(db,user.company_id,True);token=_token(cfg)
     problems=[]
     if not company or len(_digits(company.cnpj))!=14:problems.append("CNPJ da empresa")
-    if not company or not company.state_registration:problems.append("inscrição estadual")
-    if not tax:problems.append("configuração tributária")
+    if not company or not company.legal_name or not company.city or not company.state or not company.address:problems.append("dados da empresa")
+    if not company or not _digits(company.state_registration):problems.append("inscrição estadual")
+    if not tax or not tax.cfop_default or not tax.csosn_default:problems.append("configuração tributária")
     if not cfg.certificate_uploaded:problems.append("certificado A1")
-    if not token:problems.append(f"token Focus do ambiente {cfg.environment}")
+    if not token:problems.append("conexão com o emissor fiscal")
     if problems:
         cfg.last_test_status="pending";cfg.last_error="Falta: "+", ".join(problems);db.commit();return {"ok":False,"message":cfg.last_error,"setup":_public_setup(cfg,company,tax)}
     cfg.last_test_status="ok";cfg.last_error="";cfg.setup_status="ready";db.commit();return {"ok":True,"message":"Configuração fiscal pronta para emissão","setup":_public_setup(cfg,company,tax)}
