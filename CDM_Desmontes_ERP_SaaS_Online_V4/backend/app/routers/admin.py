@@ -166,30 +166,12 @@ def offsite_backup_cron(
 
     try:
         result=upload_offsite()
-        db.add(AuditLog(
-            company_id=None,
-            user_id=None,
-            action="backup.offsite.cron",
-            entity="database",
-            entity_id="",
-            details_json=json.dumps({
-                "backup_id":result["backup_id"],
-                "sha256":result["sha256"],
-                "bytes":result["bytes"],
-                "key":result["key"],
-            },ensure_ascii=False,default=str)[:8000],
-        ))
-        db.commit()
-        return result
     except Exception as exc:
         db.rollback()
         try:
             db.add(AuditLog(
-                company_id=None,
-                user_id=None,
-                action="backup.offsite.cron.error",
-                entity="database",
-                entity_id="",
+                company_id=None,user_id=None,
+                action="backup.offsite.cron.error",entity="database",entity_id="",
                 details_json=json.dumps({"error":str(exc)[:1000]},ensure_ascii=False),
             ))
             db.commit()
@@ -197,6 +179,60 @@ def offsite_backup_cron(
             db.rollback()
         raise HTTPException(503,f"Falha no backup automático externo: {exc}")
 
+    db.add(AuditLog(
+        company_id=None,user_id=None,
+        action="backup.offsite.cron",entity="database",entity_id="",
+        details_json=json.dumps({
+            "backup_id":result["backup_id"],
+            "sha256":result["sha256"],
+            "bytes":result["bytes"],
+            "key":result["key"],
+        },ensure_ascii=False,default=str)[:8000],
+    ))
+    db.commit()
+
+    try:
+        restore=restore_drill_offsite(result.get("key",""))
+        db.add(AuditLog(
+            company_id=None,user_id=None,
+            action="backup.restore_drill.success",entity="database",entity_id="",
+            details_json=json.dumps({
+                "backup_id":restore.get("backup_id"),
+                "sha256":restore.get("sha256"),
+                "tables":restore.get("tables"),
+                "rows":restore.get("rows"),
+                "counts_match":restore.get("counts_match"),
+                "key":restore.get("key"),
+            },ensure_ascii=False,default=str)[:8000],
+        ))
+        db.commit()
+        return {
+            **result,
+            "restore_drill":{
+                "ok":True,
+                "tables":restore.get("tables"),
+                "rows":restore.get("rows"),
+                "counts_match":restore.get("counts_match"),
+            },
+        }
+    except Exception as exc:
+        db.rollback()
+        try:
+            db.add(AuditLog(
+                company_id=None,user_id=None,
+                action="backup.restore_drill.error",entity="database",entity_id="",
+                details_json=json.dumps({
+                    "key":result.get("key",""),
+                    "error":str(exc)[:1000],
+                },ensure_ascii=False),
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+        raise HTTPException(
+            503,
+            f"Backup salvo, mas o teste automático de restauração falhou: {exc}",
+        )
 
 
 class RestoreDrillIn(BaseModel):

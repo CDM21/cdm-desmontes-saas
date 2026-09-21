@@ -4208,3 +4208,9 @@ table th{
 @media(max-width:900px){.launchHero{grid-template-columns:1fr}.launchScore{width:92px;height:92px}.launchActions{align-items:stretch;flex-direction:column}.launchActions button{width:100%}}
 @media(max-width:650px){.launchChecks article{grid-template-columns:28px minmax(0,1fr)}.launchChecks em{grid-column:2}}
 /* END CDM V15 */
+
+/* CDM V15.1 - LINKS LEGAIS */
+.loginLegal{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;font-size:10px}
+.loginLegal a{color:var(--muted);text-decoration:none}
+.loginLegal a:hover{color:var(--text);text-decoration:underline}
+.loginLegal span{color:var(--muted)}

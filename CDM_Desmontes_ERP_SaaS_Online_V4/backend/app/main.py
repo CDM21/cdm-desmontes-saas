@@ -7,7 +7,7 @@ from .db import Base, engine
 from .backup_scheduler import start_backup_scheduler
 from .integration_scheduler import start_integration_scheduler
 from sqlalchemy import inspect, text
-from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence, platform_v14, platform_v15, onboarding
+from .routers import auth, vehicles, products, sales, finance, stock, marketplaces, company, catalog, billing, vehicle_catalog, admin, notifications, fiscal, intelligence, platform_v14, platform_v15, onboarding, legal
 
 Base.metadata.create_all(bind=engine)
 
@@ -55,7 +55,7 @@ def ensure_v8_schema():
 ensure_v8_schema()
 
 
-app = FastAPI(title="CDM Desmontes ERP API", version="15.0.0")
+app = FastAPI(title="CDM Desmontes ERP API", version="15.1.0")
 
 @app.on_event("startup")
 def _start_cdm_backup_scheduler():
@@ -110,10 +110,11 @@ app.include_router(platform_v14.router, prefix="/api/v14", tags=["CDM V14"])
 app.include_router(platform_v15.router, prefix="/api/v15", tags=["CDM V15"])
 app.include_router(marketplaces.router, prefix="/api/marketplaces", tags=["Marketplaces"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin SaaS"])
+app.include_router(legal.router, tags=["Legal"])
 
 @app.get("/api/health")
 def health():
-    return {"status":"ok","service":"cdm-desmontes-erp","version":"15.0.0"}
+    return {"status":"ok","service":"cdm-desmontes-erp","version":"15.1.0"}
 
 frontend_dist = Path(os.getenv("FRONTEND_DIST", "/app/frontend_dist"))
 if frontend_dist.exists() and (frontend_dist / "index.html").exists():

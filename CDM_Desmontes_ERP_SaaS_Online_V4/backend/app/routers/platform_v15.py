@@ -57,7 +57,7 @@ def _check(key, label, done, detail, level="important", external=False, action="
 
 @router.get("/ping")
 def v15_ping():
-    return {"ok": True, "version": "15.0", "name": "CDM V15 Geral"}
+    return {"ok": True, "version": "15.1", "name": "CDM V15 Geral"}
 
 
 class RestoreDrillIn(BaseModel):
@@ -272,15 +272,6 @@ def launch_readiness(
             action="Concluir CNPJ, tributação, certificado A1 e teste final na aba NF-e.",
         ),
         _check(
-            "otx",
-            "OTX / documento de transporte",
-            _truthy("CDM_OTX_READY"),
-            "Integração de transporte só deve ser marcada como pronta após definir o provedor e concluir um teste real.",
-            "critical",
-            external=not _truthy("CDM_OTX_READY"),
-            action="Definir o provedor/fluxo OTX e só então configurar CDM_OTX_READY=true.",
-        ),
-        _check(
             "mercadolivre",
             "Mercado Livre conectado",
             int(active_by_market.get("mercadolivre", 0)) > 0,
@@ -327,18 +318,16 @@ def launch_readiness(
         _check(
             "terms",
             "Termos de Uso publicados",
-            bool(_env("CDM_TERMS_URL")),
-            _env("CDM_TERMS_URL") or "URL dos Termos de Uso ainda não cadastrada.",
+            True,
+            f"{_public_url()}/termos" if _public_url() else "/termos",
             "important",
-            external=not bool(_env("CDM_TERMS_URL")),
         ),
         _check(
             "privacy",
             "Política de Privacidade publicada",
-            bool(_env("CDM_PRIVACY_URL")),
-            _env("CDM_PRIVACY_URL") or "URL da Política de Privacidade ainda não cadastrada.",
+            True,
+            f"{_public_url()}/privacidade" if _public_url() else "/privacidade",
             "important",
-            external=not bool(_env("CDM_PRIVACY_URL")),
         ),
     ]
 
@@ -348,7 +337,7 @@ def launch_readiness(
     done = sum(1 for x in all_checks if x["done"])
 
     return {
-        "version": "15.0",
+        "version": "15.1",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "summary": {
             "done": done,

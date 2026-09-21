@@ -511,7 +511,7 @@ function OwnerPortal({session,onPreview}){
 
 
      {section==='launch'&&<>
-       <section className="ownerSectionIntro"><div><span>V15 · CENTRO DE LANÇAMENTO</span><h2>Prontidão para clientes reais</h2><p>Um único painel para cobrança, banco, backup, NF-e, OTX, marketplaces e lançamento comercial.</p></div></section>
+       <section className="ownerSectionIntro"><div><span>V15.1 · CENTRO DE LANÇAMENTO</span><h2>Prontidão para clientes reais</h2><p>Um único painel para cobrança, banco, backup, NF-e, OTX, marketplaces e lançamento comercial.</p></div></section>
        <section className="ownerCard launchHero">
          <div className="launchScore"><strong>{launch?.summary?.percent??0}%</strong><span>{launch?.summary?.done??0} de {launch?.summary?.total??0} verificações concluídas</span></div>
          <div className="launchHeroText">
@@ -614,7 +614,7 @@ function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClos
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V15 Geral</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V15.1 Fechamento</small></div>
    </aside>
  </>
 }
@@ -731,7 +731,7 @@ function Login({onLogin}){
    {mode==='reset'&&<><h2>Criar nova senha</h2><p>Use uma senha forte com pelo menos 10 caracteres.</p><Field label="Nova senha"><input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></Field></>}
    <button className="primary loginSubmit" disabled={busy} onClick={go}>{busy?'Aguarde...':mode==='login'?'Entrar no sistema →':mode==='register'?'Criar minha conta →':mode==='forgot'?'Enviar link de recuperação →':'Salvar nova senha →'}</button>
    {err&&<div className="error">{err}</div>}{info&&<div className="loginSuccess">{info}</div>}
-   <small className="loginNote">Plano profissional: 7 dias de teste e depois R$ 350/mês. A cobrança recorrente é feita pelo Mercado Pago.</small>
+   <small className="loginNote">Plano profissional: 7 dias de teste e depois R$ 350/mês. A cobrança recorrente é feita pelo Mercado Pago.</small><div className="loginLegal"><a href="/termos" target="_blank" rel="noreferrer">Termos de Uso</a><span>·</span><a href="/privacidade" target="_blank" rel="noreferrer">Privacidade</a></div>
  </section></div>
 }
 
