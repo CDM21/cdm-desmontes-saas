@@ -59,3 +59,17 @@ def create_oauth_state(company_id:int, marketplace:str):
 
 def decode_oauth_state(token:str):
     return jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+
+def create_password_reset_token(user_id:int, token_version=0):
+    now=datetime.now(timezone.utc)
+    exp=now+timedelta(minutes=30)
+    return jwt.encode({
+        "sub":str(user_id),"ver":int(token_version or 0),
+        "purpose":"password_reset","iat":now,"exp":exp,"jti":uuid.uuid4().hex
+    },SECRET_KEY,algorithm=ALGORITHM)
+
+def decode_password_reset_token(token:str):
+    data=jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+    if data.get("purpose")!="password_reset":
+        raise ValueError("Token inválido")
+    return data

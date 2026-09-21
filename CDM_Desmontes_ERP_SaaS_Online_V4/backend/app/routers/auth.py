@@ -5,9 +5,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import User, Company, Subscription
-from ..security import verify_password, hash_password, create_token, password_policy_error
+from ..security import verify_password, hash_password, create_token, password_policy_error, create_password_reset_token, decode_password_reset_token
 from ..deps import current_user
 from ..admin import is_platform_admin, audit
+from ..mailer import send_password_reset_email
 
 router=APIRouter()
 
@@ -79,6 +80,13 @@ class Register(BaseModel):
     cnpj:str=""
     phone:str=""
 
+class ForgotPassword(BaseModel):
+    email:str
+
+class ResetPassword(BaseModel):
+    token:str
+    password:str
+
 
 def session_payload(db:Session,user:User):
     company=db.get(Company,user.company_id)
@@ -131,6 +139,47 @@ def register(data:Register, request:Request, db:Session=Depends(get_db)):
     sub=Subscription(company_id=company.id,plan="mensal-350",status="trial",provider="onboarding",expires_at=datetime.utcnow()+timedelta(days=7))
     db.add(sub); db.commit(); db.refresh(user)
     return session_payload(db,user)
+
+
+@router.post("/forgot-password")
+def forgot_password(data:ForgotPassword, request:Request, db:Session=Depends(get_db)):
+    _check_rate(request,"register")
+    email=data.email.lower().strip()[:180]
+    user=db.query(User).filter(User.email==email).first()
+    if user and user.active:
+        token=create_password_reset_token(user.id,getattr(user,"token_version",0))
+        base=(os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("FRONTEND_URL") or "").rstrip("/")
+        if base:
+            link=f"{base}/?reset_token={token}"
+            try:
+                send_password_reset_email(user.email,user.name,link)
+                audit(db,user,"auth.password_reset_requested","user",str(user.id),{})
+                db.commit()
+            except Exception:
+                pass
+    return {"ok":True,"message":"Se o e-mail estiver cadastrado, as instruções serão enviadas."}
+
+@router.post("/reset-password")
+def reset_password(data:ResetPassword, request:Request, db:Session=Depends(get_db)):
+    _check_rate(request,"register")
+    try:
+        payload=decode_password_reset_token(data.token)
+        user_id=int(payload.get("sub"))
+    except Exception:
+        raise HTTPException(400,"Link de recuperação inválido ou expirado")
+    user=db.get(User,user_id)
+    if not user or not user.active:
+        raise HTTPException(400,"Link de recuperação inválido ou expirado")
+    if int(payload.get("ver") or 0)!=int(getattr(user,"token_version",0) or 0):
+        raise HTTPException(400,"Este link de recuperação já foi utilizado ou expirou")
+    password_error=password_policy_error(data.password)
+    if password_error:
+        raise HTTPException(400,password_error)
+    user.password_hash=hash_password(data.password)
+    user.token_version=int(getattr(user,"token_version",0) or 0)+1
+    audit(db,user,"auth.password_reset","user",str(user.id),{})
+    db.commit()
+    return {"ok":True,"message":"Senha alterada com sucesso"}
 
 @router.get("/me")
 def me(user=Depends(current_user), db:Session=Depends(get_db)):

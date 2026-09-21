@@ -4189,3 +4189,22 @@ table th{
 @media(max-width:650px){.mpHealthHead{align-items:stretch;flex-direction:column}.mpHealthHead button{width:100%}.mpHealthFacts{grid-template-columns:1fr}}
 /* END CDM V14.3.2 */
 
+/* CDM V15 - CENTRO DE LANCAMENTO + RECUPERACAO DE ACESSO */
+.loginForgot,.loginBack{border:0;background:transparent;color:var(--muted);padding:4px 0;text-align:left;font-size:11px;cursor:pointer}
+.loginForgot:hover,.loginBack:hover{color:var(--text)}
+.loginSuccess{padding:10px 12px;border:1px solid #20a15d55;border-radius:9px;background:#20a15d12;color:#63d494;font-size:11px;line-height:1.45}
+.launchHero{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:18px;align-items:center}
+.launchScore{width:112px;height:112px;border-radius:50%;display:grid;place-content:center;text-align:center;border:8px solid #20a15d33;background:var(--soft)}
+.launchScore strong{font-size:27px}.launchScore span{font-size:8px;color:var(--muted);max-width:80px;line-height:1.35;margin-top:3px}
+.launchHeroText{display:grid;gap:5px}.launchHeroText>span,.launchActions>div>span{font-size:8px;letter-spacing:.1em;color:var(--muted);font-weight:900}
+.launchHeroText h3,.launchActions h3{margin:0;font-size:18px}.launchHeroText p,.launchActions p{margin:0;color:var(--muted);font-size:10px;line-height:1.55}
+.launchSections{display:grid;gap:14px;margin-top:14px}.launchGroup{margin:0}
+.launchChecks{display:grid;gap:7px}.launchChecks article{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.launchCheckIcon{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:900;background:#d3575715;color:#d56b6b}
+.launchChecks article.done .launchCheckIcon{background:#20a15d18;color:#42c47b}.launchChecks article.external .launchCheckIcon{background:#d59a2818;color:#d9a84b}
+.launchChecks article>div:nth-child(2){display:grid;gap:3px}.launchChecks b{font-size:11px}.launchChecks span{font-size:9px;color:var(--muted);line-height:1.4}.launchChecks small{font-size:8px;color:#91a9df;line-height:1.4}
+.launchChecks em{font-style:normal;font-size:8px;font-weight:900;color:#d56b6b}.launchChecks article.done em{color:#42c47b}.launchChecks article.external em{color:#d9a84b}
+.launchActions{margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:18px}.launchActions>div{display:grid;gap:5px}
+@media(max-width:900px){.launchHero{grid-template-columns:1fr}.launchScore{width:92px;height:92px}.launchActions{align-items:stretch;flex-direction:column}.launchActions button{width:100%}}
+@media(max-width:650px){.launchChecks article{grid-template-columns:28px minmax(0,1fr)}.launchChecks em{grid-column:2}}
+/* END CDM V15 */

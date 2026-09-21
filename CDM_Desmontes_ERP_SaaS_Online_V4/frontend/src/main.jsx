@@ -293,6 +293,8 @@ function OwnerPortal({session,onPreview}){
  const [founders,setFounders]=useState(null)
  const [billingOverview,setBillingOverview]=useState(null)
  const [mpHealth,setMpHealth]=useState(null)
+ const [launch,setLaunch]=useState(null)
+ const [restoreTesting,setRestoreTesting]=useState(false)
  const [mpTesting,setMpTesting]=useState(false)
  const [v14Errors,setV14Errors]=useState({founders:'',readiness:'',billing:'',mercadopago:''})
  const s=data.summary||{}, rows=data.companies||[], logs=data.recent_logs||[]
@@ -306,7 +308,7 @@ function OwnerPortal({session,onPreview}){
    try{
      const r=await api.get('/admin/dashboard-v2')
      setData(r.data||{})
-     const [readinessR,foundersR,billingR,mpHealthR]=await Promise.all([
+     const [readinessR,foundersR,billingR,mpHealthR,launchR]=await Promise.all([
        api.get('/v14/admin/platform-readiness')
          .then(x=>({ok:true,data:x.data}))
          .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na API V14'}`})),
@@ -318,12 +320,16 @@ function OwnerPortal({session,onPreview}){
          .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha na cobrança V14'}`})),
        api.get('/billing/admin/mercadopago-health')
          .then(x=>({ok:true,data:x.data}))
-         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha ao validar Mercado Pago'}`}))
+         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha ao validar Mercado Pago'}`})),
+       api.get('/v15/admin/launch-readiness')
+         .then(x=>({ok:true,data:x.data}))
+         .catch(e=>({ok:false,error:`HTTP ${e.response?.status||'-'} - ${erroPt(e.response?.data?.detail)||e.message||'Falha no diagnóstico V15'}`}))
      ])
      setReadiness(readinessR.ok?readinessR.data:null)
      setFounders(foundersR.ok?foundersR.data:null)
      setBillingOverview(billingR.ok?billingR.data:null)
      setMpHealth(mpHealthR.ok?mpHealthR.data:null)
+     setLaunch(launchR.ok?launchR.data:null)
      setV14Errors({
        readiness:readinessR.ok?'':readinessR.error,
        founders:foundersR.ok?'':foundersR.error,
@@ -336,6 +342,15 @@ function OwnerPortal({session,onPreview}){
  }
  useEffect(()=>{load();const t=setInterval(()=>load(true),60000);return()=>clearInterval(t)},[])
 
+ async function testRestore(){
+   setRestoreTesting(true)
+   try{
+     const r=await api.post('/v15/admin/backup-restore-drill',{key:''})
+     pop(`Restauração validada: ${r.data?.tables||0} tabelas · ${r.data?.rows||0} registros`)
+     await load(true)
+   }catch(e){pop(erroPt(e.response?.data?.detail)||'Não foi possível concluir o teste de restauração')}
+   finally{setRestoreTesting(false)}
+ }
  async function testMercadoPago(){
    setMpTesting(true)
    try{
@@ -390,7 +405,7 @@ function OwnerPortal({session,onPreview}){
    <aside className="ownerSide">
      <div className="ownerBrand"><div>CDM</div><span><b>ADMIN</b><small>Portal do Dono</small></span></div>
      <nav>
-       {[['overview','▦','Visão geral'],['clients','♟','Clientes'],['revenue','R$','Receita'],['system','◉','Sistema']].map(([k,i,l])=><button key={k} className={section===k?'active':''} onClick={()=>setSection(k)}><span>{i}</span>{l}</button>)}
+       {[['overview','▦','Visão geral'],['clients','♟','Clientes'],['revenue','R$','Receita'],['launch','✓','Lançamento'],['system','◉','Sistema']].map(([k,i,l])=><button key={k} className={section===k?'active':''} onClick={()=>setSection(k)}><span>{i}</span>{l}</button>)}
      </nav>
      <div className="ownerSideBottom">
        <button className="ownerPreviewBtn" onClick={onPreview}>◫ Visualizar ERP</button>
@@ -401,7 +416,7 @@ function OwnerPortal({session,onPreview}){
 
    <main className="ownerMain">
      <header className="ownerTop">
-       <div><span>CDM DESMONTES · ADMINISTRAÇÃO</span><h1>{section==='overview'?'Visão geral':section==='clients'?'Clientes':section==='revenue'?'Receita':'Sistema'}</h1></div>
+       <div><span>CDM DESMONTES · ADMINISTRAÇÃO</span><h1>{section==='overview'?'Visão geral':section==='clients'?'Clientes':section==='revenue'?'Receita':section==='launch'?'Lançamento':'Sistema'}</h1></div>
        <div className="ownerTopActions"><span className="ownerLive"><i/> Online</span><button onClick={()=>load()} disabled={busy}>{busy?'Atualizando...':'↻ Atualizar'}</button></div>
      </header>
 
@@ -494,6 +509,38 @@ function OwnerPortal({session,onPreview}){
          :<div className="ownerInfoNote">Os 10 primeiros clientes reais ficam isentos da implantação. A partir do 11º cliente, a implantação é cobrada uma única vez, além da mensalidade recorrente.</div>}
      </section>}
 
+
+     {section==='launch'&&<>
+       <section className="ownerSectionIntro"><div><span>V15 · CENTRO DE LANÇAMENTO</span><h2>Prontidão para clientes reais</h2><p>Um único painel para cobrança, banco, backup, NF-e, OTX, marketplaces e lançamento comercial.</p></div></section>
+       <section className="ownerCard launchHero">
+         <div className="launchScore"><strong>{launch?.summary?.percent??0}%</strong><span>{launch?.summary?.done??0} de {launch?.summary?.total??0} verificações concluídas</span></div>
+         <div className="launchHeroText">
+           <span>STATUS GERAL</span>
+           <h3>{launch?.summary?.core_ready?'Base principal pronta para lançamento':'Ainda existem bloqueios antes de liberar clientes'}</h3>
+           <p>{launch?.summary?.external_pending||0} item(ns) dependem de serviço ou aprovação externa. O CDM mantém isso separado do que já está funcionando.</p>
+         </div>
+         <button className="primary" onClick={()=>load()} disabled={busy}>{busy?'Verificando...':'Verificar tudo agora'}</button>
+       </section>
+
+       <div className="launchSections">
+         {(launch?.sections||[]).map(group=><section className="ownerCard launchGroup" key={group.id}>
+           <div className="ownerCardHead"><div><span>{group.id==='critical'?'PRODUÇÃO':group.id==='operations'?'OPERAÇÃO':'COMERCIAL'}</span><h3>{group.label}</h3></div><span className="pill neutral">{(group.checks||[]).filter(x=>x.done).length}/{(group.checks||[]).length}</span></div>
+           <div className="launchChecks">
+             {(group.checks||[]).map(item=><article key={item.key} className={item.done?'done':item.external?'external':'pending'}>
+               <div className="launchCheckIcon">{item.done?'✓':item.external?'↗':'!'}</div>
+               <div><b>{item.label}</b><span>{item.detail}</span>{!item.done&&item.action&&<small>{item.action}</small>}</div>
+               <em>{item.done?'PRONTO':item.external?'EXTERNO':'PENDENTE'}</em>
+             </article>)}
+           </div>
+         </section>)}
+       </div>
+
+       <section className="ownerCard launchActions">
+         <div><span>SEGURANÇA DOS DADOS</span><h3>Teste real de restauração</h3><p>O teste baixa o backup externo, valida SHA-256 e reconstrói uma cópia isolada. Ele não escreve no banco de produção.</p></div>
+         <button className="ghost" disabled={restoreTesting} onClick={testRestore}>{restoreTesting?'Testando restauração...':'Testar restauração agora'}</button>
+       </section>
+     </>}
+
      {section==='system'&&<>
        <section className="ownerSectionIntro"><div><span>SAÚDE DA PLATAFORMA</span><h2>Sistema e monitoramento</h2><p>Uso geral, automações e últimas ações administrativas.</p></div></section>
        <div className="ownerKpis">
@@ -511,7 +558,7 @@ function OwnerPortal({session,onPreview}){
 
      {section==='system'&&<section className="ownerCard v14ReadinessCard">
        <div className="ownerCardHead">
-         <div><span>DIAGNÓSTICO V14.3.2</span><h3>Segurança, backup e integrações</h3></div>
+         <div><span>DIAGNÓSTICO V15</span><h3>Segurança, backup e integrações</h3></div>
          <span className="pill neutral">{readiness?.database?.latency_ms!=null?`${readiness.database.latency_ms} ms DB`:'Verificando API'}</span>
        </div>
        {v14Errors.readiness&&<div className="ownerInfoNote"><b>API V14:</b> {v14Errors.readiness}. Agora o erro não fica mais escondido.</div>}
@@ -567,7 +614,7 @@ function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClos
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V14.3.2 Pagamentos Validados</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V15 Geral</small></div>
    </aside>
  </>
 }
@@ -647,12 +694,45 @@ function Topbar({tab,setTab,session,theme,setTheme,onMenu}){
 }
 
 function Login({onLogin}){
- const [mode,setMode]=useState('login'),[err,setErr]=useState(''),[busy,setBusy]=useState(false)
+ const qs=new URLSearchParams(window.location.search)
+ const resetToken=qs.get('reset_token')||''
+ const [mode,setMode]=useState(resetToken?'reset':'login'),[err,setErr]=useState(''),[info,setInfo]=useState(''),[busy,setBusy]=useState(false)
  const [login,setLogin]=useState({email:'',password:''})
  const [reg,setReg]=useState({company_name:'',name:'',email:'',password:'',cnpj:'',phone:''})
- async function go(){setBusy(true);setErr('');try{if(mode==='login'){const r=await api.post('/auth/login',login);onLogin(r.data)}else{const r=await api.post('/auth/register',reg);onLogin(r.data)}}catch(e){setErr(erroPt(e.response?.data?.detail)||'Não foi possível continuar')}finally{setBusy(false)}}
- return <div className="loginPage"><section className="loginHero"><div className="heroLogo">CDM</div><span>CDM DESMONTES ERP</span><h1>Seu desmanche conectado a todos os canais.</h1><p>Estoque, sucatas, vendas, financeiro e publicação nos canais de venda em uma única operação.</p><div className="loginBenefits"><span>✓ Multiempresa</span><span>✓ Mercado Livre, Shopee e OLX</span><span>✓ Controle por assinatura</span><span>✓ 7 dias grátis · depois R$ 350/mês</span></div></section><section className="loginBox"><div className="loginTabs"><button className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Entrar</button><button className={mode==='register'?'active':''} onClick={()=>setMode('register')}>Criar conta</button></div>{mode==='login'?<><h2>Bem-vindo</h2><p>Acesse o painel da sua empresa.</p><Field label="E-mail"><input value={login.email} onChange={e=>setLogin({...login,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={login.password} onChange={e=>setLogin({...login,password:e.target.value})}/></Field></>:<><h2>Abra sua empresa no CDM</h2><p>O cliente cria a própria conta, testa por 7 dias e depois assina por R$ 350/mês. Os canais de venda são conectados pela própria empresa.</p><Field label="Nome da empresa"><input value={reg.company_name} onChange={e=>setReg({...reg,company_name:e.target.value})}/></Field><Field label="Seu nome"><input value={reg.name} onChange={e=>setReg({...reg,name:e.target.value})}/></Field><Field label="E-mail"><input value={reg.email} onChange={e=>setReg({...reg,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={reg.password} onChange={e=>setReg({...reg,password:e.target.value})}/></Field><div className="miniGrid"><Field label="CNPJ"><input value={reg.cnpj} onChange={e=>setReg({...reg,cnpj:e.target.value})}/></Field><Field label="Telefone"><input value={reg.phone} onChange={e=>setReg({...reg,phone:e.target.value})}/></Field></div></>}
- <button className="primary loginSubmit" disabled={busy} onClick={go}>{busy?'Aguarde...':mode==='login'?'Entrar no sistema →':'Criar minha conta →'}</button>{err&&<div className="error">{err}</div>}<small className="loginNote">Plano profissional: 7 dias de teste e depois R$ 350/mês. A cobrança recorrente é feita pelo Mercado Pago quando configurado no servidor.</small></section></div>
+ const [forgotEmail,setForgotEmail]=useState('')
+ const [newPassword,setNewPassword]=useState('')
+
+ async function go(){
+   setBusy(true);setErr('');setInfo('')
+   try{
+     if(mode==='login'){
+       const r=await api.post('/auth/login',login);onLogin(r.data)
+     }else if(mode==='register'){
+       const r=await api.post('/auth/register',reg);onLogin(r.data)
+     }else if(mode==='forgot'){
+       await api.post('/auth/forgot-password',{email:forgotEmail})
+       setInfo('Se este e-mail estiver cadastrado, você receberá as instruções para criar uma nova senha.')
+     }else if(mode==='reset'){
+       await api.post('/auth/reset-password',{token:resetToken,password:newPassword})
+       window.history.replaceState({},document.title,window.location.pathname)
+       setInfo('Senha alterada com sucesso. Entre com a nova senha.')
+       setMode('login')
+       setNewPassword('')
+     }
+   }catch(e){setErr(erroPt(e.response?.data?.detail)||'Não foi possível continuar')}
+   finally{setBusy(false)}
+ }
+
+ return <div className="loginPage"><section className="loginHero"><div className="heroLogo">CDM</div><span>CDM DESMONTES ERP</span><h1>Seu desmanche conectado a todos os canais.</h1><p>Estoque, sucatas, vendas, financeiro e publicação nos canais de venda em uma única operação.</p><div className="loginBenefits"><span>✓ Multiempresa</span><span>✓ Mercado Livre, Shopee e OLX</span><span>✓ Controle por assinatura</span><span>✓ 7 dias grátis · depois R$ 350/mês</span></div></section><section className="loginBox">
+   {mode!=='reset'&&<div className="loginTabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setErr('');setInfo('')}}>Entrar</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setErr('');setInfo('')}}>Criar conta</button></div>}
+   {mode==='login'&&<><h2>Bem-vindo</h2><p>Acesse o painel da sua empresa.</p><Field label="E-mail"><input value={login.email} onChange={e=>setLogin({...login,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={login.password} onChange={e=>setLogin({...login,password:e.target.value})}/></Field><button className="loginForgot" onClick={()=>{setForgotEmail(login.email);setMode('forgot');setErr('');setInfo('')}}>Esqueci minha senha</button></>}
+   {mode==='register'&&<><h2>Abra sua empresa no CDM</h2><p>O cliente cria a própria conta, testa por 7 dias e depois assina por R$ 350/mês. Os canais de venda são conectados pela própria empresa.</p><Field label="Nome da empresa"><input value={reg.company_name} onChange={e=>setReg({...reg,company_name:e.target.value})}/></Field><Field label="Seu nome"><input value={reg.name} onChange={e=>setReg({...reg,name:e.target.value})}/></Field><Field label="E-mail"><input value={reg.email} onChange={e=>setReg({...reg,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={reg.password} onChange={e=>setReg({...reg,password:e.target.value})}/></Field><div className="miniGrid"><Field label="CNPJ"><input value={reg.cnpj} onChange={e=>setReg({...reg,cnpj:e.target.value})}/></Field><Field label="Telefone"><input value={reg.phone} onChange={e=>setReg({...reg,phone:e.target.value})}/></Field></div></>}
+   {mode==='forgot'&&<><h2>Recuperar acesso</h2><p>Informe o e-mail usado no CDM. Se a conta existir, enviaremos um link temporário.</p><Field label="E-mail"><input value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)}/></Field><button className="loginBack" onClick={()=>{setMode('login');setErr('');setInfo('')}}>← Voltar para entrar</button></>}
+   {mode==='reset'&&<><h2>Criar nova senha</h2><p>Use uma senha forte com pelo menos 10 caracteres.</p><Field label="Nova senha"><input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></Field></>}
+   <button className="primary loginSubmit" disabled={busy} onClick={go}>{busy?'Aguarde...':mode==='login'?'Entrar no sistema →':mode==='register'?'Criar minha conta →':mode==='forgot'?'Enviar link de recuperação →':'Salvar nova senha →'}</button>
+   {err&&<div className="error">{err}</div>}{info&&<div className="loginSuccess">{info}</div>}
+   <small className="loginNote">Plano profissional: 7 dias de teste e depois R$ 350/mês. A cobrança recorrente é feita pelo Mercado Pago.</small>
+ </section></div>
 }
 
 const Card=({icon,title,value,sub})=><div className="metric"><div className="metricIcon">{icon}</div><div><small>{title}</small><strong>{value}</strong><em>{sub}</em></div></div>
