@@ -8,8 +8,42 @@ def _env(name, default=""):
     return str(os.getenv(name, default) or "").strip()
 
 
+def _smtp_sender():
+    return _env("SMTP_FROM") or _env("SMTP_USER")
+
+
+def smtp_diagnostics():
+    host = _env("SMTP_HOST")
+    sender = _smtp_sender()
+    username = _env("SMTP_USER")
+    password_configured = bool(os.getenv("SMTP_PASSWORD", "") or "")
+    try:
+        port = int(_env("SMTP_PORT", "587") or "587")
+    except Exception:
+        port = 587
+    use_ssl = _env("SMTP_SSL", "").lower() in {"1", "true", "yes", "on"} or port == 465
+    auth_ok = (not username) or password_configured
+    missing = []
+    if not host:
+        missing.append("SMTP_HOST")
+    if not sender:
+        missing.append("SMTP_FROM ou SMTP_USER")
+    if username and not password_configured:
+        missing.append("SMTP_PASSWORD")
+    return {
+        "ready": bool(host and sender and auth_ok),
+        "host_configured": bool(host),
+        "sender_configured": bool(sender),
+        "username_configured": bool(username),
+        "password_configured": password_configured,
+        "port": port,
+        "ssl": use_ssl,
+        "missing": missing,
+    }
+
+
 def smtp_configured():
-    return bool(_env("SMTP_HOST") and _env("SMTP_FROM"))
+    return bool(smtp_diagnostics()["ready"])
 
 
 def send_email(to_email, subject, text_body):
@@ -20,7 +54,7 @@ def send_email(to_email, subject, text_body):
     port = int(_env("SMTP_PORT", "587") or "587")
     username = _env("SMTP_USER")
     password = os.getenv("SMTP_PASSWORD", "") or ""
-    sender = _env("SMTP_FROM")
+    sender = _smtp_sender()
     use_ssl = _env("SMTP_SSL", "").lower() in {"1", "true", "yes", "on"} or port == 465
 
     msg = EmailMessage()

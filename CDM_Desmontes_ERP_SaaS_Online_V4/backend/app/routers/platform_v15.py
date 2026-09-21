@@ -12,7 +12,8 @@ from ..backup_service import offsite_config, restore_drill_offsite
 from ..db import get_db
 from ..deps import current_user
 from ..models import AuditLog, Company, FiscalConfig, MarketplaceConnection, Product, Subscription, Vehicle
-from ..services.marketplaces import MARKETPLACES, app_ready
+from ..mailer import smtp_configured, smtp_diagnostics
+from ..services.marketplaces import MARKETPLACES, app_ready, marketplace_app_diagnostics
 
 router = APIRouter()
 
@@ -38,8 +39,12 @@ def _custom_domain():
     return bool(url and "onrender.com" not in url and "localhost" not in url and "127.0.0.1" not in url)
 
 
+def _focus_master_token():
+    return _env("FOCUS_MASTER_TOKEN") or _env("FOCUS_NFE_MASTER_TOKEN")
+
+
 def _email_ready():
-    return bool(_env("SMTP_HOST") and _env("SMTP_FROM"))
+    return smtp_configured()
 
 
 def _check(key, label, done, detail, level="important", external=False, action=""):
@@ -57,7 +62,7 @@ def _check(key, label, done, detail, level="important", external=False, action="
 
 @router.get("/ping")
 def v15_ping():
-    return {"ok": True, "version": "15.1", "name": "CDM V15 Geral"}
+    return {"ok": True, "version": "15.3", "name": "CDM V15.3 Fechamento de Integracoes"}
 
 
 class RestoreDrillIn(BaseModel):
@@ -149,7 +154,7 @@ def launch_readiness(
         .first()
     )
 
-    focus_ready = bool(_env("FOCUS_MASTER_TOKEN"))
+    focus_ready = bool(_focus_master_token())
     fiscal_total = db.query(FiscalConfig).count()
     fiscal_ready = (
         db.query(FiscalConfig)
@@ -168,11 +173,17 @@ def launch_readiness(
 
     marketplaces = []
     for market in MARKETPLACES:
+        app_diag=marketplace_app_diagnostics(market)
         marketplaces.append(
             {
                 "id": market,
                 "app_available": bool(app_ready(market)),
                 "active_connections": int(active_by_market.get(market, 0)),
+                "code_ready": bool(app_diag.get("code_ready")),
+                "credentials_ready": bool(app_diag.get("credentials_ready")),
+                "missing": app_diag.get("missing") or [],
+                "redirect_uri": app_diag.get("redirect_uri") or "",
+                "redirect_https": bool(app_diag.get("redirect_https")),
             }
         )
 
@@ -258,10 +269,10 @@ def launch_readiness(
             "focus",
             "Emissor NF-e disponível",
             focus_ready,
-            "Token mestre da Focus NFe configurado no servidor." if focus_ready else "A conta integradora Focus NFe ainda precisa ser conectada.",
+            "Token mestre da Focus NFe configurado no servidor." if focus_ready else "Codigo fiscal pronto; falta configurar o token mestre da conta integradora Focus NFe.",
             "critical",
             external=not focus_ready,
-            action="Configurar FOCUS_MASTER_TOKEN e concluir uma emissão em homologação.",
+            action="Configurar FOCUS_NFE_MASTER_TOKEN (ou FOCUS_MASTER_TOKEN) e concluir uma emissao em homologacao.",
         ),
         _check(
             "fiscal_companies",
@@ -290,7 +301,7 @@ def launch_readiness(
             "olx",
             "OLX pronta",
             bool(app_ready("olx")) and int(active_by_market.get("olx", 0)) > 0,
-            "Depende de credenciais e homologação do integrador OLX quando ainda não estiver conectado.",
+            "Codigo OAuth/AutoUpload pronto; faltam credenciais/homologacao OLX ou a conexao de uma conta anunciante.",
             "important",
             external=not bool(app_ready("olx")),
         ),
@@ -301,10 +312,10 @@ def launch_readiness(
             "password_recovery",
             "Recuperação de senha por e-mail",
             _email_ready(),
-            "Fluxo de recuperação já está no CDM; o envio fica ativo quando SMTP_HOST e SMTP_FROM estiverem configurados.",
+            "Fluxo de recuperacao pronto no CDM; o envio fica ativo quando o SMTP estiver configurado e autenticado.",
             "important",
             external=not _email_ready(),
-            action="Configurar SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD e SMTP_FROM.",
+            action="Configurar SMTP_HOST, SMTP_PORT, SMTP_USER/SMTP_PASSWORD e SMTP_FROM (ou usar SMTP_USER como remetente).",
         ),
         _check(
             "custom_domain",
@@ -337,7 +348,7 @@ def launch_readiness(
     done = sum(1 for x in all_checks if x["done"])
 
     return {
-        "version": "15.1",
+        "version": "15.3",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "summary": {
             "done": done,
@@ -366,6 +377,17 @@ def launch_readiness(
             "focus_configured": focus_ready,
             "configs": fiscal_total,
             "ready": fiscal_ready,
+        },
+        "external_services": {
+            "focus": {
+                "code_ready": True,
+                "credential_configured": focus_ready,
+                "accepted_env_names": ["FOCUS_NFE_MASTER_TOKEN", "FOCUS_MASTER_TOKEN"],
+                "homologation_endpoint": "https://homologacao.focusnfe.com.br/v2/nfe",
+                "production_endpoint": "https://api.focusnfe.com.br/v2/nfe",
+            },
+            "olx": marketplace_app_diagnostics("olx"),
+            "email": smtp_diagnostics(),
         },
         "marketplaces": marketplaces,
         "sections": [

@@ -152,11 +152,15 @@ def forgot_password(data:ForgotPassword, request:Request, db:Session=Depends(get
         if base:
             link=f"{base}/?reset_token={token}"
             try:
-                send_password_reset_email(user.email,user.name,link)
-                audit(db,user,"auth.password_reset_requested","user",str(user.id),{})
+                sent=send_password_reset_email(user.email,user.name,link)
+                if sent:
+                    audit(db,user,"auth.password_reset_requested","user",str(user.id),{"delivery":"sent"})
+                else:
+                    audit(db,user,"auth.password_reset_delivery_unavailable","user",str(user.id),{"delivery":"smtp_not_configured"})
                 db.commit()
             except Exception:
-                pass
+                audit(db,user,"auth.password_reset_delivery_error","user",str(user.id),{"delivery":"smtp_error"})
+                db.commit()
     return {"ok":True,"message":"Se o e-mail estiver cadastrado, as instruções serão enviadas."}
 
 @router.post("/reset-password")

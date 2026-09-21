@@ -53,6 +53,26 @@ def app_ready(marketplace:str):
     return False
 
 
+def marketplace_app_diagnostics(marketplace:str):
+    required={
+        "mercadolivre":["ML_CLIENT_ID","ML_CLIENT_SECRET"],
+        "shopee":["SHOPEE_PARTNER_ID","SHOPEE_PARTNER_KEY"],
+        "olx":["OLX_CLIENT_ID","OLX_CLIENT_SECRET"],
+    }.get(marketplace,[])
+    missing=[name for name in required if not _env(name)]
+    redirect=_redirect_uri(marketplace) if marketplace in MARKETPLACES else ""
+    return {
+        "marketplace":marketplace,
+        "code_ready":marketplace in MARKETPLACES,
+        "credentials_ready":not missing and bool(required),
+        "ready":app_ready(marketplace),
+        "missing":missing,
+        "redirect_uri":redirect,
+        "redirect_https":bool(redirect.lower().startswith("https://")),
+        "public_base_url":_public_base_url(),
+    }
+
+
 def _connection(db:Session, company_id:int, marketplace:str, create=False):
     row=db.query(MarketplaceConnection).filter(
         MarketplaceConnection.company_id==company_id,
@@ -214,6 +234,8 @@ def _exchange_olx(db,company_id,code):
         r=c.post("https://auth.olx.com.br/oauth/token",data=data,headers={"Content-Type":"application/x-www-form-urlencoded"})
         if r.status_code>=400: raise RuntimeError(f"OLX OAuth: {r.text[:600]}")
         token=r.json(); access=token.get("access_token","")
+        if not access:
+            raise RuntimeError("OLX OAuth: a plataforma nao retornou access_token")
         me=c.post("https://apps.olx.com.br/oauth_api/basic_user_info",json={"access_token":access})
         profile=me.json() if me.status_code<400 else {}
     return _save_connection(db,company_id,"olx",access,"",token.get("expires_in"),profile.get("user_name") or profile.get("user_email") or "Conta OLX",profile.get("user_email") or "",profile)

@@ -27,6 +27,14 @@ class CancelIn(BaseModel):
 
 def _digits(v): return re.sub(r"\D", "", str(v or ""))
 def _base(environment): return "https://api.focusnfe.com.br" if environment=="producao" else "https://homologacao.focusnfe.com.br"
+
+def _master_token():
+    # Compatibilidade: documentacao/Render e versoes anteriores usaram dois nomes.
+    return (
+        os.getenv("FOCUS_MASTER_TOKEN")
+        or os.getenv("FOCUS_NFE_MASTER_TOKEN")
+        or ""
+    ).strip()
 def _regime(value):
     v=(value or "").lower()
     if "mei" in v:return 4
@@ -68,7 +76,7 @@ def _public_setup(cfg, company=None, tax=None):
         "auto_issue_sales":bool(cfg.auto_issue_sales),
         "has_production_token":bool(cfg.production_token_enc),"has_homologation_token":bool(cfg.homologation_token_enc),
         "company_ready":company_ready,"tax_ready":tax_ready,"connection_ready":connection_ready,
-        "service_available":bool((os.getenv("FOCUS_MASTER_TOKEN") or "").strip()),
+        "service_available":bool(_master_token()),
         "checks":checks,"completed":completed,"total":len(checks),"percent":round(completed/len(checks)*100),
         "ready":bool(cfg.setup_status=="ready" and company_ready and tax_ready and certificate_ready and connection_ready),
     }
@@ -163,7 +171,7 @@ async def upload_certificate(certificate:UploadFile=File(...),password:str=Form(
     if not company or len(_digits(company.cnpj))!=14:raise HTTPException(400,"Cadastre um CNPJ válido nos dados da empresa antes do certificado")
     name=(certificate.filename or "certificado.pfx")
     if not name.lower().endswith((".pfx",".p12")):raise HTTPException(400,"Envie um certificado digital A1 no formato .pfx ou .p12")
-    master=(os.getenv("FOCUS_MASTER_TOKEN") or "").strip()
+    master=_master_token()
     if not master:
         raise HTTPException(503,"A emissão fiscal ainda não está disponível para configuração nesta instalação. Tente novamente mais tarde.")
     content=await certificate.read()

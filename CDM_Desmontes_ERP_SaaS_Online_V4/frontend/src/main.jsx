@@ -511,7 +511,7 @@ function OwnerPortal({session,onPreview}){
 
 
      {section==='launch'&&<>
-       <section className="ownerSectionIntro"><div><span>V15.1 · CENTRO DE LANÇAMENTO</span><h2>Prontidão para clientes reais</h2><p>Um único painel para cobrança, banco, backup, NF-e, OTX, marketplaces e lançamento comercial.</p></div></section>
+       <section className="ownerSectionIntro"><div><span>V15.3 · CENTRO DE LANÇAMENTO</span><h2>Prontidão para clientes reais</h2><p>Um único painel para cobrança, banco, backup, NF-e, marketplaces, e-mail e lançamento comercial.</p></div></section>
        <section className="ownerCard launchHero">
          <div className="launchScore"><strong>{launch?.summary?.percent??0}%</strong><span>{launch?.summary?.done??0} de {launch?.summary?.total??0} verificações concluídas</span></div>
          <div className="launchHeroText">
@@ -614,7 +614,7 @@ function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClos
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V15.1 Fechamento</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V15.3 Integrações</small></div>
    </aside>
  </>
 }
