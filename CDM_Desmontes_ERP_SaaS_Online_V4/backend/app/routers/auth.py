@@ -22,6 +22,13 @@ _RATE=defaultdict(deque)
 _FAILED_LOGIN=defaultdict(deque)
 _RATE_LOCK=Lock()
 
+def _safe_delivery_error(exc):
+    text=str(exc or "Erro SMTP desconhecido")
+    secret=os.getenv("SMTP_PASSWORD","") or ""
+    if secret:
+        text=text.replace(secret,"***")
+    return text[:500]
+
 def _ip(request:Request):
     return request.client.host if request.client else "unknown"
 
@@ -158,8 +165,8 @@ def forgot_password(data:ForgotPassword, request:Request, db:Session=Depends(get
                 else:
                     audit(db,user,"auth.password_reset_delivery_unavailable","user",str(user.id),{"delivery":"smtp_not_configured"})
                 db.commit()
-            except Exception:
-                audit(db,user,"auth.password_reset_delivery_error","user",str(user.id),{"delivery":"smtp_error"})
+            except Exception as exc:
+                audit(db,user,"auth.password_reset_delivery_error","user",str(user.id),{"delivery":"smtp_error","error":_safe_delivery_error(exc)})
                 db.commit()
     return {"ok":True,"message":"Se o e-mail estiver cadastrado, as instruções serão enviadas."}
 
