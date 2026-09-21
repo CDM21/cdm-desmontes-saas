@@ -1129,22 +1129,113 @@ function Vehicle360({vehicle,listings=[],onClose,refresh,notice}){
 
 function VehicleEditModal({vehicle,brands,onClose,refresh,notice}){
  const [form,setForm]=useState({plate:vehicle.plate||'',brand:vehicle.brand||'',model:vehicle.model||'',year:vehicle.year||new Date().getFullYear(),vin:vehicle.vin||'',renavam:vehicle.renavam||'',fuel:vehicle.fuel||'Flex',transmission:vehicle.transmission||'Automático',color:vehicle.color||'',acquisition_value:vehicle.acquisition_value??'',other_costs:vehicle.other_costs??''})
+ const [photos,setPhotos]=useState([]),[photosLoading,setPhotosLoading]=useState(true),[photosBusy,setPhotosBusy]=useState(false),[saving,setSaving]=useState(false)
+
+ async function reloadPhotos(){
+  try{
+   const r=await api.get(`/vehicles/${vehicle.id}/photos`)
+   setPhotos(r.data||[])
+  }catch(e){
+   notice(erroPt(e.response?.data?.detail)||'Não foi possível carregar as fotos da sucata')
+  }finally{setPhotosLoading(false)}
+ }
+ useEffect(()=>{reloadPhotos()},[vehicle.id])
+
+ async function addPhotos(e){
+  const files=Array.from(e.target.files||[])
+  e.target.value=''
+  if(!files.length||photosBusy)return
+  const slots=15-photos.length
+  if(slots<=0){notice('Limite de 15 fotos por sucata atingido');return}
+  if(files.length>slots)notice(`Só cabem mais ${slots} foto(s). As demais não serão adicionadas.`)
+  setPhotosBusy(true)
+  try{
+   let added=0
+   for(const file of files.slice(0,slots)){
+    if(!String(file.type||'').startsWith('image/'))continue
+    const prepared=await prepareVehiclePhoto(file)
+    await api.post(`/vehicles/${vehicle.id}/photos`,{photo_data:prepared})
+    added++
+   }
+   await reloadPhotos()
+   await refresh()
+   if(added)notice(`${added} foto(s) adicionada(s) com sucesso`)
+  }catch(e){
+   notice(erroPt(e.response?.data?.detail)||'Não foi possível adicionar as fotos')
+  }finally{setPhotosBusy(false)}
+ }
+
+ async function makePrimary(photo){
+  if(photo.is_primary||photosBusy)return
+  setPhotosBusy(true)
+  try{
+   if(photo.legacy){
+    notice('Esta foto já é a principal')
+   }else{
+    await api.put(`/vehicles/${vehicle.id}/photos/${photo.id}/primary`)
+    await reloadPhotos();await refresh();notice('Foto principal atualizada')
+   }
+  }catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível definir a foto principal')}
+  finally{setPhotosBusy(false)}
+ }
+
+ async function removePhoto(photo){
+  if(photosBusy)return
+  if(!confirm('Remover esta foto da sucata?'))return
+  setPhotosBusy(true)
+  try{
+   if(photo.legacy)await api.put(`/vehicles/${vehicle.id}/photo`,{photo_data:''})
+   else await api.delete(`/vehicles/${vehicle.id}/photos/${photo.id}`)
+   await reloadPhotos();await refresh();notice('Foto removida')
+  }catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível remover a foto')}
+  finally{setPhotosBusy(false)}
+ }
+
  async function save(){
+  if(saving)return
+  setSaving(true)
   try{
    const payload={plate:form.plate||'',vin:form.vin||'',renavam:form.renavam||'',brand:form.brand||'',model:form.model||'',year:form.year?Number(form.year):null,fuel:form.fuel||'',transmission:form.transmission||'',color:form.color||'',acquisition_value:Number(form.acquisition_value||0),other_costs:Number(form.other_costs||0)}
    await api.put(`/vehicles/${vehicle.id}`,payload);await refresh();notice('Sucata atualizada com sucesso');onClose()
   }catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao atualizar sucata')}
+  finally{setSaving(false)}
  }
- return <div className="modalBackdrop vehicleEditBackdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="v8Modal large">
-   <div className="modalHead"><div><small>EDIÇÃO DE SUCATA</small><h2>Editar veículo #{vehicle.id}</h2><p>Corrija os dados cadastrados e salve as alterações.</p></div><button className="iconClose" onClick={onClose}>×</button></div>
-   <div className="modalBody"><div className="formGrid three">
-    <Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/>
-    <Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:e.target.value})}/></Field>
-    <Field label="Chassi / VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field>
-    <Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field>
-    <Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field>
-    <Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field>
-   </div></div><div className="modalFoot"><button className="ghost" onClick={onClose}>Cancelar</button><button className="primary" onClick={save}>Salvar alterações</button></div>
+ return <div className="modalBackdrop vehicleEditBackdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="v8Modal large vehicleEditWithPhotos">
+   <div className="modalHead"><div><small>EDIÇÃO DE SUCATA</small><h2>Editar veículo #{vehicle.id}</h2><p>Corrija os dados cadastrados e complete as fotos quando quiser.</p></div><button className="iconClose" onClick={onClose}>×</button></div>
+   <div className="modalBody">
+    <div className="formGrid three">
+     <Field label="Placa"><input value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></Field><VehicleBrandModel form={form} setForm={setForm} brands={brands}/>
+     <Field label="Ano"><input type="number" min="1971" max={new Date().getFullYear()+1} value={form.year} onChange={e=>setForm({...form,year:e.target.value})}/></Field>
+     <Field label="Chassi / VIN"><input value={form.vin} onChange={e=>setForm({...form,vin:e.target.value.toUpperCase()})}/></Field><Field label="Renavam"><input value={form.renavam} onChange={e=>setForm({...form,renavam:e.target.value})}/></Field>
+     <Field label="Combustível"><select value={form.fuel} onChange={e=>setForm({...form,fuel:e.target.value})}><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>Híbrido</option><option>Elétrico</option><option>GNV</option></select></Field>
+     <Field label="Câmbio"><select value={form.transmission} onChange={e=>setForm({...form,transmission:e.target.value})}><option>Automático</option><option>Manual</option><option>CVT</option><option>Automatizado</option></select></Field>
+     <Field label="Cor"><input value={form.color} onChange={e=>setForm({...form,color:e.target.value})}/></Field><Field label="Valor de aquisição"><input type="number" step="0.01" value={form.acquisition_value} onChange={e=>setForm({...form,acquisition_value:e.target.value})}/></Field><Field label="Outros custos"><input type="number" step="0.01" value={form.other_costs} onChange={e=>setForm({...form,other_costs:e.target.value})}/></Field>
+    </div>
+
+    <section className="vehicleEditPhotosSection">
+     <div className="vehicleEditPhotosHead">
+      <div><small>FOTOS DA SUCATA</small><h3>Galeria do veículo</h3><p>Adicione fotos a qualquer momento. Marque uma delas como principal para aparecer no card.</p></div>
+      <span>{photos.length}/15</span>
+     </div>
+
+     {photosLoading?<div className="vehicleEditPhotosLoading">Carregando fotos...</div>:<>
+      {photos.length<15&&<label className={`vehicleEditPhotoAdd ${photosBusy?'disabled':''}`}>
+       <input type="file" accept="image/*" multiple disabled={photosBusy} onChange={addPhotos}/>
+       <b>＋ {photosBusy?'Enviando fotos...':'Adicionar fotos'}</b>
+       <span>Você pode selecionar várias imagens de uma vez</span>
+      </label>}
+
+      {!!photos.length?<div className="vehicleEditPhotoGrid">{photos.map((photo,index)=><article className={photo.is_primary?'primary':''} key={`${photo.id}-${index}`}>
+       <div className="vehicleEditPhotoImage"><img src={photo.photo_data} alt={`Foto ${index+1} da sucata`}/>{photo.is_primary&&<span>Principal</span>}</div>
+       <div className="vehicleEditPhotoActions">
+        <button type="button" className="ghost" disabled={photosBusy||photo.is_primary} onClick={()=>makePrimary(photo)}>{photo.is_primary?'✓ Principal':'☆ Tornar principal'}</button>
+        <button type="button" className="ghost danger" disabled={photosBusy} onClick={()=>removePhoto(photo)}>Remover</button>
+       </div>
+      </article>)}</div>:<div className="vehicleEditNoPhotos"><b>Nenhuma foto cadastrada</b><span>Use o botão acima para adicionar a primeira foto deste veículo.</span></div>}
+     </>}
+    </section>
+   </div>
+   <div className="modalFoot"><button className="ghost" onClick={onClose}>Cancelar</button><button className="primary" disabled={saving||photosBusy} onClick={save}>{saving?'Salvando...':'Salvar alterações'}</button></div>
   </div></div>
 }
 

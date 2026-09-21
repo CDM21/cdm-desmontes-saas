@@ -4306,3 +4306,35 @@ table th{
  .vehicleCardsSection{padding:12px}
  .vehicleCardsGrid{grid-template-columns:1fr}
 }
+
+/* CDM V15.2.2 - FOTOS NA EDICAO DE SUCATA */
+.vehicleEditWithPhotos{max-height:92vh;overflow:hidden;display:flex;flex-direction:column}
+.vehicleEditWithPhotos .modalBody{overflow:auto}
+.vehicleEditPhotosSection{margin-top:22px;padding-top:20px;border-top:1px solid var(--line);display:grid;gap:14px}
+.vehicleEditPhotosHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.vehicleEditPhotosHead>div{display:grid;gap:3px}
+.vehicleEditPhotosHead small{font-size:9px;letter-spacing:.09em;color:#6f8fe8;font-weight:900}
+.vehicleEditPhotosHead h3{margin:0;font-size:16px}
+.vehicleEditPhotosHead p{margin:0;color:var(--muted);font-size:10px;line-height:1.45}
+.vehicleEditPhotosHead>span{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:10px;font-weight:800;color:var(--muted)}
+.vehicleEditPhotoAdd{min-height:90px;border:1.5px dashed #657187;border-radius:11px;background:var(--soft);display:grid;place-items:center;align-content:center;gap:4px;text-align:center;cursor:pointer;padding:16px}
+.vehicleEditPhotoAdd:hover{border-color:#6f8fe8;background:rgba(111,143,232,.06)}
+.vehicleEditPhotoAdd.disabled{opacity:.6;cursor:wait}
+.vehicleEditPhotoAdd input{display:none}
+.vehicleEditPhotoAdd b{font-size:11px}.vehicleEditPhotoAdd span{font-size:9px;color:var(--muted)}
+.vehicleEditPhotoGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.vehicleEditPhotoGrid article{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--soft)}
+.vehicleEditPhotoGrid article.primary{box-shadow:inset 0 0 0 1px #6f8fe8}
+.vehicleEditPhotoImage{position:relative;aspect-ratio:4/3;background:#101722;overflow:hidden}
+.vehicleEditPhotoImage img{width:100%;height:100%;object-fit:cover;display:block}
+.vehicleEditPhotoImage>span{position:absolute;left:8px;bottom:8px;background:#1f72e5;color:#fff;border-radius:999px;padding:5px 8px;font-size:8px;font-weight:900}
+.vehicleEditPhotoActions{padding:8px;display:grid;grid-template-columns:1fr auto;gap:7px}
+.vehicleEditPhotoActions button{font-size:9px;padding:7px 8px;min-width:0}
+.vehicleEditPhotoActions .danger{color:#ef6b6b}
+.vehicleEditNoPhotos,.vehicleEditPhotosLoading{border:1px solid var(--line);border-radius:10px;padding:18px;background:var(--soft);display:grid;gap:3px;text-align:center}
+.vehicleEditNoPhotos b{font-size:11px}.vehicleEditNoPhotos span,.vehicleEditPhotosLoading{font-size:9px;color:var(--muted)}
+@media(max-width:760px){
+ .vehicleEditPhotoGrid{grid-template-columns:1fr 1fr}
+ .vehicleEditPhotoActions{grid-template-columns:1fr}
+}
+@media(max-width:480px){.vehicleEditPhotoGrid{grid-template-columns:1fr}}
