@@ -600,7 +600,7 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-# CDM AI FAST V15.4
+# CDM AI STABLE V15.5
 PART_AI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
 PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -659,7 +659,7 @@ def _part_ai_usage_payload(row: PartAiUsage):
     used = max(0, int(row.used or 0))
     model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
     return {
-        "version": "v15.4",
+        "version": "v15.5",
         "provider": "gemini",
         "model": model,
         "configured": bool((os.getenv("GEMINI_API_KEY") or "").strip()),
@@ -881,10 +881,11 @@ REGRAS:
 - Responda somente no formato JSON solicitado.
 """.strip()
 
-    # V15.4: tentativa normal rápida + fallback automático mais leve.
+    # V15.5: mais proteção contra oscilação sem manter a tela travada por muito tempo.
     attempts = [
-        {"images": image_parts, "timeout": 30.0, "max_tokens": 1000},
-        {"images": image_parts[:1], "timeout": 24.0, "max_tokens": 850},
+        {"images": image_parts, "timeout": 24.0, "max_tokens": 900},
+        {"images": image_parts[:2], "timeout": 18.0, "max_tokens": 760},
+        {"images": image_parts[:1], "timeout": 14.0, "max_tokens": 620},
     ]
 
     r = None
@@ -896,7 +897,7 @@ REGRAS:
         payload = {
             "contents": [{"role": "user", "parts": request_parts}],
             "generationConfig": {
-                "temperature": 0.15,
+                "temperature": 0.12,
                 "maxOutputTokens": attempt["max_tokens"],
                 "response_mime_type": "application/json",
                 "response_schema": PART_AI_SCHEMA,
@@ -904,7 +905,7 @@ REGRAS:
         }
 
         try:
-            with httpx.Client(timeout=httpx.Timeout(attempt["timeout"], connect=8.0)) as client:
+            with httpx.Client(timeout=httpx.Timeout(attempt["timeout"], connect=7.0)) as client:
                 candidate = client.post(
                     PART_AI_URL.format(model=model),
                     headers={
@@ -915,19 +916,19 @@ REGRAS:
                 )
         except (httpx.TimeoutException, httpx.HTTPError) as exc:
             last_transport_error = exc
-            if attempt_index == 0:
+            if attempt_index < len(attempts) - 1:
                 continue
             if isinstance(exc, httpx.TimeoutException):
                 raise HTTPException(
                     504,
-                    "A IA está demorando mais que o normal. Tente novamente; suas fotos continuam no cadastro.",
+                    "A IA oscilou e demorou mais que o normal. O CDM já tentou novamente automaticamente.",
                 )
             raise HTTPException(
                 502,
-                "A conexão com a IA oscilou. Tente novamente; suas fotos continuam no cadastro.",
+                "A conexão com a IA oscilou. O CDM já tentou novamente automaticamente.",
             )
 
-        if candidate.status_code in {429, 500, 502, 503, 504} and attempt_index == 0:
+        if candidate.status_code in {408, 429, 500, 502, 503, 504} and attempt_index < len(attempts) - 1:
             r = candidate
             continue
 
@@ -937,16 +938,16 @@ REGRAS:
 
     if r is None:
         if isinstance(last_transport_error, httpx.TimeoutException):
-            raise HTTPException(504, "A IA está demorando mais que o normal. Tente novamente.")
+            raise HTTPException(504, "A IA oscilou e demorou mais que o normal. Tente novamente.")
         raise HTTPException(502, "Não foi possível conectar ao Cadastro de Peça com IA.")
 
     if r.status_code >= 400:
         if r.status_code in {401, 403}:
             detail = "A chave do Gemini não foi aceita. Revise GEMINI_API_KEY no Render."
-        elif r.status_code == 429:
-            detail = "A IA está ocupada agora. Aguarde alguns segundos e tente novamente."
+        elif r.status_code in {408, 429}:
+            detail = "A IA está ocupada agora. O CDM já tentou novamente automaticamente."
         elif r.status_code in {500, 502, 503, 504}:
-            detail = "A IA oscilou durante a análise. Tente novamente; suas fotos continuam no cadastro."
+            detail = "A IA oscilou durante a análise. O CDM já tentou novamente automaticamente."
         else:
             detail = f"A IA não conseguiu analisar a foto agora (HTTP {r.status_code})."
         raise HTTPException(502 if r.status_code >= 500 else r.status_code, detail)

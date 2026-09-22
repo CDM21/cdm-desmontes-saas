@@ -1490,7 +1490,7 @@ async function optimizeProductImageUpload(file){
 }
 
 // CDM AI FAST V15.4
-async function prepareAiAnalysisImage(src,max=1280,quality=.82){
+async function prepareAiAnalysisImage(src,max=1100,quality=.78){
   try{
     const img=await loadImage(src)
     const scale=Math.min(1,max/Math.max(img.width,img.height))
@@ -1510,7 +1510,212 @@ async function prepareAiAnalysisImage(src,max=1280,quality=.82){
   }
 }
 
+// CDM PHOTO PRO V15.5
+function fileToDataUrlMaybe(file){
+  if(typeof file==='string')return Promise.resolve(file)
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader()
+    reader.onload=()=>resolve(String(reader.result||''))
+    reader.onerror=()=>reject(new Error('Falha ao ler a imagem'))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function analyzeCatalogSubject(src){
+  const img=await loadImage(src)
+  const canvas=document.createElement('canvas')
+  canvas.width=img.width
+  canvas.height=img.height
+  const ctx=canvas.getContext('2d',{willReadFrequently:true})
+  ctx.drawImage(img,0,0)
+  const raw=ctx.getImageData(0,0,canvas.width,canvas.height).data
+  let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1,white=0
+  for(let y=0;y<canvas.height;y++){
+    for(let x=0;x<canvas.width;x++){
+      const i=(y*canvas.width+x)*4
+      const r=raw[i],g=raw[i+1],b=raw[i+2],a=raw[i+3]
+      const nearWhite=a>235&&r>244&&g>244&&b>244
+      if(nearWhite)white++
+      const subject=a>18&&(!nearWhite||(r+g+b)<735)
+      if(subject){
+        if(x<minX)minX=x
+        if(y<minY)minY=y
+        if(x>maxX)maxX=x
+        if(y>maxY)maxY=y
+      }
+    }
+  }
+  if(maxX<0||maxY<0){
+    return {hasSubject:false,coverage:0,whiteRatio:white/(canvas.width*canvas.height),width:canvas.width,height:canvas.height}
+  }
+  const boxW=maxX-minX+1,boxH=maxY-minY+1
+  const area=boxW*boxH
+  const total=canvas.width*canvas.height
+  return {
+    hasSubject:true,
+    minX,minY,maxX,maxY,boxW,boxH,
+    coverage:area/Math.max(1,total),
+    whiteRatio:white/Math.max(1,total),
+    edgeTouch:minX<=2||minY<=2||maxX>=canvas.width-3||maxY>=canvas.height-3,
+    width:canvas.width,
+    height:canvas.height
+  }
+}
+
+async function placeSubjectOnCatalogWhite(src,metrics=null){
+  const m=metrics||await analyzeCatalogSubject(src)
+  if(!m.hasSubject)return src
+  const img=await loadImage(src)
+  const padX=Math.max(14,Math.round(m.boxW*0.14))
+  const padY=Math.max(14,Math.round(m.boxH*0.14))
+  const sx=Math.max(0,m.minX-padX)
+  const sy=Math.max(0,m.minY-padY)
+  const sw=Math.min(m.width-sx,m.boxW+padX*2)
+  const sh=Math.min(m.height-sy,m.boxH+padY*2)
+  const size=Math.max(1200,Math.min(1800,Math.round(Math.max(sw,sh)*1.22)))
+  const out=document.createElement('canvas')
+  out.width=size
+  out.height=size
+  const ctx=out.getContext('2d')
+  ctx.fillStyle='#ffffff'
+  ctx.fillRect(0,0,size,size)
+  const target=Math.round(size*0.82)
+  const scale=Math.min(target/sw,target/sh)
+  const dw=Math.round(sw*scale)
+  const dh=Math.round(sh*scale)
+  const dx=Math.round((size-dw)/2)
+  const dy=Math.round((size-dh)/2)
+  ctx.imageSmoothingEnabled=true
+  ctx.imageSmoothingQuality='high'
+  ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh)
+  return out.toDataURL('image/jpeg',.92)
+}
+
+async function buildConservativeWhitePhoto(file){
+  const src=await fileToDataUrlMaybe(file)
+  const img=await loadImage(src)
+  const w=img.width,h=img.height
+  const scan=document.createElement('canvas')
+  scan.width=w
+  scan.height=h
+  const sctx=scan.getContext('2d',{willReadFrequently:true})
+  sctx.drawImage(img,0,0)
+  const raw=sctx.getImageData(0,0,w,h).data
+
+  const sample=(x,y)=>{
+    const i=(Math.max(0,Math.min(h-1,y))*w+Math.max(0,Math.min(w-1,x)))*4
+    return [raw[i],raw[i+1],raw[i+2]]
+  }
+  const corners=[sample(3,3),sample(w-4,3),sample(3,h-4),sample(w-4,h-4)]
+  const bg=[0,1,2].map(k=>corners.reduce((acc,v)=>acc+v[k],0)/corners.length)
+
+  let minX=w,minY=h,maxX=-1,maxY=-1
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4
+      const r=raw[i],g=raw[i+1],b=raw[i+2],a=raw[i+3]
+      if(a<15)continue
+      const delta=Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2])
+      const dark=(r+g+b)<705
+      const strong=delta>54||dark
+      if(strong){
+        if(x<minX)minX=x
+        if(y<minY)minY=y
+        if(x>maxX)maxX=x
+        if(y>maxY)maxY=y
+      }
+    }
+  }
+  if(maxX<0||maxY<0)return src
+
+  const boxW=maxX-minX+1,boxH=maxY-minY+1
+  const padX=Math.max(16,Math.round(boxW*0.12))
+  const padY=Math.max(16,Math.round(boxH*0.12))
+  const sx=Math.max(0,minX-padX)
+  const sy=Math.max(0,minY-padY)
+  const sw=Math.min(w-sx,boxW+padX*2)
+  const sh=Math.min(h-sy,boxH+padY*2)
+  const size=Math.max(1200,Math.min(1800,Math.round(Math.max(sw,sh)*1.22)))
+
+  const out=document.createElement('canvas')
+  out.width=size
+  out.height=size
+  const ctx=out.getContext('2d')
+  ctx.fillStyle='#ffffff'
+  ctx.fillRect(0,0,size,size)
+  const target=Math.round(size*0.82)
+  const scale=Math.min(target/sw,target/sh)
+  const dw=Math.round(sw*scale)
+  const dh=Math.round(sh*scale)
+  const dx=Math.round((size-dw)/2)
+  const dy=Math.round((size-dh)/2)
+  ctx.imageSmoothingEnabled=true
+  ctx.imageSmoothingQuality='high'
+  ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh)
+  return out.toDataURL('image/jpeg',.92)
+}
+
+async function scorePreparedPhoto(src){
+  const m=await analyzeCatalogSubject(src)
+  if(!m.hasSubject)return {score:-999,src,metrics:m}
+  let score=0
+  score+=Math.min(m.coverage,.55)*220
+  if(m.coverage<.02)score-=40
+  if(m.coverage>.78)score-=28
+  if(m.edgeTouch)score-=24
+  score-=Math.abs(.32-m.coverage)*48
+  score-=Math.max(0,m.whiteRatio-.985)*150
+  return {score,src,metrics:m}
+}
+
 async function prepareProductImage(file,removeBg=true,mode='basic'){
+  const candidates=[]
+  try{candidates.push(await prepareProductImageCore(file,removeBg,mode))}catch(e){console.warn('CDM Foto: tentativa principal falhou',e)}
+  if(mode!=='pro'){
+    try{candidates.push(await prepareProductImageCore(file,removeBg,'pro'))}catch(e){console.warn('CDM Foto: tentativa pro falhou',e)}
+  }
+  try{candidates.push(await buildConservativeWhitePhoto(file))}catch(e){console.warn('CDM Foto: fallback conservador falhou',e)}
+
+  let best=null
+  for(const candidate of candidates.filter(Boolean)){
+    let normalized=candidate
+    try{
+      normalized=await placeSubjectOnCatalogWhite(candidate)
+    }catch(e){}
+    const scored=await scorePreparedPhoto(normalized)
+    if(!best||scored.score>best.score)best=scored
+  }
+
+  if(best&&best.src)return best.src
+  if(candidates[0])return candidates[0]
+  return await buildConservativeWhitePhoto(file)
+}
+
+// CDM AI RETRY V15.5
+async function analyzeProductPhotosWithRetry({aiImages,vehicleId,context,notice}){
+  try{
+    return await api.post('/intelligence/product-photo-analysis',{
+      images:aiImages,
+      vehicle_id:vehicleId,
+      context
+    },{timeout:52000})
+  }catch(error){
+    const status=Number(error?.response?.status||0)
+    const detail=String(error?.response?.data?.detail||'').toLowerCase()
+    const transient=[408,429,500,502,503,504].includes(status)||/oscil|demor|tempo|timeout|ocupad/.test(detail)
+    if(!transient)throw error
+    try{notice&&notice('A IA oscilou. O CDM está tentando novamente automaticamente...')}catch(_){}
+    await new Promise(resolve=>setTimeout(resolve,900))
+    const retryImages=await Promise.all(aiImages.slice(0,1).map(src=>prepareAiAnalysisImage(src,900,.72)))
+    return await api.post('/intelligence/product-photo-analysis',{
+      images:retryImages,
+      vehicle_id:vehicleId,
+      context
+    },{timeout:28000})
+  }
+}
+
+async function prepareProductImageCore(file,removeBg=true,mode='basic'){
   if(removeBg){
     const formData=new FormData()
     const uploadFile=await optimizeProductImageUpload(file)
@@ -1930,12 +2135,13 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
       const current=imageList(form.image_urls)
       setForm(f=>({...f,image_urls:[...prepared,...current].slice(0,8).join('\n')}))
 
-      const aiImages=await Promise.all(prepared.map(src=>prepareAiAnalysisImage(src,1280,.82)))
-      const r=await api.post('/intelligence/product-photo-analysis',{
-        images:aiImages,
-        vehicle_id:form.vehicle_id?Number(form.vehicle_id):null,
-        context:{name:form.name||'',brand:form.brand||'',model:form.model||'',year:form.year||'',groups:groups.map(g=>g.name)}
-      },{timeout:58000})
+      const aiImages=await Promise.all(prepared.map(src=>prepareAiAnalysisImage(src,1100,.78)))
+      const r=await analyzeProductPhotosWithRetry({
+        aiImages,
+        vehicleId:form.vehicle_id?Number(form.vehicle_id):null,
+        context:{name:form.name||'',brand:form.brand||'',model:form.model||'',year:form.year||'',groups:groups.map(g=>g.name)},
+        notice
+      })
       setAiResult(r.data)
       if(r.data?.usage)setAiUsage(r.data.usage)
       notice('IA analisou a peça. Revise as sugestões antes de aplicar')
