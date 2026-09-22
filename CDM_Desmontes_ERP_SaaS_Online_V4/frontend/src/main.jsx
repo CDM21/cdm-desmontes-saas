@@ -1730,7 +1730,9 @@ async function scorePreparedPhoto(src){
 async function prepareProductImage(file,removeBg=true,mode='basic'){
   const candidates=[]
   try{candidates.push(await prepareProductImageCore(file,removeBg,mode))}catch(e){console.warn('CDM Foto: tentativa principal falhou',e)}
-  if(mode!=='pro'){
+  // Quando o backend já removeu o fundo, não chama o mesmo motor duas vezes.
+  // As variações abaixo refinam o resultado localmente.
+  if(!removeBg&&mode!=='pro'){
     try{candidates.push(await prepareProductImageCore(file,removeBg,'pro'))}catch(e){console.warn('CDM Foto: tentativa pro falhou',e)}
   }
   try{candidates.push(await buildOriginalWhitePhoto(file,{padding:.16,target:.82,contrast:1.02,brightness:.98}))}catch(e){console.warn('CDM Foto: conservador falhou',e)}
@@ -2195,18 +2197,33 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     setAiBusy(true);setAiResult(null)
     try{
       const selected=Array.from(files).slice(0,3).filter(f=>f.type?.startsWith('image/'))
-      const prepared=await Promise.all(selected.map(f=>prepareProductImage(f,false)))
-      if(!prepared.length){notice('Selecione pelo menos uma foto da peça');return}
-      const current=imageList(form.image_urls)
-      setForm(f=>({...f,image_urls:[...prepared,...current].slice(0,8).join('\n')}))
+      if(!selected.length){notice('Selecione pelo menos uma foto da peça');return}
 
-      const aiImages=await Promise.all(prepared.map(src=>prepareAiAnalysisImage(src,1100,.78)))
-      const r=await analyzeProductPhotosWithRetry({
+      // V15.7: o cadastro recebe fundo branco automaticamente,
+      // enquanto a IA analisa uma cópia leve da FOTO ORIGINAL para preservar etiqueta e código.
+      const preparedPromise=Promise.all(selected.map(async f=>{
+        try{return await prepareProductImage(f,true,'basic')}
+        catch(e){
+          console.warn('CDM Foto: fundo branco automático falhou, preservando original',e)
+          return await prepareProductImage(f,false)
+        }
+      }))
+      const aiImages=await Promise.all(selected.map(async f=>{
+        const original=await readFileAsDataUrl(f)
+        return await prepareAiAnalysisImage(original,1100,.80)
+      }))
+      const aiRequest=analyzeProductPhotosWithRetry({
         aiImages,
         vehicleId:form.vehicle_id?Number(form.vehicle_id):null,
         context:{name:form.name||'',brand:form.brand||'',model:form.model||'',year:form.year||'',groups:groups.map(g=>g.name)},
         notice
       })
+
+      const prepared=await preparedPromise
+      const current=imageList(form.image_urls)
+      setForm(f=>({...f,image_urls:[...prepared,...current].slice(0,8).join('\n')}))
+
+      const r=await aiRequest
       setAiResult(r.data)
       if(r.data?.usage)setAiUsage(r.data.usage)
       notice('IA analisou a peça. Revise as sugestões antes de aplicar')
@@ -2324,8 +2341,13 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
                     <div><small>Marca / modelo</small><b>{[aiResult.brand,aiResult.model,aiResult.year].filter(Boolean).join(' ')||'Não confirmado'}</b></div>
                   </div>
                   {aiResult.marketplace_title&&<div className="aiTextSuggestion"><small>TÍTULO SUGERIDO PARA ANÚNCIO</small><p>{aiResult.marketplace_title}</p></div>}
+                  {aiResult.identification_basis&&<div className="aiTextSuggestion"><small>COMO A IA IDENTIFICOU</small><p>{aiResult.identification_basis}</p></div>}
+                  {aiResult.quality_notes&&<div className="aiTextSuggestion"><small>ESTADO VISUAL DA PEÇA</small><p>{aiResult.quality_notes}</p></div>}
+                  {aiResult.description&&<div className="aiTextSuggestion"><small>DESCRIÇÃO SUGERIDA</small><p>{aiResult.description}</p></div>}
                   {aiResult.compatibility&&<div className="aiTextSuggestion"><small>APLICAÇÕES POSSÍVEIS</small><p>{aiResult.compatibility}</p></div>}
-                  {!!aiResult.keywords?.length&&<div className="aiKeywords">{aiResult.keywords.map((x,i)=><span key={i}>{x}</span>)}</div>}
+                  {!!aiResult.visible_codes?.length&&<div className="aiTextSuggestion"><small>CÓDIGOS / TEXTOS VISÍVEIS</small><p>{aiResult.visible_codes.join(' · ')}</p></div>}
+                  {!!aiResult.visual_evidence?.length&&<div className="aiWarnings"><b>Evidências visuais:</b>{aiResult.visual_evidence.map((x,i)=><span key={i}>• {x}</span>)}</div>}
+                  <div className="aiKeywords"><span>Qualidade da foto: {aiResult.photo_quality||'não avaliada'}</span>{aiResult.keywords?.map((x,i)=><span key={i}>{x}</span>)}</div>
                   {!!aiResult.warnings?.length&&<div className="aiWarnings"><b>Confira antes de salvar:</b>{aiResult.warnings.map((x,i)=><span key={i}>• {x}</span>)}</div>}
                 </div>}
               </div>

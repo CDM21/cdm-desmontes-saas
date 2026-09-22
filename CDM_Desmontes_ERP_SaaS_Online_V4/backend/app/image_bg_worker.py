@@ -8,15 +8,12 @@ import numpy as np
 import onnxruntime as ort
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
-# CDM FUNDO BRANCO PRO V47.2
-# Foco: manter a qualidade da V47.1, mas abrir/processar mais rápido.
-# Estratégia:
-# - proxy menor para segmentação
-# - skip do GrabCut quando a máscara local já vier confiável
-# - arquivo final menor e progressivo para carregar mais rápido no site
-OUTPUT_SIZE = 1400
-TARGET_OBJECT_SIZE = 980
-PROXY_MAX = 640
+# CDM FUNDO BRANCO PRO V15.7
+# Motor híbrido: U2Net + GrabCut conservador + recuperação de áreas internas.
+# Objetivo principal: não "lavar" nem apagar partes claras/escuras da peça.
+OUTPUT_SIZE = 1500
+TARGET_OBJECT_SIZE = 1110
+PROXY_MAX = 860
 MODEL_INPUT = 320
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "u2netp.onnx"
 
@@ -56,10 +53,10 @@ def _resize_proxy(rgb):
     return cv2.resize(rgb, (nw, nh), interpolation=cv2.INTER_AREA)
 
 
-def _clean_components(binary):
+def _clean_components(binary, keep_ratio=0.00035):
     binary = (binary > 0).astype(np.uint8)
     h, w = binary.shape
-    k = max(3, int(round(min(h, w) * 0.004)))
+    k = max(3, int(round(min(h, w) * 0.0035)))
     if k % 2 == 0:
         k += 1
     k = min(k, 7)
@@ -74,12 +71,35 @@ def _clean_components(binary):
         return binary
     areas = stats[1:, cv2.CC_STAT_AREA]
     largest = int(areas.max()) if len(areas) else 0
-    keep_min = max(8, int(largest * 0.00055))
+    keep_min = max(6, int(largest * keep_ratio))
     cleaned = np.zeros_like(binary)
     for idx in range(1, count):
         if int(stats[idx, cv2.CC_STAT_AREA]) >= keep_min:
             cleaned[labels == idx] = 1
     return cleaned if cleaned.any() else binary
+
+
+def _fill_small_holes(binary, max_ratio=0.035):
+    binary = (binary > 0).astype(np.uint8)
+    h, w = binary.shape
+    inv = (1 - binary).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(inv, 8)
+    if count <= 1:
+        return binary
+
+    out = binary.copy()
+    object_area = max(1, int(binary.sum()))
+    max_hole = max(18, int(object_area * max_ratio))
+    for idx in range(1, count):
+        x = int(stats[idx, cv2.CC_STAT_LEFT])
+        y = int(stats[idx, cv2.CC_STAT_TOP])
+        ww = int(stats[idx, cv2.CC_STAT_WIDTH])
+        hh = int(stats[idx, cv2.CC_STAT_HEIGHT])
+        area = int(stats[idx, cv2.CC_STAT_AREA])
+        touches_border = x <= 0 or y <= 0 or (x + ww) >= w or (y + hh) >= h
+        if not touches_border and area <= max_hole:
+            out[labels == idx] = 1
+    return out
 
 
 def _u2net_alpha(proxy_rgb):
@@ -110,87 +130,97 @@ def _u2net_alpha(proxy_rgb):
     return np.clip(alpha * 255.0, 0, 255).astype(np.uint8)
 
 
-def _mask_is_confident(alpha):
-    h, w = alpha.shape
-    fg_ratio = float((alpha > 180).mean())
-    soft_ratio = float(((alpha > 24) & (alpha < 235)).mean())
-    border = max(2, int(round(min(h, w) * 0.03)))
-    border_mask = np.zeros_like(alpha, dtype=bool)
-    border_mask[:border, :] = True
-    border_mask[-border:, :] = True
-    border_mask[:, :border] = True
-    border_mask[:, -border:] = True
-    border_fg = float((alpha[border_mask] > 70).mean()) if border_mask.any() else 0.0
-    return (0.006 < fg_ratio < 0.78) and (soft_ratio < 0.20) and (border_fg < 0.08)
+def _solid_alpha_from_support(support):
+    support = _clean_components(support, keep_ratio=0.00025)
+    support = cv2.morphologyEx(
+        support,
+        cv2.MORPH_CLOSE,
+        np.ones((5, 5), np.uint8),
+        iterations=1,
+    )
+    support = _fill_small_holes(support, max_ratio=0.045)
+
+    # Interior 100% opaco. Só a borda externa recebe feather.
+    hard = (support * 255).astype(np.uint8)
+    feather = cv2.GaussianBlur(hard, (5, 5), 0.85)
+    core = cv2.erode(support, np.ones((3, 3), np.uint8), iterations=1)
+    feather[core > 0] = 255
+    feather[feather < 5] = 0
+    feather[feather > 249] = 255
+    return feather
 
 
-def _refine_alpha(proxy_rgb, alpha):
-    h, w = alpha.shape
-    support = _clean_components((alpha >= 20).astype(np.uint8))
-    alpha = alpha.copy()
-    alpha[support == 0] = 0
+def _grabcut_support(proxy_rgb, raw_alpha):
+    h, w = raw_alpha.shape
+    gc = np.full((h, w), cv2.GC_PR_BGD, dtype=np.uint8)
 
-    coverage = float((alpha >= 40).mean())
+    gc[raw_alpha <= 8] = cv2.GC_BGD
+    gc[(raw_alpha > 8) & (raw_alpha < 92)] = cv2.GC_PR_BGD
+    gc[(raw_alpha >= 92) & (raw_alpha < 215)] = cv2.GC_PR_FGD
+    gc[raw_alpha >= 215] = cv2.GC_FGD
+
+    border = max(2, int(round(min(h, w) * 0.008)))
+    gc[:border, :] = cv2.GC_BGD
+    gc[-border:, :] = cv2.GC_BGD
+    gc[:, :border] = cv2.GC_BGD
+    gc[:, -border:] = cv2.GC_BGD
+
+    bg_model = np.zeros((1, 65), np.float64)
+    fg_model = np.zeros((1, 65), np.float64)
+    cv2.grabCut(
+        cv2.cvtColor(proxy_rgb, cv2.COLOR_RGB2BGR),
+        gc,
+        None,
+        bg_model,
+        fg_model,
+        2,
+        cv2.GC_INIT_WITH_MASK,
+    )
+    return np.where(
+        (gc == cv2.GC_FGD) | (gc == cv2.GC_PR_FGD),
+        1,
+        0,
+    ).astype(np.uint8)
+
+
+def _refine_alpha(proxy_rgb, raw_alpha):
+    base_support = _clean_components((raw_alpha >= 14).astype(np.uint8), keep_ratio=0.00025)
+    strong_support = _clean_components((raw_alpha >= 112).astype(np.uint8), keep_ratio=0.00020)
+
+    coverage = float(base_support.mean())
     if coverage < 0.004:
         raise RuntimeError("Não foi possível identificar a peça com segurança")
-    if coverage > 0.94:
+    if coverage > 0.95:
         raise RuntimeError("Fundo muito complexo para recorte automático")
 
-    # V47.2: quando a máscara já vier boa, evita GrabCut para ganhar velocidade.
-    if _mask_is_confident(alpha):
-        alpha[alpha < 14] = 0
-        alpha[alpha > 244] = 255
-        alpha = cv2.GaussianBlur(alpha, (3, 3), 0.42)
-        alpha[alpha < 8] = 0
-        alpha[alpha > 250] = 255
-        return alpha
-
     try:
-        gc = np.full((h, w), cv2.GC_PR_BGD, dtype=np.uint8)
-        gc[alpha <= 12] = cv2.GC_BGD
-        gc[(alpha > 12) & (alpha < 92)] = cv2.GC_PR_BGD
-        gc[(alpha >= 92) & (alpha < 220)] = cv2.GC_PR_FGD
-        gc[alpha >= 220] = cv2.GC_FGD
+        grab = _grabcut_support(proxy_rgb, raw_alpha)
+        grab = _clean_components(grab, keep_ratio=0.00025)
 
-        border = max(2, int(round(min(h, w) * 0.006)))
-        gc[:border, :] = cv2.GC_BGD
-        gc[-border:, :] = cv2.GC_BGD
-        gc[:, :border] = cv2.GC_BGD
-        gc[:, -border:] = cv2.GC_BGD
+        # A união é proposital: GrabCut melhora a borda, enquanto a máscara forte
+        # do U2Net impede que superfícies claras, etiquetas, mangueiras e conectores sumam.
+        support = np.maximum(grab, strong_support)
 
-        bg_model = np.zeros((1, 65), np.float64)
-        fg_model = np.zeros((1, 65), np.float64)
-
-        cv2.grabCut(
-            cv2.cvtColor(proxy_rgb, cv2.COLOR_RGB2BGR),
-            gc,
-            None,
-            bg_model,
-            fg_model,
-            1,
-            cv2.GC_INIT_WITH_MASK,
-        )
-
-        grab = np.where((gc == cv2.GC_FGD) | (gc == cv2.GC_PR_FGD), 1, 0).astype(np.uint8)
-        grab = _clean_components(grab)
-
-        allowed = cv2.dilate(grab, np.ones((3, 3), np.uint8), iterations=1)
-        core = cv2.erode(grab, np.ones((3, 3), np.uint8), iterations=1)
-        alpha[allowed == 0] = 0
-        alpha[core > 0] = np.maximum(alpha[core > 0], 238)
+        # Mantém áreas incertas ligadas à peça para não criar "buracos brancos".
+        bridge = cv2.dilate(support, np.ones((7, 7), np.uint8), iterations=1)
+        recover = np.where((base_support > 0) & (bridge > 0), 1, 0).astype(np.uint8)
+        support = np.maximum(support, recover)
     except Exception:
-        pass
+        support = np.maximum(strong_support, base_support)
 
-    alpha[alpha < 13] = 0
-    alpha[alpha > 244] = 255
-    alpha = cv2.GaussianBlur(alpha, (3, 3), 0.45)
-    alpha[alpha < 8] = 0
-    alpha[alpha > 250] = 255
-    return alpha
+    support = _clean_components(support, keep_ratio=0.00025)
+    support = _fill_small_holes(support, max_ratio=0.05)
+
+    refined_coverage = float(support.mean())
+    # Guarda de segurança: se o refinamento apagou demais, volta para a máscara conservadora.
+    if refined_coverage < max(0.0035, coverage * 0.62):
+        support = _fill_small_holes(base_support, max_ratio=0.055)
+
+    return _solid_alpha_from_support(support)
 
 
 def _safe_bbox(alpha):
-    ys, xs = np.where(alpha > 18)
+    ys, xs = np.where(alpha > 12)
     if len(xs) < 40 or len(ys) < 40:
         return None
     h, w = alpha.shape
@@ -198,8 +228,8 @@ def _safe_bbox(alpha):
     y1, y2 = int(ys.min()), int(ys.max())
     obj_w = x2 - x1 + 1
     obj_h = y2 - y1 + 1
-    px = max(5, int(round(obj_w * 0.02)))
-    py = max(5, int(round(obj_h * 0.02)))
+    px = max(8, int(round(obj_w * 0.035)))
+    py = max(8, int(round(obj_h * 0.035)))
     return (
         max(0, x1 - px),
         max(0, y1 - py),
@@ -211,10 +241,10 @@ def _safe_bbox(alpha):
 def _enhance_object(obj):
     alpha = obj.getchannel("A")
     rgb = obj.convert("RGB")
-    rgb = ImageEnhance.Contrast(rgb).enhance(1.03)
-    rgb = ImageEnhance.Color(rgb).enhance(1.01)
-    rgb = ImageEnhance.Brightness(rgb).enhance(1.006)
-    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=0.8, percent=85, threshold=4))
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.035)
+    rgb = ImageEnhance.Color(rgb).enhance(1.015)
+    rgb = ImageEnhance.Brightness(rgb).enhance(0.995)
+    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=0.75, percent=78, threshold=4))
     out = rgb.convert("RGBA")
     out.putalpha(alpha)
     return out
@@ -225,7 +255,7 @@ def process_image(src, dst):
     pil = Image.open(io.BytesIO(raw))
     pil = ImageOps.exif_transpose(pil).convert("RGB")
 
-    max_source = 2200
+    max_source = 2400
     if max(pil.size) > max_source:
         scale = max_source / max(pil.size)
         pil = pil.resize(
@@ -242,13 +272,15 @@ def process_image(src, dst):
         raise RuntimeError("Imagem pequena demais para tratamento")
 
     proxy = _resize_proxy(rgb)
-    proxy_alpha = _u2net_alpha(proxy)
-    proxy_alpha = _refine_alpha(proxy, proxy_alpha)
+    raw_proxy_alpha = _u2net_alpha(proxy)
+    proxy_alpha = _refine_alpha(proxy, raw_proxy_alpha)
 
     alpha = cv2.resize(proxy_alpha, (w, h), interpolation=cv2.INTER_CUBIC)
     alpha = np.clip(alpha, 0, 255).astype(np.uint8)
-    alpha[alpha < 8] = 0
-    alpha[alpha > 250] = 255
+
+    # Garante interior opaco também na resolução final.
+    final_support = (alpha >= 42).astype(np.uint8)
+    alpha = _solid_alpha_from_support(final_support)
 
     bbox = _safe_bbox(alpha)
     if bbox is None:
@@ -266,7 +298,7 @@ def process_image(src, dst):
     fit = min(
         TARGET_OBJECT_SIZE / max(ow, 1),
         TARGET_OBJECT_SIZE / max(oh, 1),
-        2.05,
+        2.15,
     )
     nw = max(1, int(round(ow * fit)))
     nh = max(1, int(round(oh * fit)))
@@ -280,8 +312,8 @@ def process_image(src, dst):
     out.save(
         dst,
         format="JPEG",
-        quality=92,
-        subsampling=1,
+        quality=94,
+        subsampling=0,
         optimize=True,
         progressive=True,
     )
