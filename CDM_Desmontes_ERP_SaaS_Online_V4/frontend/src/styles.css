@@ -4338,3 +4338,22 @@ table th{
  .vehicleEditPhotoActions{grid-template-columns:1fr}
 }
 @media(max-width:480px){.vehicleEditPhotoGrid{grid-template-columns:1fr}}
+
+/* CDM AI FAST V15.4 */
+.aiProcessing{display:grid;gap:10px;margin-top:13px;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text)}
+.aiProcessingTrack{position:relative;height:34px;overflow:hidden;border-radius:9px;background:var(--soft)}
+.aiProcessingTrack:after{content:"";position:absolute;left:10px;right:10px;bottom:8px;height:2px;background:var(--line)}
+.aiProcessingCar{position:absolute;z-index:2;left:8px;bottom:8px;line-height:1;animation:cdmAiCar 2.4s ease-in-out infinite}
+.aiProcessingTrack>i{position:absolute;left:0;top:0;bottom:0;width:34%;background:linear-gradient(90deg,transparent,rgba(40,120,255,.10),transparent);animation:cdmAiSweep 1.6s linear infinite}
+.aiProcessingCopy{display:grid;gap:3px}
+.aiProcessingCopy span{color:var(--muted)}
+.aiProcessingSteps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.aiProcessingSteps>span{display:flex;align-items:center;gap:6px;min-width:0;padding:8px;border:1px solid var(--line);border-radius:9px;color:var(--muted);background:var(--soft)}
+.aiProcessingSteps>span>i{width:20px;height:20px;flex:0 0 20px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);font-style:normal;background:var(--panel)}
+.aiProcessingSteps>span.done{color:var(--text);border-color:rgba(40,120,255,.30)}
+.aiProcessingSteps>span.done>i{border-color:rgba(40,120,255,.45)}
+@keyframes cdmAiCar{0%{left:8px}50%{left:calc(100% - 42px)}100%{left:8px}}
+@keyframes cdmAiSweep{from{transform:translateX(-120%)}to{transform:translateX(380%)}}
+@media(max-width:760px){.aiProcessingSteps{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.aiProcessingSteps{grid-template-columns:1fr}}
+

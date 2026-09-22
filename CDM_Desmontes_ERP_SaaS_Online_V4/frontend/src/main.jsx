@@ -1489,6 +1489,27 @@ async function optimizeProductImageUpload(file){
   }
 }
 
+// CDM AI FAST V15.4
+async function prepareAiAnalysisImage(src,max=1280,quality=.82){
+  try{
+    const img=await loadImage(src)
+    const scale=Math.min(1,max/Math.max(img.width,img.height))
+    const w=Math.max(1,Math.round(img.width*scale))
+    const h=Math.max(1,Math.round(img.height*scale))
+    const out=document.createElement('canvas')
+    out.width=w
+    out.height=h
+    const ctx=out.getContext('2d')
+    ctx.imageSmoothingEnabled=true
+    ctx.imageSmoothingQuality='high'
+    ctx.drawImage(img,0,0,w,h)
+    return out.toDataURL('image/jpeg',quality)
+  }catch(e){
+    console.warn('CDM IA: cópia leve não criada',e)
+    return src
+  }
+}
+
 async function prepareProductImage(file,removeBg=true,mode='basic'){
   if(removeBg){
     const formData=new FormData()
@@ -1885,7 +1906,13 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
   // CDM DUPLICATE DETECTION V1
   const [duplicateCheck,setDuplicateCheck]=useState({loading:false,items:[],checked:false})
   const editing=!!initialProduct,[form,setForm]=useState({...productEmpty,...(initialProduct||{}),auto_publish:false}),[mlSuggestions,setMlSuggestions]=useState([]),[findingCategory,setFindingCategory]=useState(false),[marketModal,setMarketModal]=useState(null),[step,setStep]=useState('cadastro'),[categoryOpen,setCategoryOpen]=useState(false),[categoryQuery,setCategoryQuery]=useState(''),[categoryResults,setCategoryResults]=useState([]),[categoryBusy,setCategoryBusy]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState(null)
-  const [aiUsage,setAiUsage]=useState(null)
+  const [aiUsage,setAiUsage]=useState(null),[aiStage,setAiStage]=useState(0)
+  const aiStages=['Preparando as fotos','Lendo códigos e detalhes','Identificando a peça','Montando o cadastro']
+  useEffect(()=>{
+    if(!aiBusy){setAiStage(0);return}
+    const timer=setInterval(()=>setAiStage(v=>Math.min(v+1,aiStages.length-1)),2200)
+    return()=>clearInterval(timer)
+  },[aiBusy])
   useEffect(()=>{setForm({...productEmpty,...(initialProduct||{}),auto_publish:false});setStep('cadastro');if(!initialProduct)loadNextSku()},[initialProduct?.id])
   useEffect(()=>{loadAiUsage()},[])
   async function loadAiUsage(){
@@ -1897,19 +1924,18 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     if(aiUsage&&Number(aiUsage.remaining||0)<=0){notice(`Limite mensal de ${aiUsage.limit||200} Cadastros com IA atingido. O cadastro manual continua liberado.`);return}
     setAiBusy(true);setAiResult(null)
     try{
-      const prepared=[]
-      for(const f of Array.from(files).slice(0,3)){
-        if(!f.type?.startsWith('image/'))continue
-        prepared.push(await prepareProductImage(f,false))
-      }
+      const selected=Array.from(files).slice(0,3).filter(f=>f.type?.startsWith('image/'))
+      const prepared=await Promise.all(selected.map(f=>prepareProductImage(f,false)))
       if(!prepared.length){notice('Selecione pelo menos uma foto da peça');return}
       const current=imageList(form.image_urls)
       setForm(f=>({...f,image_urls:[...prepared,...current].slice(0,8).join('\n')}))
+
+      const aiImages=await Promise.all(prepared.map(src=>prepareAiAnalysisImage(src,1280,.82)))
       const r=await api.post('/intelligence/product-photo-analysis',{
-        images:prepared,
+        images:aiImages,
         vehicle_id:form.vehicle_id?Number(form.vehicle_id):null,
         context:{name:form.name||'',brand:form.brand||'',model:form.model||'',year:form.year||'',groups:groups.map(g=>g.name)}
-      })
+      },{timeout:58000})
       setAiResult(r.data)
       if(r.data?.usage)setAiUsage(r.data.usage)
       notice('IA analisou a peça. Revise as sugestões antes de aplicar')
@@ -2011,7 +2037,12 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
 
             <div className="videoExactInnovation ai">
               <div className="productAiPhoto" data-feature="CDM_AI_PHOTO_PANEL">
-                <div className="productAiPhotoHead"><div><span className="aiNewBadge">NOVO · IA</span><h4>Cadastro de peça por foto</h4><p>Tire ou envie até 3 fotos. A IA identifica a peça, monta o título e sugere os dados para você revisar.</p></div><label className={'primary aiPhotoButton '+(aiBusy||aiUsage?.configured===false||Number(aiUsage?.remaining??1)<=0?'disabled':'')}>{aiBusy?'Analisando...':aiUsage?.configured===false?'IA aguardando configuração':Number(aiUsage?.remaining??1)<=0?'Limite mensal atingido':'📷 Tirar ou enviar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={aiBusy||aiUsage?.configured===false||Number(aiUsage?.remaining??1)<=0} onChange={e=>{analyzeProductPhotos(e.target.files);e.target.value=''}}/></label></div>
+                <div className="productAiPhotoHead"><div><span className="aiNewBadge">NOVO · IA</span><h4>Cadastro de peça por foto</h4><p>Tire ou envie até 3 fotos. A IA identifica a peça, monta o título e sugere os dados para você revisar.</p></div><label className={'primary aiPhotoButton '+(aiBusy||aiUsage?.configured===false||Number(aiUsage?.remaining??1)<=0?'disabled':'')}>{aiBusy?'IA trabalhando...':aiUsage?.configured===false?'IA aguardando configuração':Number(aiUsage?.remaining??1)<=0?'Limite mensal atingido':'📷 Tirar ou enviar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={aiBusy||aiUsage?.configured===false||Number(aiUsage?.remaining??1)<=0} onChange={e=>{analyzeProductPhotos(e.target.files);e.target.value=''}}/></label></div>
+                {aiBusy&&<div className="aiProcessing" role="status" aria-live="polite">
+                  <div className="aiProcessingTrack"><span className="aiProcessingCar">🚗</span><i/></div>
+                  <div className="aiProcessingCopy"><b>{aiStages[aiStage]}</b><span>A análise continua enquanto o CDM prepara o cadastro.</span></div>
+                  <div className="aiProcessingSteps">{aiStages.map((label,i)=><span key={label} className={i<=aiStage?'done':''}><i>{i<aiStage?'✓':i+1}</i>{label}</span>)}</div>
+                </div>}
                 <small className="aiPrivacyNote">Somente as fotos escolhidas são enviadas para análise. Confira aplicação e código OEM antes de publicar.</small>{aiUsage&&<small className="aiPrivacyNote"><b>Cadastro IA:</b> {aiUsage.used}/{aiUsage.limit} usados neste mês · {aiUsage.remaining} restantes{aiUsage.configured===false?' · aguardando chave da IA':''}</small>}
                 {aiResult&&<div className="aiPhotoResult">
                   <div className="aiPhotoResultTop"><div><b>{aiResult.name||'Peça identificada parcialmente'}</b><span className={'aiConfidence '+(aiResult.confidence||'baixa')}>Confiança: {aiResult.confidence||'baixa'}</span></div><button type="button" className="primary" onClick={applyAiProductSuggestions}>✓ Aplicar sugestões</button></div>

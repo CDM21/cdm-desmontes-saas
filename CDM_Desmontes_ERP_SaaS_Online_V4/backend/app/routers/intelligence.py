@@ -600,6 +600,7 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
+# CDM AI FAST V15.4
 PART_AI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
 PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -658,7 +659,7 @@ def _part_ai_usage_payload(row: PartAiUsage):
     used = max(0, int(row.used or 0))
     model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
     return {
-        "version": "v46",
+        "version": "v15.4",
         "provider": "gemini",
         "model": model,
         "configured": bool((os.getenv("GEMINI_API_KEY") or "").strip()),
@@ -880,42 +881,72 @@ REGRAS:
 - Responda somente no formato JSON solicitado.
 """.strip()
 
-    parts = [{"text": prompt}, *image_parts]
-    payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": parts,
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.15,
-            "maxOutputTokens": 1400,
-            "response_mime_type": "application/json",
-            "response_schema": PART_AI_SCHEMA,
-        },
-    }
+    # V15.4: tentativa normal rápida + fallback automático mais leve.
+    attempts = [
+        {"images": image_parts, "timeout": 30.0, "max_tokens": 1000},
+        {"images": image_parts[:1], "timeout": 24.0, "max_tokens": 850},
+    ]
 
-    try:
-        with httpx.Client(timeout=httpx.Timeout(60.0, connect=10.0)) as client:
-            r = client.post(
-                PART_AI_URL.format(model=model),
-                headers={
-                    "x-goog-api-key": key,
-                    "Content-Type": "application/json",
-                },
-                json=payload,
+    r = None
+    images_used = len(image_parts)
+    last_transport_error = None
+
+    for attempt_index, attempt in enumerate(attempts):
+        request_parts = [{"text": prompt}, *attempt["images"]]
+        payload = {
+            "contents": [{"role": "user", "parts": request_parts}],
+            "generationConfig": {
+                "temperature": 0.15,
+                "maxOutputTokens": attempt["max_tokens"],
+                "response_mime_type": "application/json",
+                "response_schema": PART_AI_SCHEMA,
+            },
+        }
+
+        try:
+            with httpx.Client(timeout=httpx.Timeout(attempt["timeout"], connect=8.0)) as client:
+                candidate = client.post(
+                    PART_AI_URL.format(model=model),
+                    headers={
+                        "x-goog-api-key": key,
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+        except (httpx.TimeoutException, httpx.HTTPError) as exc:
+            last_transport_error = exc
+            if attempt_index == 0:
+                continue
+            if isinstance(exc, httpx.TimeoutException):
+                raise HTTPException(
+                    504,
+                    "A IA está demorando mais que o normal. Tente novamente; suas fotos continuam no cadastro.",
+                )
+            raise HTTPException(
+                502,
+                "A conexão com a IA oscilou. Tente novamente; suas fotos continuam no cadastro.",
             )
-    except httpx.TimeoutException:
-        raise HTTPException(504, "A IA demorou demais para analisar a peça. Tente novamente.")
-    except httpx.HTTPError:
+
+        if candidate.status_code in {429, 500, 502, 503, 504} and attempt_index == 0:
+            r = candidate
+            continue
+
+        r = candidate
+        images_used = len(attempt["images"])
+        break
+
+    if r is None:
+        if isinstance(last_transport_error, httpx.TimeoutException):
+            raise HTTPException(504, "A IA está demorando mais que o normal. Tente novamente.")
         raise HTTPException(502, "Não foi possível conectar ao Cadastro de Peça com IA.")
 
     if r.status_code >= 400:
         if r.status_code in {401, 403}:
             detail = "A chave do Gemini não foi aceita. Revise GEMINI_API_KEY no Render."
         elif r.status_code == 429:
-            detail = "A IA recebeu muitas solicitações. Tente novamente em alguns segundos."
+            detail = "A IA está ocupada agora. Aguarde alguns segundos e tente novamente."
+        elif r.status_code in {500, 502, 503, 504}:
+            detail = "A IA oscilou durante a análise. Tente novamente; suas fotos continuam no cadastro."
         else:
             detail = f"A IA não conseguiu analisar a foto agora (HTTP {r.status_code})."
         raise HTTPException(502 if r.status_code >= 500 else r.status_code, detail)
@@ -967,7 +998,7 @@ REGRAS:
         "quality_notes": txt("quality_notes", 1200),
         "confidence": confidence,
         "warnings": [str(x).strip()[:240] for x in warnings[:6] if str(x).strip()],
-        "photos_analyzed": len(image_parts),
+        "photos_analyzed": images_used,
         "provider": "gemini",
         "ai_model": model,
         "usage": usage,
