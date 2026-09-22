@@ -1510,7 +1510,7 @@ async function prepareAiAnalysisImage(src,max=1100,quality=.78){
   }
 }
 
-// CDM PHOTO PRO V15.5
+// CDM PHOTO PRO V15.6
 function fileToDataUrlMaybe(file){
   if(typeof file==='string')return Promise.resolve(file)
   return new Promise((resolve,reject)=>{
@@ -1519,6 +1519,23 @@ function fileToDataUrlMaybe(file){
     reader.onerror=()=>reject(new Error('Falha ao ler a imagem'))
     reader.readAsDataURL(file)
   })
+}
+
+function rgbToHsl(r,g,b){
+  r/=255; g/=255; b/=255
+  const max=Math.max(r,g,b), min=Math.min(r,g,b)
+  let h=0, s=0, l=(max+min)/2
+  if(max!==min){
+    const d=max-min
+    s=l>.5 ? d/(2-max-min) : d/(max+min)
+    switch(max){
+      case r: h=(g-b)/d + (g<b?6:0); break
+      case g: h=(b-r)/d + 2; break
+      case b: h=(r-g)/d + 4; break
+    }
+    h/=6
+  }
+  return [h,s,l]
 }
 
 async function analyzeCatalogSubject(src){
@@ -1530,6 +1547,7 @@ async function analyzeCatalogSubject(src){
   ctx.drawImage(img,0,0)
   const raw=ctx.getImageData(0,0,canvas.width,canvas.height).data
   let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1,white=0
+  let subjectCount=0,lumaSum=0,satSum=0
   for(let y=0;y<canvas.height;y++){
     for(let x=0;x<canvas.width;x++){
       const i=(y*canvas.width+x)*4
@@ -1542,6 +1560,9 @@ async function analyzeCatalogSubject(src){
         if(y<minY)minY=y
         if(x>maxX)maxX=x
         if(y>maxY)maxY=y
+        subjectCount++
+        lumaSum+=(r*0.299+g*0.587+b*0.114)
+        satSum+=rgbToHsl(r,g,b)[1]
       }
     }
   }
@@ -1558,16 +1579,18 @@ async function analyzeCatalogSubject(src){
     whiteRatio:white/Math.max(1,total),
     edgeTouch:minX<=2||minY<=2||maxX>=canvas.width-3||maxY>=canvas.height-3,
     width:canvas.width,
-    height:canvas.height
+    height:canvas.height,
+    meanLuma:subjectCount?lumaSum/subjectCount:255,
+    meanSat:subjectCount?satSum/subjectCount:0
   }
 }
 
-async function placeSubjectOnCatalogWhite(src,metrics=null){
+async function placeSubjectOnCatalogWhite(src,metrics=null,target=.82,padding=.14){
   const m=metrics||await analyzeCatalogSubject(src)
   if(!m.hasSubject)return src
   const img=await loadImage(src)
-  const padX=Math.max(14,Math.round(m.boxW*0.14))
-  const padY=Math.max(14,Math.round(m.boxH*0.14))
+  const padX=Math.max(14,Math.round(m.boxW*padding))
+  const padY=Math.max(14,Math.round(m.boxH*padding))
   const sx=Math.max(0,m.minX-padX)
   const sy=Math.max(0,m.minY-padY)
   const sw=Math.min(m.width-sx,m.boxW+padX*2)
@@ -1579,8 +1602,8 @@ async function placeSubjectOnCatalogWhite(src,metrics=null){
   const ctx=out.getContext('2d')
   ctx.fillStyle='#ffffff'
   ctx.fillRect(0,0,size,size)
-  const target=Math.round(size*0.82)
-  const scale=Math.min(target/sw,target/sh)
+  const targetPx=Math.round(size*target)
+  const scale=Math.min(targetPx/sw,targetPx/sh)
   const dw=Math.round(sw*scale)
   const dh=Math.round(sh*scale)
   const dx=Math.round((size-dw)/2)
@@ -1591,7 +1614,7 @@ async function placeSubjectOnCatalogWhite(src,metrics=null){
   return out.toDataURL('image/jpeg',.92)
 }
 
-async function buildConservativeWhitePhoto(file){
+async function buildOriginalWhitePhoto(file,{padding=.14,target=.82,contrast=1.02,brightness=.98}={}){
   const src=await fileToDataUrlMaybe(file)
   const img=await loadImage(src)
   const w=img.width,h=img.height
@@ -1616,8 +1639,8 @@ async function buildConservativeWhitePhoto(file){
       const r=raw[i],g=raw[i+1],b=raw[i+2],a=raw[i+3]
       if(a<15)continue
       const delta=Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2])
-      const dark=(r+g+b)<705
-      const strong=delta>54||dark
+      const dark=(r+g+b)<720
+      const strong=delta>52||dark
       if(strong){
         if(x<minX)minX=x
         if(y<minY)minY=y
@@ -1629,8 +1652,8 @@ async function buildConservativeWhitePhoto(file){
   if(maxX<0||maxY<0)return src
 
   const boxW=maxX-minX+1,boxH=maxY-minY+1
-  const padX=Math.max(16,Math.round(boxW*0.12))
-  const padY=Math.max(16,Math.round(boxH*0.12))
+  const padX=Math.max(16,Math.round(boxW*padding))
+  const padY=Math.max(16,Math.round(boxH*padding))
   const sx=Math.max(0,minX-padX)
   const sy=Math.max(0,minY-padY)
   const sw=Math.min(w-sx,boxW+padX*2)
@@ -1643,28 +1666,64 @@ async function buildConservativeWhitePhoto(file){
   const ctx=out.getContext('2d')
   ctx.fillStyle='#ffffff'
   ctx.fillRect(0,0,size,size)
-  const target=Math.round(size*0.82)
-  const scale=Math.min(target/sw,target/sh)
+  const targetPx=Math.round(size*target)
+  const scale=Math.min(targetPx/sw,targetPx/sh)
   const dw=Math.round(sw*scale)
   const dh=Math.round(sh*scale)
   const dx=Math.round((size-dw)/2)
   const dy=Math.round((size-dh)/2)
   ctx.imageSmoothingEnabled=true
   ctx.imageSmoothingQuality='high'
+  ctx.filter=`contrast(${contrast}) brightness(${brightness})`
   ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh)
+  ctx.filter='none'
   return out.toDataURL('image/jpeg',.92)
+}
+
+async function enhanceSubjectContrast(src,{contrast=1.10,brightness=.95,saturation=1.06}={}){
+  const img=await loadImage(src)
+  const canvas=document.createElement('canvas')
+  canvas.width=img.width
+  canvas.height=img.height
+  const ctx=canvas.getContext('2d',{willReadFrequently:true})
+  ctx.drawImage(img,0,0)
+  const image=ctx.getImageData(0,0,canvas.width,canvas.height)
+  const d=image.data
+  for(let i=0;i<d.length;i+=4){
+    let r=d[i],g=d[i+1],b=d[i+2],a=d[i+3]
+    const nearWhite=a>235&&r>244&&g>244&&b>244
+    if(nearWhite){
+      d[i]=255; d[i+1]=255; d[i+2]=255
+      continue
+    }
+    let avg=(r+g+b)/3
+    r=((r-128)*contrast+128)*brightness
+    g=((g-128)*contrast+128)*brightness
+    b=((b-128)*contrast+128)*brightness
+    avg=(r+g+b)/3
+    r=avg+(r-avg)*saturation
+    g=avg+(g-avg)*saturation
+    b=avg+(b-avg)*saturation
+    d[i]=Math.max(0,Math.min(255,Math.round(r)))
+    d[i+1]=Math.max(0,Math.min(255,Math.round(g)))
+    d[i+2]=Math.max(0,Math.min(255,Math.round(b)))
+  }
+  ctx.putImageData(image,0,0)
+  return canvas.toDataURL('image/jpeg',.92)
 }
 
 async function scorePreparedPhoto(src){
   const m=await analyzeCatalogSubject(src)
   if(!m.hasSubject)return {score:-999,src,metrics:m}
   let score=0
-  score+=Math.min(m.coverage,.55)*220
-  if(m.coverage<.02)score-=40
-  if(m.coverage>.78)score-=28
-  if(m.edgeTouch)score-=24
-  score-=Math.abs(.32-m.coverage)*48
-  score-=Math.max(0,m.whiteRatio-.985)*150
+  score+=Math.min(m.coverage,.60)*230
+  score-=Math.abs(.34-m.coverage)*64
+  if(m.coverage<.03)score-=44
+  if(m.coverage>.82)score-=38
+  if(m.edgeTouch)score-=26
+  score-=Math.max(0,m.whiteRatio-.988)*190
+  score-=Math.max(0,m.meanLuma-208)*1.6
+  score+=Math.min(.18,m.meanSat)*90
   return {score,src,metrics:m}
 }
 
@@ -1674,21 +1733,27 @@ async function prepareProductImage(file,removeBg=true,mode='basic'){
   if(mode!=='pro'){
     try{candidates.push(await prepareProductImageCore(file,removeBg,'pro'))}catch(e){console.warn('CDM Foto: tentativa pro falhou',e)}
   }
-  try{candidates.push(await buildConservativeWhitePhoto(file))}catch(e){console.warn('CDM Foto: fallback conservador falhou',e)}
+  try{candidates.push(await buildOriginalWhitePhoto(file,{padding:.16,target:.82,contrast:1.02,brightness:.98}))}catch(e){console.warn('CDM Foto: conservador falhou',e)}
+  try{candidates.push(await buildOriginalWhitePhoto(file,{padding:.20,target:.72,contrast:1.10,brightness:.94}))}catch(e){console.warn('CDM Foto: detalhe falhou',e)}
 
   let best=null
   for(const candidate of candidates.filter(Boolean)){
-    let normalized=candidate
-    try{
-      normalized=await placeSubjectOnCatalogWhite(candidate)
-    }catch(e){}
-    const scored=await scorePreparedPhoto(normalized)
-    if(!best||scored.score>best.score)best=scored
+    const variants=[]
+    try{variants.push(await placeSubjectOnCatalogWhite(candidate,null,.82,.14))}catch(e){variants.push(candidate)}
+    try{variants.push(await placeSubjectOnCatalogWhite(candidate,null,.76,.18))}catch(e){}
+    for(const variant of variants.filter(Boolean)){
+      const batch=[variant]
+      try{batch.push(await enhanceSubjectContrast(variant,{contrast:1.10,brightness:.95,saturation:1.06}))}catch(e){}
+      for(const finalVariant of batch.filter(Boolean)){
+        const scored=await scorePreparedPhoto(finalVariant)
+        if(!best||scored.score>best.score)best=scored
+      }
+    }
   }
 
   if(best&&best.src)return best.src
   if(candidates[0])return candidates[0]
-  return await buildConservativeWhitePhoto(file)
+  return await buildOriginalWhitePhoto(file,{padding:.16,target:.82})
 }
 
 // CDM AI RETRY V15.5

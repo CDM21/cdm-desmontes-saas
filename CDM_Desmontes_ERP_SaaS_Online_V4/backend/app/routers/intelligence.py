@@ -600,7 +600,7 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-# CDM AI STABLE V15.5
+# CDM AI STABLE V15.6
 PART_AI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
 PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -659,7 +659,7 @@ def _part_ai_usage_payload(row: PartAiUsage):
     used = max(0, int(row.used or 0))
     model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
     return {
-        "version": "v15.5",
+        "version": "v15.6",
         "provider": "gemini",
         "model": model,
         "configured": bool((os.getenv("GEMINI_API_KEY") or "").strip()),
@@ -881,11 +881,11 @@ REGRAS:
 - Responda somente no formato JSON solicitado.
 """.strip()
 
-    # V15.5: mais proteção contra oscilação sem manter a tela travada por muito tempo.
+    # V15.6: prioriza resposta mais completa, mantendo retry automático.
     attempts = [
-        {"images": image_parts, "timeout": 24.0, "max_tokens": 900},
-        {"images": image_parts[:2], "timeout": 18.0, "max_tokens": 760},
-        {"images": image_parts[:1], "timeout": 14.0, "max_tokens": 620},
+        {"images": image_parts, "timeout": 26.0, "max_tokens": 1120},
+        {"images": image_parts[:2], "timeout": 20.0, "max_tokens": 900},
+        {"images": image_parts[:1], "timeout": 15.0, "max_tokens": 720},
     ]
 
     r = None
@@ -897,7 +897,7 @@ REGRAS:
         payload = {
             "contents": [{"role": "user", "parts": request_parts}],
             "generationConfig": {
-                "temperature": 0.12,
+                "temperature": 0.10,
                 "maxOutputTokens": attempt["max_tokens"],
                 "response_mime_type": "application/json",
                 "response_schema": PART_AI_SCHEMA,
