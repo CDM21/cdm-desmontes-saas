@@ -1957,6 +1957,7 @@ function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
 function ProductImages({form,setForm,notice}){
  const [busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
  const [pendingPreviews,setPendingPreviews]=useState([])
+ const [whiteBusyIndex,setWhiteBusyIndex]=useState(null)
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
@@ -2051,6 +2052,34 @@ function ProductImages({form,setForm,notice}){
    }
  }
 
+ async function applyWhiteBackgroundAt(index){
+   if(busy||whiteBusyIndex!==null)return
+
+   const src=images[index]
+   if(!src)return
+
+   const file=imageSourceToFile(src,index)
+   if(!file){
+     notice('Esta foto não pôde ser preparada para o fundo branco')
+     return
+   }
+
+   setWhiteBusyIndex(index)
+   try{
+     const out=await prepareProductImageCore(file,true,'basic')
+     const next=[...images]
+     next[index]=out
+     save(next)
+     if(zoom===src)setZoom(out)
+     notice(`Fundo branco aplicado na foto ${index+1}`)
+   }catch(e){
+     console.error('CDM Pro não concluiu o fundo branco desta foto:',e)
+     notice(`Não foi possível aplicar o fundo branco na foto ${index+1}`)
+   }finally{
+     setWhiteBusyIndex(null)
+   }
+ }
+
  async function applyWhiteBackground(){
    if(busy)return
    if(!images.length)return notice('Adicione pelo menos uma foto antes de aplicar o fundo branco')
@@ -2141,7 +2170,7 @@ function ProductImages({form,setForm,notice}){
      </div>
      <div className="cdmProOnlyFeatures">
        <span>⚡ Prévia imediata</span>
-       <button type="button" className="ghost" onClick={applyWhiteBackground} disabled={busy||!images.length}>Aplicar fundo branco</button>
+       <span>Fundo branco por foto</span>
        <span>∞ Ilimitado</span>
      </div>
    </div>
@@ -2157,6 +2186,7 @@ function ProductImages({form,setForm,notice}){
            </button>
 
            <button type="button" className="mediaDeletePhoto" onClick={()=>remove(i)} title="Excluir foto">×</button>
+           <button type="button" className="mediaWhiteBgPhoto" onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||whiteBusyIndex!==null} title="Aplicar fundo branco somente nesta foto">{whiteBusyIndex===i?'Aplicando...':'Fundo branco'}</button>
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>

@@ -1419,6 +1419,31 @@ table{font-size:12px}
   font-size:8px;
   font-weight:900
 }
+.mediaWhiteBgPhoto{
+  position:absolute;
+  right:6px;
+  top:80px;
+  z-index:4;
+  min-height:26px;
+  padding:4px 8px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--panel);
+  color:var(--text);
+  font-size:10px;
+  font-weight:800;
+  cursor:pointer;
+  box-shadow:0 2px 8px #0004
+}
+.mediaWhiteBgPhoto:hover:not(:disabled){
+  border-color:var(--accent);
+  color:var(--accent)
+}
+.mediaWhiteBgPhoto:disabled{
+  opacity:.65;
+  cursor:wait
+}
+
 .mediaDeletePhoto{
   position:absolute;
   right:6px;
@@ -1595,6 +1620,9 @@ table{font-size:12px}
   }
   .mediaThumbImage{
     height:100px
+  }
+  .mediaWhiteBgPhoto{
+    top:68px
   }
   .mediaAddTile{
     flex-basis:120px;
