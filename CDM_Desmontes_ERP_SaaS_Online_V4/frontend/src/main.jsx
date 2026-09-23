@@ -250,7 +250,7 @@ function App(){
        {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
        {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
        {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>}
-       {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company}/>}
+       {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company} setTab={setTab} canCreate={canAccessTab(session?.user?.role||'user','product-create',!!session?.is_platform_admin)}/>}
        {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} {tab==='users'&&<UsersPermissions notice={notice}/>}
        {tab==='cadastros'&&<CadastrosHome setTab={setTab}/>}
        {['labels','label-models','etiquetas'].includes(tab)&&<LabelsModule tab={tab} products={products} company={session?.company}/>}
@@ -819,7 +819,37 @@ function OnboardingChecklist({v=[],p=[],s=[],marketplaces=[],session,setTab}){
  </section>
 }
 
-function Dashboard({v,p,s,f,marketplaces,session,setTab}){let receita=s.reduce((a,x)=>a+x.total,0),entr=f.filter(x=>x.kind==='income').reduce((a,x)=>a+x.amount,0),sai=f.filter(x=>x.kind==='expense').reduce((a,x)=>a+x.amount,0),stock=p.reduce((a,x)=>a+x.stock,0);return <><div className="pageTitle"><div><span>PAINEL OPERACIONAL</span><h2>{session?.company?.trade_name||'CDM Desmontes'}</h2><p>Acompanhe sua operação em tempo real.</p></div><div className="statusBadge">● Assinatura {statusPt(session?.subscription?.status)}</div></div><OnboardingChecklist v={v} p={p} s={s} marketplaces={marketplaces} session={session} setTab={setTab}/><div className="grid metrics"><Card icon="🚗" title="Sucatas cadastradas" value={v.length} sub="Base de desmontagem"/><Card icon="⚙" title="Peças em estoque" value={stock} sub={`${p.length} SKUs cadastrados`}/><Card icon="↗" title="Faturamento" value={money(receita)} sub={`${s.length} vendas registradas`}/><Card icon="▣" title="Saldo financeiro" value={money(entr-sai)} sub="Entradas menos saídas"/></div><div className="twoCols"><section className="panel"><PanelHead eyebrow="OPERAÇÃO" title="Estoque recente" text="Últimos itens cadastrados"/><Table rows={p.slice(0,6)} cols={['sku','name','price','stock']} format={{price:money}}/></section><section className="panel"><PanelHead eyebrow="CANAIS" title="Canais de venda" text="Conexões da sua empresa"/><div className="channelList">{marketplaces.map(m=><div className="channel" key={m.id}><MarketLogo id={m.id}/><div><b>{marketName(m.id)}</b><small>{m.connected?(m.account_name||'Conta conectada'):'Aguardando autorização'}</small></div><span className={m.connected?'pill success':'pill warn'}>{m.connected?'Conectado':'Conectar'}</span></div>)}</div></section></div></>}
+function Dashboard({v,p,s,f,marketplaces,session,setTab}){
+ const receita=s.reduce((a,x)=>a+x.total,0)
+ const entr=f.filter(x=>x.kind==='income').reduce((a,x)=>a+x.amount,0)
+ const sai=f.filter(x=>x.kind==='expense').reduce((a,x)=>a+x.amount,0)
+ const stock=p.reduce((a,x)=>a+x.stock,0)
+ const role=session?.user?.role||'user'
+ const quickActions=[
+  ['⚙','Cadastrar peça','Adicionar item ao estoque','product-create'],
+  ['▰','Cadastrar sucata','Adicionar novo veículo','vehicle-create'],
+  ['$','Nova venda','Abrir o caixa / PDV','sales'],
+  ['▧','Emitir NF-e','Abrir emissão fiscal','invoices']
+ ].filter(x=>canAccessTab(role,x[3],!!session?.is_platform_admin))
+ return <>
+  <div className="pageTitle dashboardTitle">
+   <div><span>PAINEL OPERACIONAL</span><h2>{session?.company?.trade_name||'CDM Desmontes'}</h2><p>Acompanhe sua operação em tempo real.</p></div>
+   <div className="statusBadge">● Assinatura {statusPt(session?.subscription?.status)}</div>
+  </div>
+  {!!quickActions.length&&<div className="dashboardQuickActions">{quickActions.map(([icon,title,text,target])=><button type="button" key={target} onClick={()=>setTab?.(target)}><span className="dashboardQuickIcon">{icon}</span><span><b>{title}</b><small>{text}</small></span><i>→</i></button>)}</div>}
+  <OnboardingChecklist v={v} p={p} s={s} marketplaces={marketplaces} session={session} setTab={setTab}/>
+  <div className="grid metrics dashboardMetrics">
+   <Card icon="🚗" title="Sucatas cadastradas" value={v.length} sub="Base de desmontagem"/>
+   <Card icon="⚙" title="Peças em estoque" value={stock} sub={`${p.length} SKUs cadastrados`}/>
+   <Card icon="↗" title="Faturamento" value={money(receita)} sub={`${s.length} vendas registradas`}/>
+   <Card icon="▣" title="Saldo financeiro" value={money(entr-sai)} sub="Entradas menos saídas"/>
+  </div>
+  <div className="twoCols dashboardBottom">
+   <section className="panel"><PanelHead eyebrow="OPERAÇÃO" title="Estoque recente" text="Últimos itens cadastrados"/><Table rows={p.slice(0,6)} cols={['sku','name','price','stock']} format={{price:money}}/></section>
+   <section className="panel"><PanelHead eyebrow="CANAIS" title="Canais de venda" text="Conexões da sua empresa"/><div className="channelList">{marketplaces.map(m=><div className="channel" key={m.id}><MarketLogo id={m.id}/><div><b>{marketName(m.id)}</b><small>{m.connected?(m.account_name||'Conta conectada'):'Aguardando autorização'}</small></div><span className={m.connected?'pill success':'pill warn'}>{m.connected?'Conectado':'Conectar'}</span></div>)}</div></section>
+  </div>
+ </>
+}
 
 function CompanyInfo({session,reload,notice}){
  const empty={trade_name:'',legal_name:'',cnpj:'',state_registration:'',tax_regime:'Simples Nacional',email:'',phone:'',responsible_name:'',rg:'',cpf:'',issuing_agency:'',cep:'',state:'RJ',city:'',address:'',number:'',complement:'',logo_url:''}
@@ -2769,7 +2799,7 @@ function ProductHistory({product,onClose}){const [rows,setRows]=useState([]),[bu
 
 function PublicationInfo({product,listings,onClose}){const rows=listings.filter(x=>x.product_id===product.id);return <div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="v8Modal medium"><div className="modalHead"><div><small>PUBLICAÇÕES</small><h2>{product.name}</h2><p>Situação da peça nos canais de venda.</p></div><button className="iconClose" onClick={onClose}>×</button></div><div className="modalBody publicationRows">{['mercadolivre','shopee','olx'].map(m=>{const r=rows.find(x=>x.marketplace===m);return <div className="publicationRow" key={m}><MarketLogo id={m}/><div><b>{marketName(m)}</b><span>{r?statusPt(r.status):'Ainda não publicada'}</span>{r?.external_id&&<small>Código externo: {r.external_id}</small>}{r?.error_message&&<em>{erroPt(r.error_message)}</em>}</div></div>})}</div></div></div>}
 
-function Inventory({data,listings,refresh,notice,groups=[],brands=[],vehicles=[],locations=[],company}){
+function Inventory({data,listings,refresh,notice,groups=[],brands=[],vehicles=[],locations=[],company,setTab,canCreate=false}){
  const [q,setQ]=useState(''),[limit,setLimit]=useState(12),[showFilters,setShowFilters]=useState(false),[selected,setSelected]=useState([]),[editing,setEditing]=useState(null),[printItems,setPrintItems]=useState([]),[view,setView]=useState('card'),[viewer,setViewer]=useState(null),[history,setHistory]=useState(null),[publication,setPublication]=useState(null)
  // CDM SMART STOCK V1
  const [smartStock,setSmartStock]=useState(null),[smartBusy,setSmartBusy]=useState(true),[showSmart,setShowSmart]=useState(true)
@@ -2785,7 +2815,7 @@ function Inventory({data,listings,refresh,notice,groups=[],brands=[],vehicles=[]
  function exportCsv(){const csv=['SKU;Produto;Marca;Modelo;Preço;Estoque;Mercado Livre;Shopee;OLX',...data.map(p=>[p.sku,p.name,p.brand,p.model,p.price,p.stock,p.publish_mercadolivre?'SIM':'NÃO',p.publish_shopee?'SIM':'NÃO',p.publish_olx?'SIM':'NÃO'].join(';'))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='estoque-cdm.csv';a.click()}
  function share(p){const text=`${p.name} - ${money(p.price)} - SKU ${p.sku}`;if(navigator.share)navigator.share({title:p.name,text}).catch(()=>{});else navigator.clipboard?.writeText(text).then(()=>notice('Dados da peça copiados'))}
  const locationName=p=>{const l=locations.find(x=>x.id===p.location_id);return l?(l.code||l.description||l.warehouse):p.location_id?`Local #${p.location_id}`:'Sem local'}
- return <><section className="smartStockPanel">
+ return <><div className="pageTitle inventoryPageTitle"><div><span>ESTOQUE DE PEÇAS</span><h2>Estoque</h2><p>Encontre, confira e gerencie suas peças em um único lugar.</p></div>{canCreate&&<button className="primary pagePrimaryAction" onClick={()=>setTab?.('product-create')}>＋ Nova peça</button>}</div><section className="smartStockPanel">
    <div className="smartStockHeader">
      <div><span>ESTOQUE INTELIGENTE</span><h3>Visão rápida do estoque</h3><p>Mostra peças paradas, estoque baixo, margem e sugestões de preço usando os dados da sua própria empresa.</p></div>
      <div className="smartStockHeaderActions"><button className="ghost" onClick={loadSmartStock} disabled={smartBusy}>{smartBusy?'Atualizando...':'↻ Atualizar'}</button><button className="ghost" onClick={()=>setShowSmart(!showSmart)}>{showSmart?'Ocultar':'Mostrar'}</button></div>
@@ -2823,10 +2853,17 @@ function Inventory({data,listings,refresh,notice,groups=[],brands=[],vehicles=[]
 
 function ProductCard({p,listings,publish,selected,toggle,edit,print,openPhoto,history,publication,share,remove,locationName}){
  const [tab,setTab]=useState('data'),[menu,setMenu]=useState(false),img=imageList(p.image_urls)[0]
+ const menuRef=useRef(null)
+ useEffect(()=>{
+  if(!menu)return
+  const close=e=>{if(menuRef.current&&!menuRef.current.contains(e.target))setMenu(false)}
+  document.addEventListener('pointerdown',close)
+  return()=>document.removeEventListener('pointerdown',close)
+ },[menu])
  return <article className={'productCard v8ProductCard '+(selected?'selected':'')}>
-  <div className="cardControlRow">
+  <div className="cardControlRow" ref={menuRef}>
    <label className="productSelect"><input type="checkbox" checked={selected} onChange={toggle}/><span>Selecionar</span></label>
-   <button className="cardMenuBtn" title="Mais ações" onClick={()=>setMenu(!menu)}>⋮</button>
+   <button className={'cardMenuBtn '+(menu?'active':'')} title="Mais ações" aria-expanded={menu} onClick={()=>setMenu(!menu)}>⋮</button>
    {menu&&<div className="cardMenu">
     <button onClick={()=>{edit();setMenu(false)}}>✎ Editar</button>
     <button onClick={()=>{publish(p.id);setMenu(false)}}>↻ Anunciar novamente</button>

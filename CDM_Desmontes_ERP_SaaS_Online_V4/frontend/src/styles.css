@@ -6422,3 +6422,122 @@ body[data-theme="dark"] .qrTips{
 body[data-theme="dark"] .productCard.v8ProductCard.selected .cardControlRow .productSelect span{
   color:#74d9aa!important
 }
+
+/* =========================================================
+   CDM V19 — POLIMENTO FINAL DE UX E DESIGN
+   ========================================================= */
+.content{padding-bottom:34px}
+.pageTitle{gap:20px}
+.pageTitle>div:first-child{min-width:0}
+.pageTitle p{max-width:760px}
+.panelTitle{align-items:flex-start;gap:16px}
+.panelTitle>div:first-child{min-width:0}
+
+/* Dashboard: atalhos para tarefas do dia a dia */
+.dashboardQuickActions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:-2px 0 16px}
+.dashboardQuickActions>button{min-width:0;min-height:72px;display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:10px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);text-align:left;box-shadow:var(--cdm-shadow-soft)}
+.dashboardQuickActions>button:hover{transform:translateY(-1px);border-color:rgba(21,151,97,.32);background:linear-gradient(135deg,var(--panel),var(--cdm-brand-soft));box-shadow:var(--cdm-shadow-hover)}
+.dashboardQuickActions>button>span:nth-child(2){min-width:0;display:grid;gap:2px}
+.dashboardQuickActions b,.dashboardQuickActions small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dashboardQuickActions b{font-size:12px}
+.dashboardQuickActions small{color:var(--muted)}
+.dashboardQuickActions i{color:var(--muted);font-style:normal;font-size:16px;transition:.16s}
+.dashboardQuickActions>button:hover i{color:var(--cdm-brand);transform:translateX(2px)}
+.dashboardQuickIcon{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:var(--cdm-brand-soft);color:var(--cdm-brand-strong);font-size:16px;font-weight:900}
+.dashboardMetrics .metric{min-height:102px}
+.dashboardBottom>.panel{min-width:0}
+
+/* Cabeçalho do estoque */
+.inventoryPageTitle{align-items:center}
+.pagePrimaryAction{flex:0 0 auto;min-width:132px;min-height:40px}
+
+/* Ações e filtros */
+.inventoryActions{padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);box-shadow:var(--cdm-shadow-soft)}
+.inventoryActions>div{gap:7px;flex-wrap:wrap}
+.inventoryViewBar{min-height:44px;margin:10px 0;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.inventoryViewBar label{min-height:30px;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:7px}
+.inventoryViewBar label:has(input:checked){background:var(--panel);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+.inventoryToolbar,.financeToolbar,.orderToolbar,.shippingToolbar{gap:10px}
+
+/* Cards de estoque */
+.v8ProductCard .productName{min-height:64px;display:grid;align-content:center;gap:3px;padding:10px 12px}
+.v8ProductCard .productName strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.v8ProductCard .productMeta{min-height:62px}
+.v8ProductCard .productMeta>div{display:grid;align-content:center}
+.v8ProductCard .productMeta>div:first-child b{color:var(--cdm-brand-strong)!important}
+body[data-theme="dark"] .v8ProductCard .productMeta>div:first-child b{color:#73d9aa!important}
+.v8ProductCard .badges{min-height:47px;align-items:center;flex-wrap:wrap}
+.v8ProductCard .productActions{border-color:var(--line)!important;background:var(--panel)}
+.v8ProductCard .productActions button{border-color:var(--line)!important;background:var(--panel)!important;color:var(--muted)!important}
+.v8ProductCard .productActions button:hover{background:var(--soft)!important;color:var(--text)!important}
+
+/* Menu de três pontos */
+.v8ProductCard .cardMenuBtn.active{border-color:rgba(21,151,97,.38)!important;background:var(--cdm-brand-soft)!important;color:var(--cdm-brand-strong)!important}
+.v8ProductCard .cardMenu{width:220px!important;padding:6px!important;border:1px solid var(--line)!important;border-radius:11px!important;background:var(--panel)!important;box-shadow:0 18px 45px rgba(0,0,0,.22)!important;overflow:hidden}
+.v8ProductCard .cardMenu button{width:100%;min-height:36px;display:flex;align-items:center;padding:8px 10px!important;border:0!important;border-radius:7px!important;background:transparent!important;color:var(--text)!important;text-align:left;font-size:12px!important}
+.v8ProductCard .cardMenu button:hover{background:var(--soft)!important}
+.v8ProductCard .cardMenu .dangerText{color:#c64d4d!important;border-top:1px solid var(--line)!important;border-radius:0 0 7px 7px!important;margin-top:4px}
+
+/* Tabelas/listas */
+.tableWrap{position:relative}
+.tableWrap thead th{position:sticky;top:0;z-index:3;background:var(--soft)}
+.tableWrap tbody tr{transition:background .14s ease}
+.tableWrap .block{margin-top:3px}
+.inventoryRow{min-height:70px;border-radius:11px;background:var(--panel);box-shadow:0 2px 8px rgba(20,35,29,.025)}
+.inventoryRow:hover{border-color:rgba(21,151,97,.25);background:linear-gradient(90deg,var(--panel),var(--cdm-brand-soft))}
+
+/* Estados, status e feedback */
+.emptyState,.smartStockLoading,.orderNoItems,.notificationEmpty{border-radius:11px}
+button:disabled,.primary:disabled,.ghost:disabled{opacity:.48;filter:saturate(.72)}
+.pill.success{border-color:rgba(21,151,97,.25)!important;background:rgba(21,151,97,.10)!important;color:var(--cdm-brand-strong)!important}
+.pill.warn{border-color:rgba(207,145,35,.28)!important;background:rgba(207,145,35,.10)!important;color:#a06b10!important}
+body[data-theme="dark"] .pill.success{color:#72d9a8!important}
+body[data-theme="dark"] .pill.warn{color:#e8bd68!important}
+
+/* Modais e ações */
+.modalHead{gap:16px;border-bottom:1px solid var(--line)}
+.modalHead>div{min-width:0}
+.modalFoot{border-top:1px solid var(--line);background:var(--soft)}
+.iconClose{transition:.15s}
+.iconClose:hover{background:rgba(190,60,60,.10)!important;color:#c24d4d!important}
+.financeMetrics>div,.orderMetrics>div,.shippingMetrics button,.metric{transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+.financeMetrics>div:hover,.orderMetrics>div:hover,.shippingMetrics button:hover,.metric:hover{transform:translateY(-1px)}
+.channel{min-height:62px;border-radius:11px;transition:.15s}
+.channel:hover{border-color:rgba(21,151,97,.24);background:var(--soft)}
+
+/* Tema claro/escuro */
+body[data-theme="light"] .inventoryActions,body[data-theme="light"] .inventoryRow,body[data-theme="light"] .dashboardQuickActions>button{box-shadow:0 4px 14px rgba(28,45,37,.045)}
+body[data-theme="light"] .v8ProductCard .cardMenu{box-shadow:0 18px 42px rgba(29,42,36,.15)!important}
+body[data-theme="dark"] .dashboardQuickIcon{color:#79dfae}
+
+/* Scroll interno discreto */
+.tableWrap,.assistantMessages,.sideNav,.notificationList{scrollbar-width:thin;scrollbar-color:rgba(120,135,129,.38) transparent}
+.tableWrap::-webkit-scrollbar,.assistantMessages::-webkit-scrollbar,.sideNav::-webkit-scrollbar,.notificationList::-webkit-scrollbar{width:8px;height:8px}
+.tableWrap::-webkit-scrollbar-thumb,.assistantMessages::-webkit-scrollbar-thumb,.sideNav::-webkit-scrollbar-thumb,.notificationList::-webkit-scrollbar-thumb{border-radius:999px;background:rgba(120,135,129,.34)}
+
+@media(max-width:1100px){
+ .dashboardQuickActions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dashboardBottom{grid-template-columns:1fr}
+}
+@media(max-width:680px){
+ .dashboardQuickActions{grid-template-columns:1fr 1fr;gap:8px}
+ .dashboardQuickActions>button{min-height:68px;grid-template-columns:34px minmax(0,1fr);padding:10px}
+ .dashboardQuickActions>button>i,.dashboardQuickActions small{display:none}
+ .dashboardQuickIcon{width:34px;height:34px}
+ .pagePrimaryAction{width:100%}
+ .inventoryActions{display:grid;gap:8px}
+ .inventoryActions>div{width:100%;display:grid;grid-template-columns:1fr 1fr}
+ .inventoryActions>div button{width:100%;min-width:0}
+ .inventoryViewBar{display:flex;gap:4px;flex-wrap:wrap}
+ .inventoryViewBar .stockMode{width:100%;margin-left:0!important}
+ .productCards{grid-template-columns:1fr!important}
+ .v8ProductCard .productImage{height:min(52vw,250px)}
+ .tableWrap{max-width:100%;border-radius:10px}
+ .tableWrap table{min-width:680px!important}
+ .reportActions,.fiscalTitleActions{display:grid!important;grid-template-columns:1fr}
+ .reportActions button,.fiscalTitleActions button{width:100%}
+}
+@media(max-width:430px){
+ .dashboardQuickActions{grid-template-columns:1fr}
+ .inventoryActions>div{grid-template-columns:1fr}
+}
