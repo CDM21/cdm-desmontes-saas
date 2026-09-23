@@ -665,7 +665,7 @@ function Topbar({tab,setTab,session,theme,setTheme,onMenu}){
  return <header className="topbar">
    <button className="hamb" title="Menu" onClick={()=>onMenu?.()}>☰</button>
    <div className="globalSearch">⌕<input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')setTab('products')}} placeholder="O que você está procurando?"/></div>
-   <button className="topAdd topAddPro" title="Cadastrar peça" onClick={()=>setTab('product-create')}><span>＋</span><b>Nova peça</b></button><div className="topSpacer"/>
+   <button className="topAdd topAddPro" title="Cadastrar peça" onClick={()=>setTab('product-create')}><span className="topAddProIcon">＋</span><span className="topAddProLabel">Nova peça</span></button><div className="topSpacer"/>
    <button className="topIcon" title="Notas fiscais" onClick={()=>setTab('invoices')}><V8Icon name="document"/></button>
    <div className="notificationWrap">
      <button className="topIcon notificationTrigger" title="Notificações" onClick={()=>{setNotifOpen(!notifOpen);setProfile(false)}}><V8Icon name="bell"/>{unread>0&&<span className="notificationBadge">{unread>99?'99+':unread}</span>}</button>

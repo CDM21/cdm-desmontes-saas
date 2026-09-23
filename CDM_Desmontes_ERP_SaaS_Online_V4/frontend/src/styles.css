@@ -5228,3 +5228,360 @@ input:focus,select:focus,textarea:focus{
     font-size:20px
   }
 }
+
+/* CDM DESIGN SYSTEM V17.2 — etapa 2 + tema claro */
+.topbar .topAdd.topAddPro{
+  width:auto!important;
+  min-width:112px!important;
+  max-width:none!important;
+  padding:0 14px!important;
+  gap:7px!important;
+  overflow:visible!important;
+  white-space:nowrap
+}
+.topAddProIcon{
+  display:inline-grid;
+  place-items:center;
+  width:18px;
+  height:18px;
+  flex:0 0 18px;
+  border-radius:6px;
+  background:rgba(255,255,255,.13);
+  font-size:15px!important;
+  font-weight:900;
+  line-height:1!important
+}
+.topAddProLabel{
+  display:inline-block;
+  font-size:10px!important;
+  font-weight:850;
+  line-height:1!important
+}
+
+/* Etapa 2 — superfícies internas mais consistentes */
+.videoExactSection,
+.videoExactSideNav,
+.videoExactSideSummary,
+.videoExactSideActions,
+.videoReadyCard,
+.videoCompactDetails,
+.productQuickSummary,
+.productSection,
+.inventoryPanel,
+.orderCenterPanel{
+  box-shadow:0 3px 12px rgba(20,30,26,.035)
+}
+.videoExactSection,
+.videoExactSideNav,
+.videoExactSideSummary,
+.videoExactSideActions{
+  border-radius:10px!important
+}
+.videoExactSectionHead{
+  min-height:54px;
+  padding:12px 14px!important
+}
+.videoExactSectionBody{
+  padding:14px!important
+}
+.videoExactFormGrid{
+  gap:10px!important
+}
+.videoExactPage input,
+.videoExactPage select,
+.videoExactPage textarea{
+  border-radius:8px!important
+}
+.videoExactSideNav button{
+  border-radius:7px!important
+}
+.videoExactChannel{
+  border-radius:8px!important
+}
+.videoExactManage{
+  min-height:34px!important;
+  border-radius:7px!important
+}
+.videoExactMarkup button{
+  min-height:30px!important;
+  border-radius:6px!important
+}
+.videoExactPriceRecommendation>div{
+  border-radius:8px!important
+}
+.inventoryToolbar,
+.orderToolbar{
+  border-radius:10px
+}
+.tableWrap tbody tr,
+.productTable tbody tr{
+  transition:background .15s ease
+}
+.tableWrap tbody tr:hover,
+.productTable tbody tr:hover{
+  background:rgba(21,151,97,.045)
+}
+
+/* Tema claro — cadastro e telas que ainda estavam presos no visual escuro */
+body[data-theme="light"] .videoExactTitle{
+  border-color:#dce4e1
+}
+body[data-theme="light"] .videoExactTitle>div:first-child>span{
+  color:#159761!important
+}
+body[data-theme="light"] .videoExactTitle h2{
+  color:#17221e!important
+}
+body[data-theme="light"] .videoExactTitle p{
+  color:#6d7a75!important
+}
+body[data-theme="light"] .videoExactTitleMeta>div{
+  border-color:#dce4e1!important;
+  background:#f7f9f8!important
+}
+body[data-theme="light"] .videoExactTitleMeta small{
+  color:#7b8983!important
+}
+body[data-theme="light"] .videoExactTitleMeta b{
+  color:#1b2924!important
+}
+
+body[data-theme="light"] .videoExactSection{
+  border-color:#dce4e1!important;
+  background:#ffffff!important;
+  box-shadow:0 4px 16px rgba(26,45,37,.05)!important
+}
+body[data-theme="light"] .videoExactSectionHead{
+  border-color:#e2e8e5!important;
+  background:#f7f9f8!important
+}
+body[data-theme="light"] .videoExactSectionHead h3{
+  color:#17221e!important
+}
+body[data-theme="light"] .videoExactSectionHead p{
+  color:#74817c!important
+}
+body[data-theme="light"] .videoExactFlag{
+  border-color:#dfe6e3!important;
+  background:#f8faf9!important
+}
+body[data-theme="light"] .videoExactFlag b{
+  color:#22302b!important
+}
+body[data-theme="light"] .videoExactFlag small{
+  color:#7b8782!important
+}
+body[data-theme="light"] .videoExactPage .field>span{
+  color:#35433e!important
+}
+body[data-theme="light"] .videoExactPage input,
+body[data-theme="light"] .videoExactPage select,
+body[data-theme="light"] .videoExactPage textarea{
+  border-color:#d2ddd8!important;
+  background:#ffffff!important;
+  color:#1b2723!important;
+  box-shadow:none!important
+}
+body[data-theme="light"] .videoExactPage input::placeholder,
+body[data-theme="light"] .videoExactPage textarea::placeholder{
+  color:#97a39e!important
+}
+body[data-theme="light"] .videoExactPage input:focus,
+body[data-theme="light"] .videoExactPage select:focus,
+body[data-theme="light"] .videoExactPage textarea:focus{
+  border-color:#2d9c70!important;
+  box-shadow:0 0 0 3px rgba(21,151,97,.10)!important
+}
+
+body[data-theme="light"] .videoExactInnovation .productAiPhoto{
+  border-color:#b9ddd4!important;
+  border-left-color:#159f78!important;
+  background:#f1faf7!important
+}
+body[data-theme="light"] .videoExactInnovation .duplicateDetector{
+  border-color:#ebd6ad!important;
+  border-left-color:#d79525!important;
+  background:#fffaf1!important
+}
+body[data-theme="light"] .productAiPhotoHead h4,
+body[data-theme="light"] .duplicateDetectorHead b{
+  color:#1f2c27!important
+}
+body[data-theme="light"] .productAiPhotoHead p,
+body[data-theme="light"] .aiPrivacyNote,
+body[data-theme="light"] .duplicateDetectorHead small{
+  color:#6f7d77!important
+}
+
+body[data-theme="light"] .videoExactCollapse{
+  border-color:#e0e7e4!important
+}
+body[data-theme="light"] .videoExactCollapse summary{
+  color:#26332e!important
+}
+body[data-theme="light"] .videoExactReadiness{
+  border-color:#e0e7e4!important
+}
+body[data-theme="light"] .videoExactReadyHead h4{
+  color:#22302b!important
+}
+body[data-theme="light"] .videoExactReadyHead p{
+  color:#76837e!important
+}
+body[data-theme="light"] .videoExactReadyBar{
+  background:#e6ece9!important
+}
+
+body[data-theme="light"] .videoExactChannel{
+  border-color:#d6e0dc!important;
+  background:#fbfcfc!important;
+  color:#1d2925!important
+}
+body[data-theme="light"] .videoExactChannelIdentity b{
+  color:#1f2d28!important
+}
+body[data-theme="light"] .videoExactChannelIdentity span,
+body[data-theme="light"] .videoExactChannelPrice small,
+body[data-theme="light"] .videoExactChannelPrice span{
+  color:#75827d!important
+}
+body[data-theme="light"] .videoExactChannelPrice input{
+  background:#fff!important
+}
+
+body[data-theme="light"] .videoExactPriceRecommendation{
+  border-color:#e0e7e4!important
+}
+body[data-theme="light"] .videoExactPriceRecommendation>div{
+  border-color:#d8e2de!important;
+  background:#f8faf9!important
+}
+body[data-theme="light"] .videoExactPriceRecommendation>div.recommended{
+  border-color:#46a77f!important;
+  background:#edf9f3!important
+}
+body[data-theme="light"] .videoExactPriceRecommendation small{
+  color:#78857f!important
+}
+body[data-theme="light"] .videoExactPriceRecommendation b{
+  color:#1f2c27!important
+}
+body[data-theme="light"] .videoExactMarkup{
+  color:#74817c!important
+}
+body[data-theme="light"] .videoExactMarkup button{
+  border:1px solid #d7e0dc!important;
+  background:#f2f5f4!important;
+  color:#34413c!important
+}
+
+body[data-theme="light"] .videoExactSideNav,
+body[data-theme="light"] .videoExactSideSummary,
+body[data-theme="light"] .videoExactSideActions{
+  border-color:#dce4e1!important;
+  background:#ffffff!important;
+  box-shadow:0 4px 16px rgba(26,45,37,.045)!important
+}
+body[data-theme="light"] .videoExactSideNav button{
+  color:#26342f!important
+}
+body[data-theme="light"] .videoExactSideNav button:hover{
+  background:#f0f6f3!important
+}
+body[data-theme="light"] .videoExactSideNav button span{
+  background:#edf3f0!important;
+  color:#66756f!important
+}
+body[data-theme="light"] .videoExactSideSummary>small{
+  color:#159761!important
+}
+body[data-theme="light"] .videoExactSideSummary>b,
+body[data-theme="light"] .videoExactSideSummary strong{
+  color:#24312c!important
+}
+body[data-theme="light"] .videoExactSideSummary>span,
+body[data-theme="light"] .videoExactSideSummary em{
+  color:#74817c!important
+}
+body[data-theme="light"] .videoExactSideSummary>div{
+  border-color:#e1e7e4!important
+}
+
+/* A mídia continua destacada, mas mais limpa no tema claro */
+body[data-theme="light"] .videoExactMediaBody .cdmProOnlyCard{
+  border-color:#b7ddd2!important;
+  background:linear-gradient(135deg,#f2faf7,#eef6f4)!important
+}
+body[data-theme="light"] .videoExactMediaBody .cdmProOnlyCopy b,
+body[data-theme="light"] .videoExactMediaBody .cdmProOnlyFeatures span{
+  color:#20302a!important
+}
+body[data-theme="light"] .videoExactMediaBody .cdmProOnlyCopy span{
+  color:#697873!important
+}
+body[data-theme="light"] .videoExactMediaBody .cdmProOnlyFeatures span{
+  border-color:#d7e2de!important;
+  background:#ffffff!important
+}
+body[data-theme="light"] .mediaEmptyNote,
+body[data-theme="light"] .imageUrlsAdvanced{
+  color:#596862!important
+}
+
+/* Modais e cartões auxiliares em tema claro */
+body[data-theme="light"] .videoReadyCard,
+body[data-theme="light"] .videoCompactDetails{
+  border-color:#dbe4e0!important;
+  background:#ffffff!important;
+  color:#22302b!important
+}
+body[data-theme="light"] .videoReadyTop span,
+body[data-theme="light"] .videoCompactDetails summary{
+  color:#45544e!important
+}
+
+/* Dashboard/listas: contraste mais agradável no tema claro */
+body[data-theme="light"] .metric,
+body[data-theme="light"] .panel,
+body[data-theme="light"] .marketCard,
+body[data-theme="light"] .moduleCard,
+body[data-theme="light"] .orderMetrics>div{
+  box-shadow:0 4px 15px rgba(28,44,37,.045)
+}
+body[data-theme="light"] .inventoryToolbar,
+body[data-theme="light"] .orderToolbar{
+  background:#f7f9f8!important
+}
+
+/* Tema escuro: pequenos refinamentos da etapa 2 */
+body[data-theme="dark"] .videoExactSection{
+  border-color:#2c373f!important;
+  background:#171e29!important
+}
+body[data-theme="dark"] .videoExactSectionHead{
+  background:#1b222e!important
+}
+body[data-theme="dark"] .videoExactSideNav,
+body[data-theme="dark"] .videoExactSideSummary,
+body[data-theme="dark"] .videoExactSideActions{
+  border-color:#2c373f!important
+}
+
+/* Responsividade do novo botão */
+@media(max-width:900px){
+  .topbar .topAdd.topAddPro{
+    width:40px!important;
+    min-width:40px!important;
+    padding:0!important;
+    justify-content:center
+  }
+  .topAddProLabel{display:none!important}
+  .topAddProIcon{
+    width:20px;
+    height:20px;
+    background:transparent
+  }
+}
+@media(max-width:430px){
+  .topbar .topAdd.topAddPro{display:none!important}
+}
