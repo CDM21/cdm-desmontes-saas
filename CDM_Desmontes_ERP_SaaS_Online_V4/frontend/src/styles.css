@@ -5585,3 +5585,698 @@ body[data-theme="dark"] .videoExactSideActions{
 @media(max-width:430px){
   .topbar .topAdd.topAddPro{display:none!important}
 }
+
+/* =========================================================
+   CDM V18 — ACABAMENTO PROFISSIONAL GERAL
+   ========================================================= */
+
+/* Base de acabamento */
+:root{
+  --cdm-radius-sm:8px;
+  --cdm-radius-md:11px;
+  --cdm-radius-lg:14px;
+  --cdm-shadow-soft:0 4px 16px rgba(24,40,33,.045);
+  --cdm-shadow-hover:0 8px 24px rgba(20,40,31,.08)
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible{
+  outline:2px solid var(--cdm-brand);
+  outline-offset:2px
+}
+button:disabled{
+  cursor:not-allowed
+}
+.panel{
+  border-radius:var(--cdm-radius-lg)
+}
+.emptyState{
+  min-height:120px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:4px;
+  margin:8px 0;
+  padding:28px!important;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  background:var(--soft);
+  color:var(--muted)
+}
+.emptyState.compact{
+  min-height:76px;
+  margin:8px 0;
+  padding:18px!important
+}
+.empty{
+  background:var(--soft);
+  color:var(--muted)!important
+}
+
+/* Tabelas — um padrão único */
+.tableWrap{
+  overflow:auto;
+  margin-top:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--panel)
+}
+.tableWrap table,
+.productTable table{
+  margin:0
+}
+.tableWrap th{
+  background:var(--soft);
+  color:var(--muted);
+  font-weight:850;
+  letter-spacing:.045em
+}
+.tableWrap td,
+.tableWrap th{
+  border-bottom:1px solid var(--line)
+}
+.tableWrap tbody tr:last-child td{
+  border-bottom:0
+}
+.tableWrap tbody tr:hover,
+.productTable tbody tr:hover{
+  background:rgba(21,151,97,.045)
+}
+.rowActions{
+  align-items:center
+}
+.rowActions .ghost{
+  min-height:32px;
+  padding:6px 9px
+}
+.dangerMini{
+  border-color:rgba(188,52,52,.23)!important;
+  background:rgba(188,52,52,.055)!important;
+  color:#b43f3f!important
+}
+.dangerMini:hover:not(:disabled){
+  background:rgba(188,52,52,.10)!important
+}
+
+/* Estoque — cards passam a respeitar o tema */
+.productCards{
+  gap:16px
+}
+.productCard{
+  background:var(--panel)!important;
+  color:var(--text)!important;
+  border:1px solid var(--line)!important;
+  border-radius:14px!important;
+  box-shadow:var(--cdm-shadow-soft)!important;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease
+}
+.productCard:hover{
+  transform:translateY(-2px);
+  border-color:rgba(21,151,97,.36)!important;
+  box-shadow:var(--cdm-shadow-hover)!important
+}
+.cardTabs{
+  height:44px;
+  border-bottom:1px solid var(--line)!important;
+  background:var(--soft)
+}
+.cardTabs b,
+.cardTabs span{
+  color:var(--muted)!important
+}
+.cardTabs b{
+  color:var(--text)!important;
+  border-color:var(--cdm-brand)!important
+}
+.productName{
+  background:var(--panel)
+}
+.productName strong{
+  color:var(--text)!important
+}
+.productName small{
+  color:var(--muted)!important
+}
+.productImage{
+  background:#fff!important;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line)
+}
+.productMeta{
+  border-top:0!important;
+  background:var(--panel)
+}
+.productMeta>div+div{
+  border-left:1px solid var(--line)!important
+}
+.productMeta small{
+  color:var(--muted)!important
+}
+.productMeta b{
+  color:var(--text)!important
+}
+.badges{
+  border-top:1px solid var(--line);
+  background:var(--soft)
+}
+.mini{
+  border-color:var(--line)!important;
+  color:var(--muted)!important;
+  background:var(--panel)
+}
+.mini.ok{
+  border-color:rgba(32,161,93,.28)!important;
+  background:rgba(32,161,93,.10)!important;
+  color:#24915a!important
+}
+.mini.warn{
+  border-color:rgba(218,138,0,.28)!important;
+  background:rgba(218,138,0,.10)!important;
+  color:#a46905!important
+}
+.publishBtn{
+  background:linear-gradient(180deg,#1aa870,#118152)!important;
+  color:white!important
+}
+body[data-theme="dark"] .productCard{
+  --panel:#181d26
+}
+body[data-theme="dark"] .mini.ok{
+  color:#72dda4!important
+}
+body[data-theme="dark"] .mini.warn{
+  color:#f2c56a!important
+}
+
+/* PDV / Nova venda */
+.pdvV2{
+  align-items:start
+}
+.pdvV2>.panel{
+  box-shadow:var(--cdm-shadow-soft)
+}
+.pdvQuickSummary{
+  gap:10px
+}
+.pdvQuickSummary>span{
+  min-height:64px;
+  padding:11px 12px;
+  border-radius:11px;
+  background:var(--panel);
+  box-shadow:0 2px 9px rgba(20,35,29,.025)
+}
+.pdvQuickSummary>span:last-child{
+  border-color:rgba(21,151,97,.28);
+  background:var(--cdm-brand-soft)
+}
+.pdvQuickSummary>span:last-child b{
+  color:var(--cdm-brand-strong)
+}
+.pdvProductSearch{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--soft)
+}
+.saleAddRow{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--soft)
+}
+.saleAddBtn{
+  border-color:rgba(21,151,97,.28)!important;
+  color:var(--cdm-brand-strong)!important
+}
+.pdvSelectedInfo{
+  margin:9px 0 10px;
+  padding:10px 12px;
+  border:1px solid var(--line)
+}
+.saleCart{
+  gap:9px
+}
+.saleCartRow{
+  border-radius:11px;
+  background:var(--panel);
+  box-shadow:0 2px 8px rgba(20,35,29,.025)
+}
+.saleCartRow button{
+  background:rgba(180,55,55,.10)!important;
+  color:#bc4545!important;
+  border:1px solid rgba(180,55,55,.16)
+}
+.saleCartRow button:hover{
+  background:rgba(180,55,55,.16)!important
+}
+.pdvCheckout{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--soft)
+}
+.saleTotal{
+  padding:15px 14px;
+  border:1px solid rgba(21,151,97,.22);
+  border-radius:12px;
+  background:var(--cdm-brand-soft)
+}
+.saleTotal strong{
+  color:var(--cdm-brand-strong)
+}
+.pdvActions .primary{
+  min-width:220px
+}
+body[data-theme="dark"] .saleTotal strong,
+body[data-theme="dark"] .pdvQuickSummary>span:last-child b{
+  color:#71d7a8
+}
+
+/* Central de pedidos */
+.orderMetrics>div{
+  border-radius:12px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.orderMetrics>div:first-child{
+  border-left:3px solid var(--cdm-brand)
+}
+.orderMetrics .attention{
+  border-left:3px solid #d79a2a
+}
+.orderCenterPanel{
+  border-radius:14px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.orderToolbar{
+  padding:13px;
+  background:var(--soft)
+}
+.orderSearch{
+  border-radius:9px
+}
+.orderCard{
+  transition:background .15s ease
+}
+.orderCardMain{
+  min-height:76px
+}
+.orderCardMain:hover{
+  background:rgba(21,151,97,.04)
+}
+.orderIdentity>small{
+  color:var(--cdm-brand)!important
+}
+.orderStatus.done i{
+  background:var(--cdm-brand)!important
+}
+.orderStatus.done span{
+  color:var(--cdm-brand-strong)!important
+}
+.orderDetails{
+  background:linear-gradient(180deg,var(--soft),var(--panel))
+}
+.orderDetailSummary span{
+  border-radius:9px
+}
+
+/* Expedição */
+.shippingMetrics button{
+  border-radius:12px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.shippingMetrics button:hover,
+.shippingMetrics button.active{
+  border-color:rgba(21,151,97,.48)!important;
+  box-shadow:inset 0 0 0 1px rgba(21,151,97,.14),var(--cdm-shadow-soft)!important
+}
+.shippingPanel{
+  border-radius:14px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.shippingToolbar{
+  padding:13px
+}
+.shippingSearch{
+  border-radius:9px
+}
+.shippingCard{
+  transition:background .15s ease
+}
+.shippingCard:hover{
+  background:rgba(21,151,97,.025)
+}
+.shippingIdentity small{
+  color:var(--cdm-brand)!important
+}
+.shippingProgress .done i,
+.shippingProgress .current i{
+  background:var(--cdm-brand)!important;
+  border-color:var(--cdm-brand)!important
+}
+.shippingProgress .done:after{
+  background:var(--cdm-brand)!important
+}
+.shippingDone{
+  color:var(--cdm-brand-strong)!important
+}
+
+/* Integrações */
+.integrationSimpleGrid{
+  gap:16px
+}
+.integrationSimpleCard{
+  border-radius:14px!important;
+  box-shadow:var(--cdm-shadow-soft);
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease
+}
+.integrationSimpleCard:hover{
+  transform:translateY(-2px);
+  border-color:rgba(21,151,97,.28)!important;
+  box-shadow:var(--cdm-shadow-hover)
+}
+.integrationSimpleCard h3{
+  margin-top:12px
+}
+.integrationAccount{
+  border-radius:10px;
+  background:var(--soft)
+}
+.integrationPrimaryAction button{
+  border-radius:9px
+}
+.integrationHelpSimple{
+  border-left:3px solid var(--cdm-brand)
+}
+.channelState.connected,
+.channelState.ready{
+  color:var(--cdm-brand-strong)
+}
+.channelState.connected i,
+.channelState.ready i{
+  background:var(--cdm-brand)!important
+}
+
+/* Financeiro */
+.financeBalance{
+  color:var(--text)!important;
+  background:var(--soft)!important;
+  border-color:var(--line)!important;
+  border-radius:10px
+}
+.financeBalance b{
+  color:var(--cdm-brand-strong)
+}
+.financeMetrics{
+  gap:14px
+}
+.financeMetrics>div{
+  min-height:88px;
+  padding:16px;
+  border-radius:12px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.financeMetrics .income{
+  border-left-color:var(--cdm-brand)!important
+}
+.financeMetrics .expense{
+  border-left-color:#c75252!important
+}
+.financeEditor{
+  box-shadow:var(--cdm-shadow-soft)
+}
+.financeForm{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--soft)
+}
+.financeToolbar{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--soft)
+}
+.cashFlowMetrics .metric{
+  min-height:92px
+}
+body[data-theme="dark"] .financeBalance b{
+  color:#71d7a8
+}
+
+/* Relatórios */
+.reportActions button{
+  white-space:nowrap
+}
+.reportFilters{
+  padding:14px 15px;
+  border-left:3px solid var(--cdm-brand);
+  box-shadow:var(--cdm-shadow-soft)
+}
+.reportFilters>span{
+  padding:7px 10px;
+  border-radius:999px;
+  background:var(--soft)
+}
+.reportTables>.panel{
+  min-width:0
+}
+.reportVehicleMini{
+  border-left:3px solid var(--cdm-brand)
+}
+.reportVehicleMini strong{
+  color:var(--cdm-brand-strong)
+}
+body[data-theme="dark"] .reportVehicleMini strong{
+  color:#71d7a8
+}
+
+/* Sucatas */
+.vehicleRegisterPanel{
+  border-radius:14px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.vehicleRegisterHero{
+  padding:22px 24px
+}
+.vehicleRegisterHero span{
+  color:var(--cdm-brand)!important
+}
+.vehicleRegisterHeroBadge{
+  border-radius:11px
+}
+.vehicleFormSection{
+  padding:21px 24px
+}
+.vehicleFormIndex{
+  border-color:rgba(21,151,97,.22)!important;
+  background:var(--cdm-brand-soft)!important;
+  color:var(--cdm-brand-strong)!important
+}
+.vehicleFormGrid input:focus,
+.vehicleFormGrid select:focus,
+.vehicleFinanceGrid input:focus{
+  border-color:var(--cdm-brand)!important;
+  box-shadow:0 0 0 3px rgba(21,151,97,.10)!important
+}
+.vehiclePhotoDrop:hover{
+  border-color:var(--cdm-brand)!important;
+  background:var(--cdm-brand-soft)!important
+}
+.vehiclePhotoGrid article.principal{
+  box-shadow:inset 0 0 0 2px var(--cdm-brand)!important
+}
+.vehicleRegisterFooter{
+  padding:18px 24px
+}
+
+/* Empresa */
+.companyPanel{
+  box-shadow:var(--cdm-shadow-soft)
+}
+.cnpjAssist{
+  border-color:rgba(21,151,97,.20)!important;
+  background:var(--cdm-brand-soft)!important
+}
+.companyGrid{
+  gap:17px
+}
+.companyGrid input:focus{
+  border-color:var(--cdm-brand)!important
+}
+.subscriptionBox{
+  border-radius:11px
+}
+
+/* QR Code */
+.qrModeTabs{
+  gap:8px
+}
+.qrModeTabs button{
+  min-height:40px;
+  border-radius:9px
+}
+.qrModeTabs button.active{
+  background:var(--cdm-brand)!important;
+  border-color:var(--cdm-brand)!important
+}
+.qrUseCards>div{
+  border-radius:10px
+}
+.qrUseCards b{
+  background:var(--cdm-brand)!important
+}
+.qrTips{
+  border-color:rgba(21,151,97,.24);
+  background:var(--cdm-brand-soft)
+}
+.qrAdvancedCard{
+  border-radius:14px;
+  box-shadow:0 4px 16px rgba(25,38,32,.055)
+}
+.qrPayload{
+  border-radius:9px
+}
+
+/* Assinatura */
+.billingV143{
+  border-radius:14px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.billingPlanIntro small,
+.billingCheckoutBox small{
+  color:var(--cdm-brand)!important
+}
+.billingFounder,
+.billingFee.paid{
+  color:var(--cdm-brand-strong)!important
+}
+.billingFlow{
+  border-radius:12px
+}
+.billingFlow article.done>b,
+.billingFlow article.current>b{
+  background:var(--cdm-brand)!important;
+  border-color:var(--cdm-brand)!important
+}
+.billingCheckoutBox{
+  border-radius:12px;
+  background:var(--soft)
+}
+
+/* Cadastros e módulos */
+.moduleCard{
+  min-height:116px;
+  border-radius:13px;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease
+}
+.moduleCard.clickable:hover{
+  transform:translateY(-2px);
+  border-color:rgba(21,151,97,.32)!important;
+  box-shadow:var(--cdm-shadow-hover)
+}
+.moduleIcon{
+  background:var(--cdm-brand-soft)
+}
+.labelPreview.selected{
+  border-color:var(--cdm-brand)!important;
+  box-shadow:inset 0 0 0 1px rgba(21,151,97,.12)
+}
+
+/* Gamificação e áreas antigas que ainda tinham azul fixo */
+.scoreHero{
+  background:linear-gradient(135deg,#15251f,#183329)!important;
+  border:1px solid rgba(21,151,97,.25)
+}
+.progress i{
+  background:linear-gradient(90deg,var(--cdm-brand),#42bf8b)!important
+}
+
+/* Tema claro — acabamento final */
+body[data-theme="light"] .productCard,
+body[data-theme="light"] .saleCartRow,
+body[data-theme="light"] .integrationSimpleCard,
+body[data-theme="light"] .financeMetrics>div,
+body[data-theme="light"] .shippingMetrics button,
+body[data-theme="light"] .orderMetrics>div{
+  box-shadow:0 5px 18px rgba(28,45,37,.05)!important
+}
+body[data-theme="light"] .scoreHero{
+  background:linear-gradient(135deg,#eef8f4,#f7fbf9)!important;
+  color:#1c2b25!important
+}
+body[data-theme="light"] .scoreHero small,
+body[data-theme="light"] .scoreHero span{
+  color:#65736d!important
+}
+body[data-theme="light"] .progress{
+  background:#dfe9e4!important
+}
+
+/* Tema escuro — acabamento final */
+body[data-theme="dark"] .tableWrap{
+  box-shadow:0 3px 14px rgba(0,0,0,.11)
+}
+body[data-theme="dark"] .productImage{
+  border-color:#303944
+}
+body[data-theme="dark"] .qrTips{
+  color:#a9b7b1
+}
+
+/* Responsivo */
+@media(max-width:1000px){
+  .pdvActions .primary{
+    min-width:180px
+  }
+}
+@media(max-width:760px){
+  .productCards{
+    gap:12px
+  }
+  .pdvProductSearch,
+  .saleAddRow,
+  .pdvCheckout,
+  .financeForm,
+  .financeToolbar{
+    padding:10px
+  }
+  .pdvActions{
+    align-items:stretch;
+    flex-direction:column
+  }
+  .pdvActions button{
+    width:100%
+  }
+  .financeEditActions{
+    align-items:stretch
+  }
+  .financeEditActions button{
+    flex:1
+  }
+  .reportActions button{
+    min-width:0
+  }
+  .vehicleRegisterHero,
+  .vehicleFormSection,
+  .vehicleRegisterFooter{
+    padding-left:16px;
+    padding-right:16px
+  }
+}
+@media(max-width:520px){
+  .financeMetrics,
+  .pdvQuickSummary,
+  .orderMetrics,
+  .shippingMetrics{
+    grid-template-columns:1fr!important
+  }
+  .rowActions{
+    flex-direction:column;
+    align-items:stretch
+  }
+  .rowActions .ghost{
+    width:100%
+  }
+}
