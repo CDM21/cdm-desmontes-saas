@@ -753,7 +753,7 @@ function Login({onLogin}){
    <section className="loginBox loginBoxPro">
      <div className="loginAccessBrand">
        <small>Acesso ao</small>
-       <strong>CDM <span>WEB</span></strong>
+       <strong>CDM <span>ONLINE</span></strong>
        <i/>
      </div>
 
