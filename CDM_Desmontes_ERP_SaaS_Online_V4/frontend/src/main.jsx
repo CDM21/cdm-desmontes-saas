@@ -2265,7 +2265,7 @@ function ProductImages({form,setForm,notice}){
            </button>
 
            <button type="button" className="mediaDeletePhoto" onClick={()=>remove(i)} title="Excluir foto">×</button>
-           <button type="button" className={'mediaWhiteBgPhoto'+(whiteBgOriginals[img]?' active':'')} onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||whiteBusyIndex!==null} title={whiteBgOriginals[img]?'Remover fundo branco desta foto':'Aplicar fundo branco nesta foto'}>{whiteBusyIndex===i?'…':whiteBgOriginals[img]?'↺':'WB'}</button>
+           <button type="button" className={'mediaWhiteBgPhoto'+(whiteBgOriginals[src]?' active':'')} onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||whiteBusyIndex!==null} title={whiteBgOriginals[src]?'Remover fundo branco desta foto':'Aplicar fundo branco nesta foto'}>{whiteBusyIndex===i?'…':whiteBgOriginals[src]?'↺':'WB'}</button>
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
