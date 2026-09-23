@@ -6280,3 +6280,145 @@ body[data-theme="dark"] .qrTips{
     width:100%
   }
 }
+
+/* =========================================================
+   CDM V18.1 — ASSISTENTE FIXO + SELEÇÃO DO ESTOQUE
+   ========================================================= */
+
+/* Assistente: a página não fica mais pulando para cima e para baixo.
+   Só o histórico de mensagens rola por dentro do painel. */
+.assistantPageFixed{
+  min-width:0
+}
+.assistantPageFixed .assistantShell{
+  border-radius:14px;
+  box-shadow:var(--cdm-shadow-soft)
+}
+.assistantPageFixed .assistantQuick{
+  gap:8px;
+  padding:12px 14px
+}
+.assistantPageFixed .assistantQuick button{
+  min-height:36px;
+  border-radius:9px;
+  white-space:nowrap
+}
+.assistantPageFixed .assistantMessages{
+  scrollbar-gutter:stable;
+  overscroll-behavior:contain;
+  scroll-behavior:smooth
+}
+.assistantPageFixed .assistantMsg{
+  border-radius:12px
+}
+.assistantPageFixed .assistantMsg.user{
+  background:linear-gradient(180deg,#168e5d,#0f764b);
+  border-color:#259c6c;
+  color:#fff
+}
+.assistantPageFixed .assistantComposer{
+  position:relative;
+  z-index:2;
+  align-items:stretch;
+  padding:12px 14px
+}
+.assistantPageFixed .assistantComposer textarea{
+  resize:none;
+  min-height:56px;
+  max-height:96px
+}
+.assistantPageFixed .assistantComposer button{
+  min-height:56px;
+  height:auto;
+  border-radius:9px
+}
+.assistantUsageHelp{
+  padding:0 2px
+}
+
+@media(min-width:901px) and (min-height:700px){
+  .assistantPageFixed{
+    height:calc(100dvh - 114px);
+    display:grid;
+    grid-template-rows:auto minmax(0,1fr) auto;
+    overflow:hidden
+  }
+  .assistantPageFixed .pageTitle{
+    margin-bottom:14px
+  }
+  .assistantPageFixed .assistantShell{
+    min-height:0;
+    height:auto;
+    margin-bottom:9px;
+    display:grid;
+    grid-template-rows:auto minmax(0,1fr) auto;
+    overflow:hidden
+  }
+  .assistantPageFixed .assistantMessages{
+    height:auto!important;
+    min-height:0;
+    overflow-y:auto
+  }
+  .assistantPageFixed .assistantUsageHelp{
+    margin:0;
+    line-height:1.35
+  }
+}
+
+/* Em telas menores a página volta ao fluxo normal para não esconder conteúdo. */
+@media(max-width:900px), (max-height:699px){
+  .assistantPageFixed{
+    height:auto;
+    overflow:visible
+  }
+  .assistantPageFixed .assistantMessages{
+    height:min(390px,52vh)!important;
+    overflow-y:auto
+  }
+}
+
+/* Estoque: remove o "quadradão" causado pelos estilos globais do input. */
+.v8ProductCard .cardControlRow .productSelect input[type="checkbox"]{
+  -webkit-appearance:checkbox!important;
+  appearance:auto!important;
+  width:16px!important;
+  height:16px!important;
+  min-width:16px!important;
+  min-height:16px!important;
+  max-width:16px!important;
+  max-height:16px!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:3px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  outline:none!important;
+  accent-color:var(--cdm-brand);
+  flex:0 0 16px
+}
+.v8ProductCard .cardControlRow .productSelect input[type="checkbox"]:focus,
+.v8ProductCard .cardControlRow .productSelect input[type="checkbox"]:focus-visible{
+  outline:none!important;
+  box-shadow:none!important
+}
+
+/* Ao selecionar, o card não aumenta a borda nem dá aquele salto visual. */
+.productCard.v8ProductCard.selected{
+  border-width:1px!important;
+  border-color:var(--cdm-brand)!important;
+  box-shadow:0 0 0 2px rgba(21,151,97,.12),var(--cdm-shadow-soft)!important
+}
+.v8ProductCard .cardControlRow .productSelect{
+  transition:border-color .15s ease,background .15s ease
+}
+.productCard.v8ProductCard.selected .cardControlRow .productSelect{
+  border-color:rgba(21,151,97,.34)!important;
+  background:var(--cdm-brand-soft)!important
+}
+.productCard.v8ProductCard.selected .cardControlRow .productSelect span{
+  color:var(--cdm-brand-strong)!important
+}
+body[data-theme="dark"] .productCard.v8ProductCard.selected .cardControlRow .productSelect span{
+  color:#74d9aa!important
+}

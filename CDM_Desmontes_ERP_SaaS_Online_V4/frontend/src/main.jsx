@@ -3616,11 +3616,25 @@ function IntelligenceHome({setTab}){
 
 function AssistantCDM(){
  const [status,setStatus]=useState(null),[messages,setMessages]=useState([]),[input,setInput]=useState(''),[busy,setBusy]=useState(false)
+ const messagesRef=useRef(null)
  async function load(){try{const [s,h]=await Promise.all([api.get('/intelligence/status'),api.get('/intelligence/assistant/history')]);setStatus(s.data);setMessages(h.data||[])}catch(e){}}
  useEffect(()=>{load()},[])
+ useEffect(()=>{
+   const el=messagesRef.current
+   if(!el)return
+   requestAnimationFrame(()=>{el.scrollTop=el.scrollHeight})
+ },[messages,busy])
  async function send(text=input){const q=(text||'').trim();if(!q||busy)return;setInput('');setMessages(v=>[...v,{role:'user',content:q}]);setBusy(true);try{const r=await api.post('/intelligence/assistant/chat',{message:q});setMessages(v=>[...v,{role:'assistant',content:r.data.answer}])}catch(e){setMessages(v=>[...v,{role:'assistant',content:erroPt(e.response?.data?.detail)||'Não consegui responder agora.'}])}finally{setBusy(false)}}
  const quick=['Quanto vendi hoje?','Quais peças estão com estoque baixo?','Quais peças estão paradas?','Qual é meu saldo financeiro?','Quais peças mais vendem?']
- return <><div className="pageTitle"><div><span>ASSISTENTE DA EMPRESA</span><h2>Assistente CDM</h2><p>Um assistente para cada empresa, liberado automaticamente pelo plano.</p></div><span className="statusBadge">● {status?.mode==='ia'?'IA conectada':'Inteligência local ativa'}</span></div><section className="assistantShell panel"><div className="assistantQuick">{quick.map(q=><button className="ghost" key={q} onClick={()=>send(q)}>{q}</button>)}</div><div className="assistantMessages">{messages.length?messages.map((m,i)=><div key={m.id||i} className={'assistantMsg '+m.role}><small>{m.role==='assistant'?'Assistente CDM':'Você'}</small><p>{m.content}</p></div>):<div className="assistantWelcome"><span>🤖</span><h3>Olá! Sou o Assistente CDM desta empresa.</h3><p>Posso analisar os dados do estoque, vendas e financeiro sem misturar informações de outras empresas.</p></div>}{busy&&<div className="assistantMsg assistant"><small>Assistente CDM</small><p>Analisando os dados...</p></div>}</div><div className="assistantComposer"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Ex.: quanto vendi nos últimos 30 dias?"/><button className="primary" disabled={busy||!input.trim()} onClick={()=>send()}>Enviar</button></div></section><p className="fieldHelp">Durante os 7 dias de teste o assistente também fica disponível. Se a assinatura vencer, ele é bloqueado junto com os módulos; após o pagamento aprovado, volta automaticamente. {status&&<>Uso do mês: <b>{status.messages_used_month}</b> de <b>{status.messages_limit_month}</b> mensagens.</>}</p></>
+ return <div className="assistantPageFixed">
+  <div className="pageTitle"><div><span>ASSISTENTE DA EMPRESA</span><h2>Assistente CDM</h2><p>Um assistente para cada empresa, liberado automaticamente pelo plano.</p></div><span className="statusBadge">● {status?.mode==='ia'?'IA conectada':'Inteligência local ativa'}</span></div>
+  <section className="assistantShell panel">
+   <div className="assistantQuick">{quick.map(q=><button className="ghost" key={q} onClick={()=>send(q)}>{q}</button>)}</div>
+   <div ref={messagesRef} className="assistantMessages">{messages.length?messages.map((m,i)=><div key={m.id||i} className={'assistantMsg '+m.role}><small>{m.role==='assistant'?'Assistente CDM':'Você'}</small><p>{m.content}</p></div>):<div className="assistantWelcome"><span>🤖</span><h3>Olá! Sou o Assistente CDM desta empresa.</h3><p>Posso analisar os dados do estoque, vendas e financeiro sem misturar informações de outras empresas.</p></div>}{busy&&<div className="assistantMsg assistant"><small>Assistente CDM</small><p>Analisando os dados...</p></div>}</div>
+   <div className="assistantComposer"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Ex.: quanto vendi nos últimos 30 dias?"/><button className="primary" disabled={busy||!input.trim()} onClick={()=>send()}>Enviar</button></div>
+  </section>
+  <p className="fieldHelp assistantUsageHelp">Durante os 7 dias de teste o assistente também fica disponível. Se a assinatura vencer, ele é bloqueado junto com os módulos; após o pagamento aprovado, volta automaticamente. {status&&<>Uso do mês: <b>{status.messages_used_month}</b> de <b>{status.messages_limit_month}</b> mensagens.</>}</p>
+ </div>
 }
 
 function OwnerPanel(){
