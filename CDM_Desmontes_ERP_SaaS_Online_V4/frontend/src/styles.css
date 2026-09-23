@@ -8040,3 +8040,92 @@ body[data-theme="light"] .marketCard{
     scroll-behavior:auto!important
   }
 }
+
+/* =========================================================
+   CDM V22.1 — MERCADO LIVRE GUIADO / SCROLL CONTROLADO
+   ========================================================= */
+
+/* Rolagem mais guiada: o cliente não "voa" pelas etapas */
+.marketConfigModalML .mlProBody{
+  scroll-snap-type:y proximity;
+  scroll-padding-top:72px;
+  overscroll-behavior:contain!important;
+}
+
+/* A barra de etapas acompanha o cliente enquanto ele configura */
+.marketConfigModalML .mlProProgress{
+  position:sticky!important;
+  top:0;
+  z-index:8!important;
+  margin-top:1px;
+  border-color:rgba(24,169,111,.18)!important;
+  background:rgba(15,23,20,.96)!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
+  backdrop-filter:blur(12px);
+}
+
+/* Cada bloco vira um ponto visual natural de parada */
+.marketConfigModalML .mlProSection{
+  scroll-snap-align:start;
+  scroll-margin-top:72px;
+}
+
+/* Indicação visual de continuidade sem poluir */
+.marketConfigModalML .mlProProgress:after{
+  content:"Role com calma pelas etapas";
+  position:absolute;
+  right:10px;
+  bottom:-17px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:#111922;
+  color:var(--muted);
+  border:1px solid rgba(148,163,184,.10);
+  font-size:8px;
+  font-weight:700;
+  opacity:.72;
+  pointer-events:none;
+}
+
+/* Evita que o aviso encoste na primeira etapa */
+.marketConfigModalML .mlProProgress + .mlProSection{
+  margin-top:10px;
+}
+
+/* Barra de rolagem continua visível, mas fica um pouco mais fácil de pegar */
+.marketConfigModalML .mlProBody::-webkit-scrollbar{
+  width:10px;
+}
+.marketConfigModalML .mlProBody::-webkit-scrollbar-thumb{
+  background:rgba(103,155,132,.50);
+  background-clip:padding-box;
+}
+.marketConfigModalML .mlProBody::-webkit-scrollbar-thumb:hover{
+  background:rgba(103,180,143,.72);
+  background-clip:padding-box;
+}
+
+/* Tema claro */
+body[data-theme="light"] .marketConfigModalML .mlProProgress{
+  background:rgba(255,255,255,.96)!important;
+  border-color:#d8e6de!important;
+  box-shadow:0 8px 20px rgba(29,50,41,.10);
+}
+body[data-theme="light"] .marketConfigModalML .mlProProgress:after{
+  background:#fff;
+  border-color:#dce7e1;
+}
+
+/* Em telas pequenas não força snap excessivo */
+@media(max-width:760px){
+  .marketConfigModalML .mlProBody{
+    scroll-snap-type:y proximity;
+    scroll-padding-top:108px;
+  }
+  .marketConfigModalML .mlProSection{
+    scroll-margin-top:108px;
+  }
+  .marketConfigModalML .mlProProgress:after{
+    display:none;
+  }
+}

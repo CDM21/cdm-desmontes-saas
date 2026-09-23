@@ -1979,6 +1979,23 @@ function mlIsManagedAttribute(id){
 function MarketplaceConfigModal({market,form,setForm,onClose,brands=[],onSuggestMl=null,findingCategory=false}){
   const [requiredAttrs,setRequiredAttrs]=useState([]),[attrsBusy,setAttrsBusy]=useState(false),[storesInfo,setStoresInfo]=useState({warehouse_management:false,multiwarehouse:false,stores:[]}),[mlConnection,setMlConnection]=useState(null)
   const [shopeeSetup,setShopeeSetup]=useState({connected:false,categories:[],logistics:[],enabled_logistics:[]}),[shopeeBusy,setShopeeBusy]=useState(false),[shopeeError,setShopeeError]=useState('')
+  const mlScrollRef=useRef(null)
+
+  // CDM V22.1: desacelera somente a roda do mouse dentro do Mercado Livre.
+  // Trackpad continua proporcional; rolagens muito grandes são limitadas.
+  useEffect(()=>{
+    if(market!=='mercadolivre')return
+    const el=mlScrollRef.current
+    if(!el)return
+    const onWheel=e=>{
+      if(e.ctrlKey||Math.abs(e.deltaY)<=Math.abs(e.deltaX))return
+      e.preventDefault()
+      const delta=Math.sign(e.deltaY)*Math.min(Math.abs(e.deltaY)*0.42,96)
+      el.scrollTop+=delta
+    }
+    el.addEventListener('wheel',onWheel,{passive:false})
+    return()=>el.removeEventListener('wheel',onWheel)
+  },[market])
   useEffect(()=>{
     if(!market)return
     const body=document.body
@@ -2002,7 +2019,7 @@ function MarketplaceConfigModal({market,form,setForm,onClose,brands=[],onSuggest
   useEffect(()=>{let alive=true;if(market!=='shopee'){setShopeeSetup({connected:false,categories:[],logistics:[],enabled_logistics:[]});setShopeeError('');return}setShopeeBusy(true);setShopeeError('');api.get('/marketplaces/shopee/setup-options').then(r=>{if(!alive)return;const data=r.data||{};setShopeeSetup(data);const enabled=data.enabled_logistics||[];if(!form.shopee_logistic_id&&enabled.length===1)setForm(f=>({...f,shopee_logistic_id:String(enabled[0].id)}))}).catch(e=>{if(!alive)return;setShopeeSetup({connected:false,categories:[],logistics:[],enabled_logistics:[]});setShopeeError(erroPt(e.response?.data?.detail)||'Conecte sua loja Shopee na Central de Integrações')}).finally(()=>alive&&setShopeeBusy(false));return()=>{alive=false}},[market])
   if(!market)return null
   return <div className={'modalBackdrop '+(market==='mercadolivre'?'marketplaceModalBackdrop':'')} onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className={'marketConfigModal '+(market==='mercadolivre'?'marketConfigModalML':'')}><div className="modalHead"><div><small>{market==='mercadolivre'?'PUBLICAÇÃO • MERCADO LIVRE':'CONFIGURAÇÃO DO CANAL'}</small><h2>{market==='mercadolivre'?'Configurar Mercado Livre':marketName(market)}</h2><p>{market==='mercadolivre'?'Revise as etapas abaixo. O CDM reaproveita os dados da peça e destaca somente o que precisa de confirmação.':'Preencha apenas o que esse canal precisa para publicar esta peça.'}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
-    {market==='mercadolivre'&&<div className="modalBody mlProfessionalBody mlProBody">
+    {market==='mercadolivre'&&<div ref={mlScrollRef} className="modalBody mlProfessionalBody mlProBody">
       <div className="mlProHero">
         <div className="mlProHeroBrand">
           <div className="mlProHeroLogo"><MarketLogo id="mercadolivre"/></div>
