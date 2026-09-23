@@ -1960,7 +1960,7 @@ function ProductImages({form,setForm,notice}){
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Fotos prontas!':elapsed<1?'Preparando as fotos...':'CDM Pro removendo o fundo e refinando...'
+ const progressText=raceDone?'Fotos prontas!':elapsed<1?'Preparando as fotos...':'CDM Pro processando as fotos...'
 
  useEffect(()=>{
    if(!busy){setElapsed(0);return}
@@ -2010,7 +2010,7 @@ function ProductImages({form,setForm,notice}){
        const file=selected[i]
        const preview=previews[i]
        try{
-         const out=await prepareProductImage(file,true,'basic')
+         const out=await prepareProductImageCore(file,false)
          completed.push(out)
          save([...images,...completed])
        }catch(e){
@@ -2029,6 +2029,66 @@ function ProductImages({form,setForm,notice}){
    }finally{
      setPendingPreviews([])
      window.setTimeout(()=>previews.forEach(item=>URL.revokeObjectURL(item.url)),500)
+     setBusy(false)
+     setRaceDone(false)
+   }
+ }
+
+ function imageSourceToFile(src,index){
+   try{
+     const value=String(src||'')
+     const match=value.match(/^data:(image\/[^;]+);base64,(.+)$/s)
+     if(!match)return null
+     const binary=atob(match[2])
+     const bytes=new Uint8Array(binary.length)
+     for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i)
+     const type=match[1]||'image/jpeg'
+     const ext=type.includes('png')?'png':type.includes('webp')?'webp':'jpg'
+     return new File([bytes],`cdm-foto-${index+1}.${ext}`,{type})
+   }catch(e){
+     console.warn('CDM: não foi possível preparar a foto para o fundo branco',e)
+     return null
+   }
+ }
+
+ async function applyWhiteBackground(){
+   if(busy)return
+   if(!images.length)return notice('Adicione pelo menos uma foto antes de aplicar o fundo branco')
+
+   setBusy(true)
+   setRaceDone(false)
+
+   const next=[...images]
+   let completed=0
+   let failed=0
+
+   try{
+     for(let i=0;i<images.length;i++){
+       const file=imageSourceToFile(images[i],i)
+       if(!file){
+         failed++
+         continue
+       }
+
+       try{
+         next[i]=await prepareProductImage(file,true,'basic')
+         completed++
+       }catch(e){
+         failed++
+         console.error('CDM Pro não concluiu o fundo branco desta foto:',e)
+       }
+     }
+
+     if(completed){
+       save(next)
+       setRaceDone(true)
+       await new Promise(r=>setTimeout(r,220))
+     }
+
+     if(completed&&!failed)notice(`Fundo branco aplicado em ${completed} foto(s)`)
+     else if(completed)notice(`Fundo branco aplicado em ${completed} foto(s). ${failed} foto(s) foram mantidas como estavam.`)
+     else notice('O fundo branco não foi aplicado. As fotos originais foram preservadas.')
+   }finally{
      setBusy(false)
      setRaceDone(false)
    }
@@ -2081,7 +2141,7 @@ function ProductImages({form,setForm,notice}){
      </div>
      <div className="cdmProOnlyFeatures">
        <span>⚡ Prévia imediata</span>
-       <span>✓ Fundo branco automático</span>
+       <button type="button" className="ghost" onClick={applyWhiteBackground} disabled={busy||!images.length}>Aplicar fundo branco</button>
        <span>∞ Ilimitado</span>
      </div>
    </div>
@@ -2195,7 +2255,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     setAiBusy(true);setAiResult(null)
     try{
       const selected=Array.from(files).slice(0,3).filter(f=>f.type?.startsWith('image/'))
-      const prepared=await Promise.all(selected.map(f=>prepareProductImage(f,false)))
+      const prepared=await Promise.all(selected.map(f=>prepareProductImageCore(f,false)))
       if(!prepared.length){notice('Selecione pelo menos uma foto da peça');return}
       const current=imageList(form.image_urls)
       setForm(f=>({...f,image_urls:[...prepared,...current].slice(0,8).join('\n')}))
@@ -2229,7 +2289,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
       model:aiResult.model||f.model,
       year:aiResult.year||f.year,
       compatibility:aiResult.compatibility||f.compatibility,
-      description:aiResult.description||f.description,
+      description:f.description,
       quality_notes:aiResult.quality_notes||f.quality_notes
     }))
     notice('Sugestões da IA aplicadas. Confira os dados antes de salvar')
