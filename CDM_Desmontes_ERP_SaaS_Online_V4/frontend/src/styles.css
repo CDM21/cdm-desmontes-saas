@@ -1421,23 +1421,33 @@ table{font-size:12px}
 }
 .mediaWhiteBgPhoto{
   position:absolute;
-  right:6px;
-  top:80px;
+  left:6px;
+  top:6px;
   z-index:4;
-  min-height:26px;
-  padding:4px 8px;
+  width:28px;
+  height:28px;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   border:1px solid var(--line);
-  border-radius:7px;
-  background:var(--panel);
+  border-radius:8px;
+  background:rgba(11,19,34,.92);
   color:var(--text);
   font-size:10px;
-  font-weight:800;
+  font-weight:900;
+  line-height:1;
   cursor:pointer;
   box-shadow:0 2px 8px #0004
 }
 .mediaWhiteBgPhoto:hover:not(:disabled){
   border-color:var(--accent);
   color:var(--accent)
+}
+.mediaWhiteBgPhoto.active{
+  border-color:var(--accent);
+  color:var(--accent);
+  background:rgba(17,30,52,.96)
 }
 .mediaWhiteBgPhoto:disabled{
   opacity:.65;
@@ -1622,7 +1632,8 @@ table{font-size:12px}
     height:100px
   }
   .mediaWhiteBgPhoto{
-    top:68px
+    left:6px;
+    top:6px
   }
   .mediaAddTile{
     flex-basis:120px;

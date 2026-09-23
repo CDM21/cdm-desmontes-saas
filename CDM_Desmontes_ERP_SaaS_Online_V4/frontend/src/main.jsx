@@ -1958,6 +1958,7 @@ function ProductImages({form,setForm,notice}){
  const [busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
  const [pendingPreviews,setPendingPreviews]=useState([])
  const [whiteBusyIndex,setWhiteBusyIndex]=useState(null)
+ const [whiteBgOriginals,setWhiteBgOriginals]=useState({})
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
@@ -2058,6 +2059,21 @@ function ProductImages({form,setForm,notice}){
    const src=images[index]
    if(!src)return
 
+   const originalSrc=whiteBgOriginals[src]
+   if(originalSrc){
+     const next=[...images]
+     next[index]=originalSrc
+     save(next)
+     if(zoom===src)setZoom(originalSrc)
+     setWhiteBgOriginals(map=>{
+       const nextMap={...map}
+       delete nextMap[src]
+       return nextMap
+     })
+     notice(`Fundo branco removido da foto ${index+1}`)
+     return
+   }
+
    const file=imageSourceToFile(src,index)
    if(!file){
      notice('Esta foto não pôde ser preparada para o fundo branco')
@@ -2071,6 +2087,7 @@ function ProductImages({form,setForm,notice}){
      next[index]=out
      save(next)
      if(zoom===src)setZoom(out)
+     setWhiteBgOriginals(map=>({...map,[out]:src}))
      notice(`Fundo branco aplicado na foto ${index+1}`)
    }catch(e){
      console.error('CDM Pro não concluiu o fundo branco desta foto:',e)
@@ -2186,7 +2203,7 @@ function ProductImages({form,setForm,notice}){
            </button>
 
            <button type="button" className="mediaDeletePhoto" onClick={()=>remove(i)} title="Excluir foto">×</button>
-           <button type="button" className="mediaWhiteBgPhoto" onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||whiteBusyIndex!==null} title="Aplicar fundo branco somente nesta foto">{whiteBusyIndex===i?'Aplicando...':'Fundo branco'}</button>
+           <button type="button" className={'mediaWhiteBgPhoto'+(whiteBgOriginals[img]?' active':'')} onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||whiteBusyIndex!==null} title={whiteBgOriginals[img]?'Remover fundo branco desta foto':'Aplicar fundo branco nesta foto'}>{whiteBusyIndex===i?'…':whiteBgOriginals[img]?'↺':'WB'}</button>
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
