@@ -614,7 +614,7 @@ function Sidebar({tab,setTab,company,role='user',isAdmin,openMobile=false,onClos
          {open[item.key]&&<div className="subNav">{item.children.map(c=><button key={c.key} className={tab===c.key?'active':''} onClick={()=>go(c.key)}><span>{c.icon||'·'}</span>{c.label}</button>)}</div>}
        </div>
        :<button key={item.key} className={'navMain '+(tab===item.key?'active':'')} onClick={()=>go(item.key)}><span className="navIcon">{item.icon}</span><span className="navLabel">{item.label}</span></button>)}</nav>
-     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Desmontes · V15.3 Integrações</small></div>
+     <div className="sidebarFoot"><span><i/> Sistema conectado</span><small>CDM Online · Operação integrada</small></div>
    </aside>
  </>
 }
@@ -665,7 +665,7 @@ function Topbar({tab,setTab,session,theme,setTheme,onMenu}){
  return <header className="topbar">
    <button className="hamb" title="Menu" onClick={()=>onMenu?.()}>☰</button>
    <div className="globalSearch">⌕<input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')setTab('products')}} placeholder="O que você está procurando?"/></div>
-   <button className="topAdd" title="Cadastrar peça" onClick={()=>setTab('product-create')}>＋</button><div className="topSpacer"/>
+   <button className="topAdd topAddPro" title="Cadastrar peça" onClick={()=>setTab('product-create')}><span>＋</span><b>Nova peça</b></button><div className="topSpacer"/>
    <button className="topIcon" title="Notas fiscais" onClick={()=>setTab('invoices')}><V8Icon name="document"/></button>
    <div className="notificationWrap">
      <button className="topIcon notificationTrigger" title="Notificações" onClick={()=>{setNotifOpen(!notifOpen);setProfile(false)}}><V8Icon name="bell"/>{unread>0&&<span className="notificationBadge">{unread>99?'99+':unread}</span>}</button>
