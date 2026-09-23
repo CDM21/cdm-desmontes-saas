@@ -2021,20 +2021,21 @@ function ProductImages({form,setForm,notice}){
  const [pendingPreviews,setPendingPreviews]=useState([])
  const [whiteJobs,setWhiteJobs]=useState({})
  const [whiteBgOriginals,setWhiteBgOriginals]=useState({})
+ const [whiteQueueActive,setWhiteQueueActive]=useState(false)
  const whiteQueueRef=useRef([])
  const whiteQueuedRef=useRef(new Set())
  const whiteWorkerRef=useRef(false)
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
- const progressText=raceDone?'Fotos prontas!':elapsed<1?'Preparando as fotos...':'CDM Pro processando as fotos...'
+ const progressText=raceDone?'Fotos prontas!':whiteQueueActive&&!busy?(elapsed<1?'Preparando fundo branco...':'CDM Pro aplicando fundo branco...'):(elapsed<1?'Preparando as fotos...':'CDM Pro processando as fotos...')
 
  useEffect(()=>{
-   if(!busy){setElapsed(0);return}
+   if(!busy&&!whiteQueueActive){setElapsed(0);return}
    setElapsed(0)
    const timer=setInterval(()=>setElapsed(v=>v+1),1000)
    return()=>clearInterval(timer)
- },[busy])
+ },[busy,whiteQueueActive])
 
  function stepZoom(dir){
    if(!images.length)return
@@ -2132,6 +2133,8 @@ function ProductImages({form,setForm,notice}){
  async function processWhiteQueue(){
    if(whiteWorkerRef.current)return
    whiteWorkerRef.current=true
+   setWhiteQueueActive(true)
+   setRaceDone(false)
 
    try{
      while(whiteQueueRef.current.length){
@@ -2171,7 +2174,12 @@ function ProductImages({form,setForm,notice}){
      }
    }finally{
      whiteWorkerRef.current=false
-     if(whiteQueueRef.current.length)processWhiteQueue()
+     if(whiteQueueRef.current.length){
+       processWhiteQueue()
+     }else{
+       setWhiteQueueActive(false)
+       setRaceDone(false)
+     }
    }
  }
 
@@ -2281,7 +2289,7 @@ function ProductImages({form,setForm,notice}){
      </div>
    </div>
 
-   {busy&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
+   {(busy||whiteQueueActive)&&<RacePhotoLoader progress={progress} elapsed={elapsed} text={progressText}/>}
 
    <div className="cdmProOnlyCard">
      <div className="cdmProOnlyBrand">
