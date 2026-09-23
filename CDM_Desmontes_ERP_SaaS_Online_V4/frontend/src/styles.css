@@ -6575,3 +6575,86 @@ body[data-theme="dark"] .vehicleDeleteBtn{
     grid-column:1/-1
   }
 }
+
+/* =========================================================
+   CDM V20 — CADASTRO DE PEÇAS + PUBLICAÇÃO + PRECIFICAÇÃO
+   ========================================================= */
+
+/* Ano: seletor próprio do CDM */
+.cdmYearPicker{position:relative;min-width:0}
+.cdmYearInput{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:stretch;border:1px solid var(--line);border-radius:8px;background:var(--soft);overflow:visible;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease}
+.cdmYearPicker.open .cdmYearInput,.cdmYearInput:focus-within{border-color:var(--cdm-brand);box-shadow:0 0 0 3px rgba(21,151,97,.10)}
+.videoExactPage .cdmYearInput input{min-width:0!important;width:100%!important;border:0!important;border-radius:8px 0 0 8px!important;background:transparent!important;box-shadow:none!important;outline:0!important}
+.cdmYearInput button{width:38px;min-width:38px;border-left:1px solid var(--line);border-radius:0 8px 8px 0;background:transparent;color:var(--muted);font-size:16px;font-weight:900}
+.cdmYearInput button:hover{background:var(--cdm-brand-soft);color:var(--cdm-brand)}
+.cdmYearDropdown{position:absolute;z-index:180;top:calc(100% + 7px);left:0;width:min(300px,calc(100vw - 48px));padding:8px;border:1px solid var(--line);border-radius:11px;background:var(--panel);box-shadow:0 18px 45px rgba(0,0,0,.28)}
+.cdmYearDropdownHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 6px 9px;border-bottom:1px solid var(--line)}
+.cdmYearDropdownHead b{font-size:12px}.cdmYearDropdownHead small{color:var(--muted);font-size:10px}
+.cdmYearGrid{max-height:230px;overflow-y:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px;padding-right:3px;scrollbar-width:thin}
+.cdmYearGrid button{min-height:36px;border:1px solid transparent;border-radius:7px;background:var(--soft);color:var(--text);font-size:12px;font-weight:750}
+.cdmYearGrid button:hover{border-color:rgba(21,151,97,.28);background:var(--cdm-brand-soft);color:var(--cdm-brand-strong)}
+.cdmYearGrid button.selected{border-color:var(--cdm-brand);background:var(--cdm-brand);color:#fff}
+.cdmYearEmpty{grid-column:1/-1;padding:18px 10px;text-align:center;color:var(--muted);font-size:11px}
+
+/* Publicação */
+.cdmPublishChannels{display:grid!important;gap:9px!important;margin-top:13px}
+.cdmPublishChannel{position:relative;min-height:74px!important;grid-template-columns:minmax(190px,1.2fr) minmax(165px,.85fr) 54px 82px!important;gap:12px!important;align-items:center!important;padding:11px 12px 11px 15px!important;border:1px solid var(--line)!important;border-left:4px solid #61706a!important;border-radius:11px!important;background:linear-gradient(135deg,var(--panel),var(--soft))!important;overflow:hidden;box-shadow:0 3px 12px rgba(20,35,29,.035)!important}
+.cdmPublishChannel.enabled,.cdmPublishChannel.sale{border-left-color:var(--cdm-brand)!important}
+.cdmPublishChannel:hover{border-color:rgba(21,151,97,.25)!important;border-left-color:var(--cdm-brand)!important;box-shadow:var(--cdm-shadow-hover)!important}
+.cdmPublishChannel .videoExactChannelIdentity{gap:10px}
+.cdmPublishChannel .marketLogo,.cdmPublishChannel .videoExactChannelIcon{width:38px!important;height:38px!important;min-width:38px!important;border-radius:10px!important}
+.cdmPublishChannel .videoExactChannelIcon{background:linear-gradient(145deg,#1eaa70,#0d7650)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}
+.cdmPublishChannel .videoExactChannelIdentity b{font-size:13px!important;line-height:1.2}
+.cdmPublishChannel .videoExactChannelIdentity span{margin-top:4px!important;font-size:10px!important;line-height:1.25}
+.cdmChannelState{display:inline-flex!important;width:max-content;max-width:100%;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;white-space:nowrap!important}
+.cdmChannelState.ready{border:1px solid rgba(21,151,97,.24);background:rgba(21,151,97,.10);color:#69d6a3!important}
+.cdmChannelState.off{border:1px solid var(--line);background:var(--soft);color:var(--muted)!important}
+.cdmPublishChannel .videoExactChannelPrice{min-width:0}
+.cdmPublishChannel .videoExactChannelPrice small{margin:0 0 5px!important;font-size:10px!important;font-weight:700;color:var(--muted)!important}
+.cdmPublishChannel .switch{justify-self:center!important;transform:scale(.92)!important}
+.cdmPublishChannel .videoExactManage{min-height:36px!important;padding:0 12px!important;border:1px solid rgba(21,151,97,.30)!important;border-radius:8px!important;background:var(--cdm-brand)!important;color:#fff!important;font-size:11px!important;font-weight:850!important}
+.cdmPublishChannel .videoExactManage:hover{background:var(--cdm-brand-strong)!important}
+.cdmPublishChannel .videoExactManage:disabled{border-color:var(--line)!important;background:var(--soft)!important;color:var(--muted)!important;opacity:.55!important}
+.cdmChannelDefault{justify-self:center;display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:0 10px;border:1px solid rgba(21,151,97,.22);border-radius:8px;background:var(--cdm-brand-soft);color:#68d4a1;font-size:10px;font-weight:850}
+
+/* Campos de valor */
+.cdmMoneyInput{min-width:0;min-height:38px;display:grid!important;grid-template-columns:42px minmax(0,1fr)!important;align-items:center!important;border:1px solid var(--line)!important;border-radius:8px!important;background:var(--panel)!important;overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease}
+.cdmMoneyInput:focus-within{border-color:var(--cdm-brand)!important;box-shadow:0 0 0 3px rgba(21,151,97,.10)}
+.cdmMoneyInput>span{height:100%;display:grid;place-items:center;border-right:1px solid var(--line);background:var(--soft);color:var(--muted)!important;font-size:10px!important;font-weight:850}
+.videoExactPage .cdmMoneyInput input,.cdmPublishChannel .cdmMoneyInput input{min-width:0!important;width:100%!important;min-height:36px!important;padding:7px 10px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;color:var(--text)!important;text-align:right;font-variant-numeric:tabular-nums}
+.cdmMoneyInputLarge{min-height:46px}.videoExactPage .cdmMoneyInputLarge input{min-height:44px!important;font-size:15px!important;font-weight:750}.cdmMoneyInputLarge>span{font-size:11px!important}
+
+/* Prontidão */
+.videoExactReadiness{padding:13px!important;border:1px solid var(--line)!important;border-radius:10px!important;background:linear-gradient(135deg,var(--panel),var(--soft))!important}
+.videoExactReadyHead h4{font-size:13px!important}.videoExactReadyHead p{margin-top:3px!important;font-size:10px!important}.videoExactReadyHead>b{font-size:18px!important;color:var(--cdm-brand)!important}
+.videoExactReadyBar{height:7px!important;border-radius:999px!important;overflow:hidden}.videoExactReadyBar i{background:linear-gradient(90deg,var(--cdm-brand),#33c98b)!important}
+
+/* Precificação */
+.cdmPricingInputs{max-width:620px!important;gap:12px!important}
+.videoExactPriceRecommendation{gap:8px!important}.videoExactPriceRecommendation>div{min-height:72px;display:grid;align-content:center;gap:3px;border-radius:9px!important}
+.videoExactPriceRecommendation>div.recommended{box-shadow:inset 0 0 0 1px rgba(21,151,97,.08)}
+.videoExactMarkup{margin-top:11px!important;gap:6px!important}.videoExactMarkup button{min-height:32px!important;padding:0 10px!important;border-radius:7px!important}
+
+/* Tema claro */
+body[data-theme="light"] .cdmYearInput,body[data-theme="light"] .cdmYearDropdown,body[data-theme="light"] .cdmMoneyInput{background:#fff!important}
+body[data-theme="light"] .cdmYearDropdown{border-color:#d7e1dd;box-shadow:0 18px 42px rgba(30,44,38,.16)}
+body[data-theme="light"] .cdmPublishChannel{background:linear-gradient(135deg,#fff,#f7faf8)!important}
+body[data-theme="light"] .cdmChannelState.ready,body[data-theme="light"] .cdmChannelDefault{color:#0c7b4e!important}
+body[data-theme="light"] .cdmMoneyInput>span{background:#f4f7f5}
+
+@media(max-width:1050px){.cdmPublishChannel{grid-template-columns:minmax(170px,1fr) minmax(150px,.8fr) 50px 78px!important}}
+@media(max-width:760px){
+ .cdmPublishChannel{grid-template-columns:minmax(0,1fr) auto!important;gap:9px!important}
+ .cdmPublishChannel .videoExactChannelIdentity{grid-column:1}
+ .cdmPublishChannel .videoExactChannelPrice{grid-column:1/-1;grid-row:2}
+ .cdmPublishChannel .switch,.cdmPublishChannel .cdmChannelDefault{grid-column:2;grid-row:1}
+ .cdmPublishChannel .videoExactManage{grid-column:1/-1;width:100%}
+ .cdmPricingInputs{grid-template-columns:1fr!important;max-width:none!important}
+ .videoExactPriceRecommendation{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:430px){
+ .cdmYearDropdown{width:min(280px,calc(100vw - 34px))}
+ .cdmYearGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .videoExactPriceRecommendation{grid-template-columns:1fr!important}
+}
+

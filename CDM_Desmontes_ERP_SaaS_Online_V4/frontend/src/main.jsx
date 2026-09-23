@@ -2446,6 +2446,35 @@ function ProductImages({form,setForm,notice}){
  </div>
 }
 
+function ProductYearPicker({value,onChange}){
+ const [open,setOpen]=useState(false)
+ const ref=useRef(null)
+ const currentYear=new Date().getFullYear()
+ const years=useMemo(()=>Array.from({length:currentYear-1969},(_,i)=>currentYear+1-i),[currentYear])
+ const typed=String(value||'')
+ const shown=typed.length>=2?years.filter(y=>String(y).startsWith(typed)).slice(0,18):years
+
+ useEffect(()=>{
+  if(!open)return
+  const close=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false)}
+  document.addEventListener('pointerdown',close)
+  return()=>document.removeEventListener('pointerdown',close)
+ },[open])
+
+ return <div className={'cdmYearPicker '+(open?'open':'')} ref={ref}>
+  <div className="cdmYearInput">
+   <input inputMode="numeric" maxLength="4" value={typed} onFocus={()=>setOpen(true)} onChange={e=>{onChange(e.target.value.replace(/\D/g,'').slice(0,4));setOpen(true)}} placeholder="Ex.: 2020" autoComplete="off"/>
+   <button type="button" tabIndex="-1" aria-label="Selecionar ano" onClick={()=>setOpen(v=>!v)}>⌄</button>
+  </div>
+  {open&&<div className="cdmYearDropdown">
+   <div className="cdmYearDropdownHead"><b>Selecionar ano</b><small>ou digite os 4 números</small></div>
+   <div className="cdmYearGrid">
+    {shown.length?shown.map(y=><button type="button" key={y} className={String(y)===typed?'selected':''} onClick={()=>{onChange(String(y));setOpen(false)}}>{y}</button>):<span className="cdmYearEmpty">Digite um ano válido</span>}
+   </div>
+  </div>}
+ </div>
+}
+
 function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[],initialProduct=null,onClose=null}){
   // CDM DUPLICATE DETECTION V1
   const [duplicateCheck,setDuplicateCheck]=useState({loading:false,items:[],checked:false})
@@ -2667,7 +2696,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
               <Field label="Quantidade"><input type="number" min="0" value={form.stock??1} onChange={e=>setForm({...form,stock:e.target.value})}/></Field>
 
               <VehicleBrandModel form={form} setForm={setForm} brands={brands}/>
-              <Field label="Ano"><input list="cdm-product-years-v38" inputMode="numeric" maxLength="4" value={form.year||''} onChange={e=>setForm({...form,year:e.target.value.replace(/\D/g,'').slice(0,4)})} placeholder="Ex.: 2020"/><datalist id="cdm-product-years-v38">{Array.from({length:new Date().getFullYear()-1969},(_,i)=>new Date().getFullYear()+1-i).map(y=><option key={y} value={y}/>)}</datalist></Field>
+              <Field label="Ano"><ProductYearPicker value={form.year||''} onChange={year=>setForm({...form,year})}/></Field>
               <Field label="Condição"><select value={form.condition||'used'} onChange={e=>setForm({...form,condition:e.target.value})}><option value="used">Usado</option><option value="new">Novo</option><option value="reconditioned">Recondicionado</option></select></Field>
 
               <Field label="Categoria"><div className="categoryField"><input value={form.category||''} onChange={e=>setForm({...form,category:e.target.value})} placeholder="Digite ou pesquise"/><button type="button" className="ghost categorySearchBtn" onClick={()=>{setCategoryQuery(form.name||form.category||'');setCategoryResults([]);setCategoryOpen(true)}}>⌕</button></div></Field>
@@ -2692,7 +2721,6 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
 
               <div className="span2"><Field label="Sucata / veículo de origem"><select value={form.vehicle_id||''} onChange={e=>chooseVehicle(e.target.value)}><option value="">Sem vínculo / peça avulsa</option>{vehicles.map(v=><option key={v.id} value={v.id}>#{v.id} · {v.plate||'sem placa'} · {v.brand} {v.model} {v.year||''}</option>)}</select></Field></div>
               <Field label="Qualidade"><select value={form.quality_grade||'B'} onChange={e=>setForm({...form,quality_grade:e.target.value})}><option value="A">A — excelente</option><option value="B">B — boa</option><option value="C">C — com marcas/uso</option></select></Field>
-              <Field label="Garantia (dias)"><input type="number" min="0" value={form.warranty_days??90} onChange={e=>setForm({...form,warranty_days:e.target.value})}/></Field>
 
               <div className="span4"><Field label="Informações adicionais"><textarea value={form.quality_notes||''} onChange={e=>setForm({...form,quality_notes:e.target.value})} placeholder="Observações da peça"/></Field></div>
             </div>
@@ -2732,30 +2760,30 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
               <div className="videoExactReadyLegend"><span className="ok">● OK {publicationScore}%</span><span className="optional">● Opcional</span><span className="adjust">● Precisa de ajuste {100-publicationScore}%</span></div>
             </div>
 
-            <div className="videoExactChannelList">
-              <div className="videoExactChannel sale">
-                <div className="videoExactChannelIdentity"><div className="videoExactChannelIcon">$</div><div><b>Venda balcão</b><span>Preço padrão do produto</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda:</small><div><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
-                <button type="button" className="videoExactManage">Gerenciar</button>
+            <div className="videoExactChannelList cdmPublishChannels">
+              <div className="videoExactChannel sale cdmPublishChannel">
+                <div className="videoExactChannelIdentity"><div className="videoExactChannelIcon">$</div><div><b>Venda balcão</b><span className="cdmChannelState ready">Preço padrão do produto</span></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+                <span className="cdmChannelDefault">Padrão</span>
               </div>
 
-              <div className={'videoExactChannel ml '+(form.publish_mercadolivre?'enabled':'')}>
-                <div className="videoExactChannelIdentity"><MarketLogo id="mercadolivre"/><div><b>Mercado Livre</b><span>{form.publish_mercadolivre?'Canal ativado':'Não será publicado — informações pendentes'}</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda:</small><div><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+              <div className={'videoExactChannel ml cdmPublishChannel '+(form.publish_mercadolivre?'enabled':'')}>
+                <div className="videoExactChannelIdentity"><MarketLogo id="mercadolivre"/><div><b>Mercado Livre</b><span className={'cdmChannelState '+(form.publish_mercadolivre?'ready':'off')}>{form.publish_mercadolivre?'Canal ativado':'Canal desativado'}</span></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
                 <label className="switch"><input type="checkbox" checked={!!form.publish_mercadolivre} onChange={e=>setForm({...form,publish_mercadolivre:e.target.checked})}/><i/></label>
                 <button type="button" className="videoExactManage" disabled={!form.publish_mercadolivre} onClick={()=>setMarketModal('mercadolivre')}>Ajustar</button>
               </div>
 
-              <div className={'videoExactChannel shopee '+(form.publish_shopee?'enabled':'')}>
-                <div className="videoExactChannelIdentity"><MarketLogo id="shopee"/><div><b>Shopee</b><span>{form.publish_shopee?'Canal ativado':'Não será publicado — configuração opcional'}</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda:</small><div><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+              <div className={'videoExactChannel shopee cdmPublishChannel '+(form.publish_shopee?'enabled':'')}>
+                <div className="videoExactChannelIdentity"><MarketLogo id="shopee"/><div><b>Shopee</b><span className={'cdmChannelState '+(form.publish_shopee?'ready':'off')}>{form.publish_shopee?'Canal ativado':'Canal desativado'}</span></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
                 <label className="switch"><input type="checkbox" checked={!!form.publish_shopee} onChange={e=>setForm({...form,publish_shopee:e.target.checked})}/><i/></label>
                 <button type="button" className="videoExactManage" disabled={!form.publish_shopee} onClick={()=>setMarketModal('shopee')}>Ajustar</button>
               </div>
 
-              <div className={'videoExactChannel olx '+(form.publish_olx?'enabled':'')}>
-                <div className="videoExactChannelIdentity"><MarketLogo id="olx"/><div><b>OLX</b><span>{form.publish_olx?'Canal ativado':'Não será publicado — configuração opcional'}</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda:</small><div><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+              <div className={'videoExactChannel olx cdmPublishChannel '+(form.publish_olx?'enabled':'')}>
+                <div className="videoExactChannelIdentity"><MarketLogo id="olx"/><div><b>OLX</b><span className={'cdmChannelState '+(form.publish_olx?'ready':'off')}>{form.publish_olx?'Canal ativado':'Canal desativado'}</span></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
                 <label className="switch"><input type="checkbox" checked={!!form.publish_olx} onChange={e=>setForm({...form,publish_olx:e.target.checked})}/><i/></label>
                 <button type="button" className="videoExactManage" disabled={!form.publish_olx} onClick={()=>setMarketModal('olx')}>Ajustar</button>
               </div>
@@ -2768,9 +2796,9 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
         <section id="cdm-piece-precificacao" className="videoExactSection">
           <div className="videoExactSectionHead"><div><h3>Precificação</h3><p>Precificação da peça.</p></div></div>
           <div className="videoExactSectionBody">
-            <div className="videoExactPricingInputs">
-              <Field label="Custo de compra"><input type="number" step="0.01" value={form.cost??''} onChange={e=>setForm({...form,cost:e.target.value})} placeholder="R$ 0,00"/></Field>
-              <Field label="Preço de venda"><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="R$ 0,00"/></Field>
+            <div className="videoExactPricingInputs cdmPricingInputs">
+              <Field label="Custo de compra"><div className="cdmMoneyInput cdmMoneyInputLarge"><span>R$</span><input type="number" step="0.01" value={form.cost??''} onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0,00"/></div></Field>
+              <Field label="Preço de venda"><div className="cdmMoneyInput cdmMoneyInputLarge"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></Field>
             </div>
 
             <div className="videoExactPriceRecommendation">
