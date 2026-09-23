@@ -1976,7 +1976,7 @@ function mlIsManagedAttribute(id){
   return ['BRAND','MODEL','PART_NUMBER','OEM','ITEM_CONDITION'].includes(String(id||''))
 }
 
-function MarketplaceConfigModal({market,form,setForm,onClose,brands=[]}){
+function MarketplaceConfigModal({market,form,setForm,onClose,brands=[],onSuggestMl=null,findingCategory=false}){
   const [requiredAttrs,setRequiredAttrs]=useState([]),[attrsBusy,setAttrsBusy]=useState(false),[storesInfo,setStoresInfo]=useState({warehouse_management:false,multiwarehouse:false,stores:[]}),[mlConnection,setMlConnection]=useState(null)
   const [shopeeSetup,setShopeeSetup]=useState({connected:false,categories:[],logistics:[],enabled_logistics:[]}),[shopeeBusy,setShopeeBusy]=useState(false),[shopeeError,setShopeeError]=useState('')
   useEffect(()=>{let alive=true;if(market!=='mercadolivre'){setStoresInfo({warehouse_management:false,multiwarehouse:false,stores:[]});return}api.get('/marketplaces/mercadolivre/stores').then(r=>alive&&setStoresInfo(r.data||{warehouse_management:false,multiwarehouse:false,stores:[]})).catch(()=>alive&&setStoresInfo({warehouse_management:false,multiwarehouse:false,stores:[]}));return()=>{alive=false}},[market])
@@ -1985,7 +1985,130 @@ function MarketplaceConfigModal({market,form,setForm,onClose,brands=[]}){
   useEffect(()=>{let alive=true;if(market!=='shopee'){setShopeeSetup({connected:false,categories:[],logistics:[],enabled_logistics:[]});setShopeeError('');return}setShopeeBusy(true);setShopeeError('');api.get('/marketplaces/shopee/setup-options').then(r=>{if(!alive)return;const data=r.data||{};setShopeeSetup(data);const enabled=data.enabled_logistics||[];if(!form.shopee_logistic_id&&enabled.length===1)setForm(f=>({...f,shopee_logistic_id:String(enabled[0].id)}))}).catch(e=>{if(!alive)return;setShopeeSetup({connected:false,categories:[],logistics:[],enabled_logistics:[]});setShopeeError(erroPt(e.response?.data?.detail)||'Conecte sua loja Shopee na Central de Integrações')}).finally(()=>alive&&setShopeeBusy(false));return()=>{alive=false}},[market])
   if(!market)return null
   return <div className={'modalBackdrop '+(market==='mercadolivre'?'marketplaceModalBackdrop':'')} onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className={'marketConfigModal '+(market==='mercadolivre'?'marketConfigModalML':'')}><div className="modalHead"><div><small>{market==='mercadolivre'?'PUBLICAÇÃO • MERCADO LIVRE':'CONFIGURAÇÃO DO CANAL'}</small><h2>{market==='mercadolivre'?'Mercado Livre':marketName(market)}</h2><p>{market==='mercadolivre'?'Preencha as informações específicas para o Mercado Livre, bem como os detalhes da publicação.':'Preencha apenas o que esse canal precisa para publicar esta peça.'}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
-    {market==='mercadolivre'&&<div className="modalBody mlProfessionalBody"><div className={'videoMlAccount '+(mlConnection?.ok?'connected':'pending')}><div className="videoMlAccountLogo">ML</div><div><small>PUBLICAÇÃO</small><b>{mlConnection?.account?.nickname||mlConnection?.nickname||'Mercado Livre'}</b><span>{mlConnection?.ok?'Conta conectada e pronta para publicar':'Conexão será validada antes da publicação'}</span></div><div className="videoMlAccountMeta"><small>Site</small><b>{mlConnection?.site_id||mlConnection?.account?.site_id||'MLB'}</b></div></div><div className="videoMlTitleField"><label><span>Título *</span><div><input value={form.name||''} maxLength="60" onChange={e=>setForm({...form,name:e.target.value})} placeholder="Título do anúncio"/><small>{String(form.name||'').length}/60</small></div></label></div><div className="mlPremiumHero"><div className="mlPremiumHeroMain"><span>MERCADO LIVRE • PUBLICAÇÃO</span><strong>{form.name||'Peça sem nome'}</strong><small>{[form.brand,form.model,form.year].filter(Boolean).join(' ')||'Aplicação do veículo ainda não informada'}</small></div><div className="mlPremiumHeroStat"><span>SKU</span><b>{form.sku||'—'}</b><small>Identificação interna</small></div><div className="mlPremiumHeroStat"><span>Preço</span><b>{form.price?money(form.price):'—'}</b><small>Preço de venda</small></div><div className="mlPremiumHeroStat"><span>Estoque</span><b>{Number(form.stock||0)} un.</b><small>Disponível para anúncio</small></div><div className="mlPremiumHeroStat"><span>OEM / Código</span><b>{form.oem||'—'}</b><small>Referência da peça</small></div></div><div className="mlConfigSummary"><div className="mlConfigSummaryLead"><span>CONFIGURAÇÃO ASSISTIDA</span><strong>Anúncio organizado em etapas</strong><small>Escolha as opções abaixo e o CDM prepara os dados obrigatórios do Mercado Livre sem misturar peças de carro/caminhonete com linha pesada.</small></div><div className={'mlSummaryItem '+(mlVehicleType(form)?'ok':'pending')}><small>Segmento</small><b>{mlVehicleType(form)==='truck'?'Caminhão / Linha Pesada':mlVehicleType(form)==='car_pickup'?'Carro / Caminhonete':'Pendente'}</b></div><div className={'mlSummaryItem '+(form.ml_category_id?'ok':'pending')}><small>Categoria</small><b>{form.ml_category_id?'Configurada':'Pendente'}</b></div><div className="mlSummaryItem ok"><small>Condição</small><b>{form.condition==='new'?'Novo':form.condition==='reconditioned'?'Recondicionado':'Usado'}</b></div></div><h3 className="formSectionTitle">Tipo de veículo</h3><div className="optionGrid two"><label className={'choiceCard '+(mlVehicleType(form)==='car_pickup'?'selected':'')}><input type="radio" name="mlVehicleSegment" checked={mlVehicleType(form)==='car_pickup'} onChange={()=>setMlVehicleType(form,setForm,'car_pickup')}/><b>🚗 Carro / Caminhonete</b><small>Peças para carros, utilitários e caminhonetes.</small></label><label className={'choiceCard '+(mlVehicleType(form)==='truck'?'selected':'')}><input type="radio" name="mlVehicleSegment" checked={mlVehicleType(form)==='truck'} onChange={()=>setMlVehicleType(form,setForm,'truck')}/><b>🚛 Caminhão</b><small>Peças para caminhões e linha pesada.</small></label></div><p className="fieldHelp">Escolha o tipo antes da categoria. O CDM envia automaticamente o Tipo de veículo aceito pela categoria do Mercado Livre.</p><h3 className="formSectionTitle">Condição</h3><div className="optionGrid"><label className={'choiceCard '+(form.condition==='new'?'selected':'')}><input type="radio" name="cond" checked={form.condition==='new'} onChange={()=>setForm({...form,condition:'new'})}/><b>Novo</b><small>Peça sem uso.</small></label><label className={'choiceCard '+(form.condition==='used'?'selected':'')}><input type="radio" name="cond" checked={form.condition==='used'} onChange={()=>setForm({...form,condition:'used'})}/><b>Usado</b><small>Peça usada/desmontada.</small></label><label className={'choiceCard '+(form.condition==='reconditioned'?'selected':'')}><input type="radio" name="cond" checked={form.condition==='reconditioned'} onChange={()=>setForm({...form,condition:'reconditioned'})}/><b>Recondicionado</b><small>Peça revisada.</small></label></div><h3 className="formSectionTitle">Garantia</h3><div className="optionGrid two"><label className={'choiceCard '+(form.ml_has_warranty?'selected':'')}><input type="radio" checked={form.ml_has_warranty} onChange={()=>setForm({...form,ml_has_warranty:true})}/><b>Possui garantia</b><small>Informe a garantia abaixo.</small></label><label className={'choiceCard '+(!form.ml_has_warranty?'selected':'')}><input type="radio" checked={!form.ml_has_warranty} onChange={()=>setForm({...form,ml_has_warranty:false,ml_warranty_text:''})}/><b>Não possui garantia</b><small>Sem garantia associada.</small></label></div>{form.ml_has_warranty&&<Field label="Texto da garantia"><input placeholder="Ex.: 90 dias de garantia" value={form.ml_warranty_text} onChange={e=>setForm({...form,ml_warranty_text:e.target.value})}/></Field>}<h3 className="formSectionTitle">Listagem</h3><div className="optionGrid two"><label className={'choiceCard '+(form.ml_listing_type==='gold_pro'?'selected':'')}><input type="radio" checked={form.ml_listing_type==='gold_pro'} onChange={()=>setForm({...form,ml_listing_type:'gold_pro'})}/><b>Maior exposição</b><small>Maior destaque quando disponível.</small></label><label className={'choiceCard '+(form.ml_listing_type==='gold_special'?'selected':'')}><input type="radio" checked={form.ml_listing_type==='gold_special'} onChange={()=>setForm({...form,ml_listing_type:'gold_special'})}/><b>Clássica</b><small>Listagem padrão.</small></label></div><h3 className="formSectionTitle">Frete</h3><div className="optionGrid three"><label className={'choiceCard '+(form.ml_shipping_mode===''?'selected':'')}><input type="radio" checked={form.ml_shipping_mode===''} onChange={()=>setForm({...form,ml_shipping_mode:''})}/><b>Automático</b><small>Usar configuração da conta/categoria.</small></label><label className={'choiceCard '+(form.ml_shipping_mode==='me2'?'selected':'')}><input type="radio" checked={form.ml_shipping_mode==='me2'} onChange={()=>setForm({...form,ml_shipping_mode:'me2'})}/><b>Mercado Envios</b><small>Quando elegível para a conta.</small></label><label className={'choiceCard '+(form.ml_shipping_mode==='custom'?'selected':'')}><input type="radio" checked={form.ml_shipping_mode==='custom'} onChange={()=>setForm({...form,ml_shipping_mode:'custom'})}/><b>A combinar</b><small>Frete combinado com o comprador.</small></label></div><div className="switchRows"><label><input type="checkbox" checked={form.ml_free_shipping} onChange={e=>setForm({...form,ml_free_shipping:e.target.checked})}/><span><b>Frete grátis</b><small>Marque somente se sua operação oferecer frete grátis.</small></span></label><label><input type="checkbox" checked={form.ml_local_pickup} onChange={e=>setForm({...form,ml_local_pickup:e.target.checked})}/><span><b>Retirada pessoalmente</b><small>Permitir retirada da peça na loja física.</small></span></label></div>{storesInfo.warehouse_management&&<><h3 className="formSectionTitle">Depósito do Mercado Livre</h3><Field label={storesInfo.multiwarehouse?"Depósito que representa este estoque":"Depósito de estoque"}><select value={form.ml_store_id||''} onChange={e=>{const st=storesInfo.stores.find(x=>String(x.id)===String(e.target.value));setForm({...form,ml_store_id:e.target.value,ml_network_node_id:st?.network_node_id||''})}}><option value="">{storesInfo.stores.length===1?"Usar depósito disponível":"Selecione o depósito..."}</option>{storesInfo.stores.map(st=><option key={st.id} value={st.id}>{st.description} — {st.city}{st.state?`/${st.state}`:''}</option>)}</select></Field><p className="fieldHelp">Esta conta usa estoque por depósito. O CDM sincroniza a quantidade desta peça com o depósito selecionado.</p></>}<h3 className="formSectionTitle">Atributos obrigatórios da categoria</h3>{mlVehicleType(form)&&<div className="mlAutoSourceBar"><span className="mlAutoSourceBadge">✓ Automático</span><span>Tipo de veículo: <b>{mlVehicleType(form)==='truck'?'Caminhão / Linha Pesada':'Carro / Caminhonete'}</b></span></div>}{attrsBusy?<p className="fieldHelp">Carregando campos do Mercado Livre...</p>:requiredAttrs.filter(a=>a.id!=='VEHICLE_TYPE').length?<div className="mlAttributeGrid">{requiredAttrs.filter(a=>a.id!=='VEHICLE_TYPE').map(a=>{const id=String(a.id||'');const managed=mlIsManagedAttribute(id);const autoValue=mlManagedAttributeValue(form,id);const current=parseMlAttrs(form.ml_attributes_json)[id]||'';if(id==='BRAND'){const availableBrands=brands?.length?brands:FALLBACK_VEHICLE_BRANDS;return <div className="mlManagedField" key={id}><Field label={`${a.name} *`}><select value={form.brand||''} onChange={e=>setForm({...form,brand:e.target.value,model:e.target.value===form.brand?form.model:''})}><option value="">Selecione a marca...</option>{availableBrands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><div className="mlManagedHint"><span>✓ Preenchido pelo cadastro da peça</span><small>É a mesma marca usada no cadastro principal.</small></div></div>}if(id==='MODEL'){return <div className="mlManagedField" key={id}><Field label={`${a.name} *`}><input value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Modelo da aplicação"/></Field><div className="mlManagedHint"><span>✓ Sincronizado com o cadastro</span><small>Alterações aqui também atualizam o modelo da peça.</small></div></div>}if(id==='PART_NUMBER'||id==='OEM'){return <div className="mlManagedField" key={id}><Field label={`${a.name} *`}><input value={form.oem||''} onChange={e=>setForm({...form,oem:e.target.value})} placeholder="Código/OEM da peça"/></Field><div className="mlManagedHint"><span>✓ Preenchido pelo código/OEM</span><small>Você não precisa digitar o número da peça duas vezes.</small></div></div>}if(id==='ITEM_CONDITION'){return <div className="mlManagedField readOnly" key={id}><Field label={`${a.name} *`}><input value={autoValue||''} readOnly/></Field><div className="mlManagedHint"><span>✓ Definido pela condição da peça</span><small>Use a seção Condição acima para alterar.</small></div></div>}return <Field key={id} label={`${a.name} *`}>{a.values?.length?<select value={current} onChange={e=>{const m=parseMlAttrs(form.ml_attributes_json);m[id]=e.target.value;setForm({...form,ml_attributes_json:JSON.stringify(m)})}}><option value="">Selecione...</option>{a.values.map(v=><option key={v.id||v.name} value={v.name}>{v.name}</option>)}</select>:<input value={current} onChange={e=>{const m=parseMlAttrs(form.ml_attributes_json);m[id]=e.target.value;setForm({...form,ml_attributes_json:JSON.stringify(m)})}}/>}</Field>})}</div>:form.ml_category_id?<p className="fieldHelp">Nenhum outro atributo obrigatório para preencher manualmente.</p>:<p className="fieldHelp">Escolha uma categoria para carregar os atributos exigidos pelo Mercado Livre.</p>}</div>}
+    {market==='mercadolivre'&&<div className="modalBody mlProfessionalBody mlProBody">
+      <div className="mlProHero">
+        <div className="mlProHeroBrand">
+          <div className="mlProHeroLogo"><MarketLogo id="mercadolivre"/></div>
+          <div>
+            <small>MERCADO LIVRE • CONFIGURAÇÃO</small>
+            <h3>Publicação guiada pelo CDM</h3>
+            <p>Uma etapa de cada vez. O sistema reaproveita os dados da peça e mostra somente o que precisa ser conferido.</p>
+          </div>
+        </div>
+        <div className={'mlProConnection '+(mlConnection?.ok?'ok':'pending')}>
+          <span>{mlConnection?.ok?'✓':'!'}</span>
+          <div><small>CONEXÃO</small><b>{mlConnection?.ok?'Conta pronta':'Validação pendente'}</b><em>{mlConnection?.account?.nickname||mlConnection?.nickname||'Mercado Livre'}</em></div>
+        </div>
+      </div>
+
+      <div className="mlProProductBar">
+        <div className="main"><small>PEÇA</small><b>{form.name||'Peça sem nome'}</b><span>{[form.brand,form.model,form.year].filter(Boolean).join(' ')||'Aplicação ainda não informada'}</span></div>
+        <div><small>SKU</small><b>{form.sku||'—'}</b></div>
+        <div><small>PREÇO</small><b>{form.price?money(form.price):'—'}</b></div>
+        <div><small>ESTOQUE</small><b>{Number(form.stock||0)} un.</b></div>
+      </div>
+
+      <div className="mlProTitleEditor">
+        <div><small>TÍTULO DO ANÚNCIO</small><b>Como o comprador verá sua peça</b></div>
+        <div><input value={form.name||''} maxLength="60" onChange={e=>setForm({...form,name:e.target.value})} placeholder="Digite um título claro para o anúncio"/><span>{String(form.name||'').length}/60</span></div>
+      </div>
+
+      <div className="mlProProgress">
+        <div className={mlVehicleType(form)?'done':'current'}><i>{mlVehicleType(form)?'✓':'1'}</i><span><b>Veículo</b><small>{mlVehicleType(form)?'Definido':'Escolha o tipo'}</small></span></div>
+        <div className="done"><i>✓</i><span><b>Condição</b><small>Configurada</small></span></div>
+        <div className="done"><i>✓</i><span><b>Entrega</b><small>Configurável</small></span></div>
+        <div className={form.ml_category_id?'done':'current'}><i>{form.ml_category_id?'✓':'4'}</i><span><b>Categoria</b><small>{form.ml_category_id?'Configurada':'Falta definir'}</small></span></div>
+      </div>
+
+      <section className="mlProSection">
+        <div className="mlProSectionHead">
+          <span>01</span>
+          <div><h4>Qual é o tipo de veículo?</h4><p>Escolha primeiro o segmento. Isso evita categoria incompatível no Mercado Livre.</p></div>
+        </div>
+        <div className="optionGrid two mlProChoiceGrid">
+          <label className={'choiceCard mlProChoice '+(mlVehicleType(form)==='car_pickup'?'selected':'')}>
+            <input type="radio" name="mlVehicleSegment" checked={mlVehicleType(form)==='car_pickup'} onChange={()=>setMlVehicleType(form,setForm,'car_pickup')}/>
+            <span className="mlProChoiceIcon">🚗</span><b>Carro / Caminhonete</b><small>Carros, SUVs, utilitários e caminhonetes.</small>
+          </label>
+          <label className={'choiceCard mlProChoice '+(mlVehicleType(form)==='truck'?'selected':'')}>
+            <input type="radio" name="mlVehicleSegment" checked={mlVehicleType(form)==='truck'} onChange={()=>setMlVehicleType(form,setForm,'truck')}/>
+            <span className="mlProChoiceIcon">🚛</span><b>Caminhão / Linha pesada</b><small>Caminhões, cavalos mecânicos e linha pesada.</small>
+          </label>
+        </div>
+        <div className="mlProTip"><span>i</span><p><b>Dica:</b> depois de escolher o veículo, use “Sugerir categoria agora”. O CDM consulta o Mercado Livre e seleciona uma categoria compatível.</p></div>
+      </section>
+
+      <section className="mlProSection">
+        <div className="mlProSectionHead">
+          <span>02</span>
+          <div><h4>Condição e formato do anúncio</h4><p>Opções diretas, com a escolha atual sempre destacada.</p></div>
+        </div>
+
+        <div className="mlProBlockLabel"><b>Condição da peça</b><small>Obrigatório</small></div>
+        <div className="optionGrid mlProChoiceGrid compact">
+          <label className={'choiceCard mlProChoice '+(form.condition==='new'?'selected':'')}><input type="radio" name="cond" checked={form.condition==='new'} onChange={()=>setForm({...form,condition:'new'})}/><b>Novo</b><small>Peça sem uso.</small></label>
+          <label className={'choiceCard mlProChoice '+(form.condition==='used'?'selected':'')}><input type="radio" name="cond" checked={form.condition==='used'} onChange={()=>setForm({...form,condition:'used'})}/><b>Usado</b><small>Peça usada ou desmontada.</small></label>
+          <label className={'choiceCard mlProChoice '+(form.condition==='reconditioned'?'selected':'')}><input type="radio" name="cond" checked={form.condition==='reconditioned'} onChange={()=>setForm({...form,condition:'reconditioned'})}/><b>Recondicionado</b><small>Peça revisada.</small></label>
+        </div>
+
+        <div className="mlProSplit">
+          <div>
+            <div className="mlProBlockLabel"><b>Garantia do anúncio</b><small>Opcional</small></div>
+            <div className="mlProSegmented">
+              <button type="button" className={!form.ml_has_warranty?'active':''} onClick={()=>setForm({...form,ml_has_warranty:false,ml_warranty_text:''})}>Sem garantia</button>
+              <button type="button" className={form.ml_has_warranty?'active':''} onClick={()=>setForm({...form,ml_has_warranty:true})}>Com garantia</button>
+            </div>
+            {form.ml_has_warranty&&<Field label="Texto da garantia"><input placeholder="Ex.: 90 dias de garantia" value={form.ml_warranty_text} onChange={e=>setForm({...form,ml_warranty_text:e.target.value})}/></Field>}
+          </div>
+          <div>
+            <div className="mlProBlockLabel"><b>Tipo de anúncio</b><small>Exposição</small></div>
+            <div className="mlProSegmented">
+              <button type="button" className={form.ml_listing_type==='gold_special'?'active':''} onClick={()=>setForm({...form,ml_listing_type:'gold_special'})}>Clássica</button>
+              <button type="button" className={form.ml_listing_type==='gold_pro'?'active':''} onClick={()=>setForm({...form,ml_listing_type:'gold_pro'})}>Maior exposição</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mlProSection">
+        <div className="mlProSectionHead">
+          <span>03</span>
+          <div><h4>Como a peça será entregue?</h4><p>Comece no automático e altere somente quando sua operação precisar.</p></div>
+        </div>
+
+        <div className="optionGrid three mlProChoiceGrid compact">
+          <label className={'choiceCard mlProChoice '+(form.ml_shipping_mode===''?'selected':'')}><input type="radio" checked={form.ml_shipping_mode===''} onChange={()=>setForm({...form,ml_shipping_mode:''})}/><b>Automático</b><small>Recomendado para começar.</small></label>
+          <label className={'choiceCard mlProChoice '+(form.ml_shipping_mode==='me2'?'selected':'')}><input type="radio" checked={form.ml_shipping_mode==='me2'} onChange={()=>setForm({...form,ml_shipping_mode:'me2'})}/><b>Mercado Envios</b><small>Quando sua conta for elegível.</small></label>
+          <label className={'choiceCard mlProChoice '+(form.ml_shipping_mode==='custom'?'selected':'')}><input type="radio" checked={form.ml_shipping_mode==='custom'} onChange={()=>setForm({...form,ml_shipping_mode:'custom'})}/><b>A combinar</b><small>Frete tratado com o comprador.</small></label>
+        </div>
+
+        <div className="switchRows mlProSwitchRows">
+          <label><input type="checkbox" checked={form.ml_free_shipping} onChange={e=>setForm({...form,ml_free_shipping:e.target.checked})}/><span><b>Frete grátis</b><small>Ative somente quando sua operação oferecer.</small></span></label>
+          <label><input type="checkbox" checked={form.ml_local_pickup} onChange={e=>setForm({...form,ml_local_pickup:e.target.checked})}/><span><b>Retirada na loja</b><small>Permite retirada pessoalmente.</small></span></label>
+        </div>
+
+        {storesInfo.warehouse_management&&<div className="mlProInlinePanel">
+          <div className="mlProBlockLabel"><b>Depósito do Mercado Livre</b><small>Estoque por depósito</small></div>
+          <Field label={storesInfo.multiwarehouse?"Depósito que representa este estoque":"Depósito de estoque"}><select value={form.ml_store_id||''} onChange={e=>{const st=storesInfo.stores.find(x=>String(x.id)===String(e.target.value));setForm({...form,ml_store_id:e.target.value,ml_network_node_id:st?.network_node_id||''})}}><option value="">{storesInfo.stores.length===1?"Usar depósito disponível":"Selecione o depósito..."}</option>{storesInfo.stores.map(st=><option key={st.id} value={st.id}>{st.description} — {st.city}{st.state?`/${st.state}`:''}</option>)}</select></Field>
+        </div>}
+      </section>
+
+      <section className="mlProSection">
+        <div className="mlProSectionHead">
+          <span>04</span>
+          <div><h4>Categoria e dados obrigatórios</h4><p>O CDM aproveita marca, modelo, OEM e condição já preenchidos e deixa visível o que ainda falta.</p></div>
+        </div>
+
+        <div className={'mlProCategoryCard '+(form.ml_category_id?'ok':'pending')}>
+          <div><span>{form.ml_category_id?'✓':'!'}</span><div><small>CATEGORIA DO MERCADO LIVRE</small><b>{form.ml_category_id?'Categoria configurada':'Categoria ainda não definida'}</b><p>{form.ml_category_id?`Código ${form.ml_category_id}`:'Clique no botão para o CDM procurar a categoria compatível.'}</p></div></div>
+          {!form.ml_category_id&&<button type="button" className="primary" disabled={findingCategory} onClick={onSuggestMl}>{findingCategory?'Buscando...':'Sugerir categoria agora'}</button>}
+        </div>
+
+        {mlVehicleType(form)&&<div className="mlAutoSourceBar"><span className="mlAutoSourceBadge">✓ Automático</span><span>Tipo de veículo: <b>{mlVehicleType(form)==='truck'?'Caminhão / Linha Pesada':'Carro / Caminhonete'}</b></span></div>}
+
+        {attrsBusy?<div className="mlProLoading">Carregando campos exigidos pelo Mercado Livre...</div>:requiredAttrs.filter(a=>a.id!=='VEHICLE_TYPE').length?<div className="mlAttributeGrid">{requiredAttrs.filter(a=>a.id!=='VEHICLE_TYPE').map(a=>{const id=String(a.id||'');const autoValue=mlManagedAttributeValue(form,id);const current=parseMlAttrs(form.ml_attributes_json)[id]||'';if(id==='BRAND'){const availableBrands=brands?.length?brands:FALLBACK_VEHICLE_BRANDS;return <div className="mlManagedField" key={id}><Field label={`${a.name} *`}><select value={form.brand||''} onChange={e=>setForm({...form,brand:e.target.value,model:e.target.value===form.brand?form.model:''})}><option value="">Selecione a marca...</option>{availableBrands.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><div className="mlManagedHint"><span>✓ Vem do cadastro da peça</span><small>É a mesma marca informada no cadastro principal.</small></div></div>}if(id==='MODEL'){return <div className="mlManagedField" key={id}><Field label={`${a.name} *`}><input value={form.model||''} onChange={e=>setForm({...form,model:e.target.value})} placeholder="Modelo da aplicação"/></Field><div className="mlManagedHint"><span>✓ Sincronizado com o cadastro</span><small>Alterar aqui também atualiza o modelo da peça.</small></div></div>}if(id==='PART_NUMBER'||id==='OEM'){return <div className="mlManagedField" key={id}><Field label={`${a.name} *`}><input value={form.oem||''} onChange={e=>setForm({...form,oem:e.target.value})} placeholder="Código/OEM da peça"/></Field><div className="mlManagedHint"><span>✓ Vem do código/OEM</span><small>Não precisa digitar o número da peça duas vezes.</small></div></div>}if(id==='ITEM_CONDITION'){return <div className="mlManagedField readOnly" key={id}><Field label={`${a.name} *`}><input value={autoValue||''} readOnly/></Field><div className="mlManagedHint"><span>✓ Definido pela condição</span><small>Altere na etapa 02 se necessário.</small></div></div>}return <Field key={id} label={`${a.name} *`}>{a.values?.length?<select value={current} onChange={e=>{const m=parseMlAttrs(form.ml_attributes_json);m[id]=e.target.value;setForm({...form,ml_attributes_json:JSON.stringify(m)})}}><option value="">Selecione...</option>{a.values.map(v=><option key={v.id||v.name} value={v.name}>{v.name}</option>)}</select>:<input value={current} onChange={e=>{const m=parseMlAttrs(form.ml_attributes_json);m[id]=e.target.value;setForm({...form,ml_attributes_json:JSON.stringify(m)})}}/>}</Field>})}</div>:form.ml_category_id?<div className="mlProSuccess">✓ Nenhum outro campo obrigatório precisa ser preenchido manualmente.</div>:<div className="mlProEmpty">Escolha o tipo de veículo e gere uma categoria para continuar.</div>}
+      </section>
+    </div>}
     {market==='shopee'&&<div className="modalBody">
       <div className={'videoMlAccount '+(shopeeSetup?.connected?'connected':'pending')}>
         <div className="videoMlAccountLogo">SH</div>
@@ -2446,6 +2569,72 @@ function ProductImages({form,setForm,notice}){
  </div>
 }
 
+function BRLMoneyInput({value,onChange,placeholder='0,00'}){
+ const ref=useRef(null)
+
+ function toDisplay(v,editing=false){
+  if(v===null||v===undefined||String(v).trim()==='')return ''
+  const raw=String(v).trim().replace(/\s/g,'')
+  const normalized=raw.includes(',')?raw.replace(/\./g,'').replace(',','.'):raw
+  const num=Number(normalized)
+  if(!Number.isFinite(num))return raw.replace('.',',')
+  if(editing){
+   const parts=String(normalized).split('.')
+   return parts.length>1?`${parts[0]},${parts[1].slice(0,2)}`:parts[0]
+  }
+  return num.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})
+ }
+
+ const [text,setText]=useState(()=>toDisplay(value,false))
+
+ useEffect(()=>{
+  if(document.activeElement===ref.current)return
+  setText(toDisplay(value,false))
+ },[value])
+
+ function handleChange(e){
+  const typed=String(e.target.value||'').replace(/[^\d.,]/g,'')
+  if(!typed){
+   setText('')
+   onChange('')
+   return
+  }
+
+  const lastComma=typed.lastIndexOf(',')
+  const lastDot=typed.lastIndexOf('.')
+  const sep=Math.max(lastComma,lastDot)
+  let integerPart=''
+  let decimalPart=''
+  let hasSeparator=sep>=0
+
+  if(hasSeparator){
+   integerPart=typed.slice(0,sep).replace(/\D/g,'')
+   decimalPart=typed.slice(sep+1).replace(/\D/g,'').slice(0,2)
+  }else{
+   integerPart=typed.replace(/\D/g,'')
+  }
+
+  integerPart=integerPart.replace(/^0+(?=\d)/,'')||'0'
+  const visual=hasSeparator?`${integerPart},${decimalPart}`:integerPart
+  const normalized=decimalPart?`${integerPart}.${decimalPart}`:integerPart
+
+  setText(visual)
+  onChange(normalized)
+ }
+
+ return <input
+  ref={ref}
+  type="text"
+  inputMode="decimal"
+  autoComplete="off"
+  value={text}
+  placeholder={placeholder}
+  onFocus={()=>setText(toDisplay(value,true))}
+  onBlur={()=>setText(toDisplay(value,false))}
+  onChange={handleChange}
+ />
+}
+
 function ProductYearPicker({value,onChange}){
  const [open,setOpen]=useState(false)
  const ref=useRef(null)
@@ -2613,7 +2802,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
   async function save(autoPublish=false){try{if(!String(form.sku||'').trim()||!String(form.name||'').trim())return notice('Informe SKU e nome da peça');const payload={...form,auto_publish:autoPublish,price:Number(form.price||0),cost:Number(form.cost||0),stock:Number(form.stock||0),weight:Number(form.weight||0),package_length:Number(form.package_length||0),package_width:Number(form.package_width||0),package_height:Number(form.package_height||0),year:form.year?+form.year:null,vehicle_id:form.vehicle_id?+form.vehicle_id:null,location_id:form.location_id?+form.location_id:null};if(editing)await api.put(`/products/${initialProduct.id}`,payload);else await api.post('/products',payload);await refresh();notice(editing?(autoPublish?'Peça atualizada e canais ativos processados':'Peça atualizada'):(autoPublish?'Peça cadastrada e canais ativos processados':'Peça cadastrada'));if(editing){onClose?.()}else{setForm({...productEmpty});setStep('cadastro');loadNextSku()}}catch(e){notice(erroPt(e.response?.data?.detail)||'Erro ao salvar a peça')}}
   const channel=(id,label,field,desc)=><div className={'videoChannelRow '+(form[field]?'enabled':'disabled')}>
     <div className="videoChannelIdentity"><MarketLogo id={id}/><div><b>{label}</b><small>{form[field]?'Canal ativado para esta peça':desc}</small></div></div>
-    <div className="videoChannelPrice"><small>Preço de venda</small><div><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+    <div className="videoChannelPrice"><small>Preço de venda</small><div><span>R$</span><BRLMoneyInput value={form.price??''} onChange={value=>setForm({...form,price:value})} placeholder="0,00"/></div></div>
     <label className="switch videoChannelSwitch"><input type="checkbox" checked={!!form[field]} onChange={e=>setForm({...form,[field]:e.target.checked})}/><i/></label>
     <button type="button" className="videoChannelAction" disabled={!form[field]} onClick={()=>setMarketModal(id)}>{form[field]?'Personalizar':'Ative o canal'}</button>
   </div>
@@ -2763,27 +2952,27 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
             <div className="videoExactChannelList cdmPublishChannels">
               <div className="videoExactChannel sale cdmPublishChannel">
                 <div className="videoExactChannelIdentity"><div className="videoExactChannelIcon">$</div><div><b>Venda balcão</b><span className="cdmChannelState ready">Preço padrão do produto</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><BRLMoneyInput value={form.price??''} onChange={value=>setForm({...form,price:value})} placeholder="0,00"/></div></div>
                 <span className="cdmChannelDefault">Padrão</span>
               </div>
 
               <div className={'videoExactChannel ml cdmPublishChannel '+(form.publish_mercadolivre?'enabled':'')}>
                 <div className="videoExactChannelIdentity"><MarketLogo id="mercadolivre"/><div><b>Mercado Livre</b><span className={'cdmChannelState '+(form.publish_mercadolivre?'ready':'off')}>{form.publish_mercadolivre?'Canal ativado':'Canal desativado'}</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><BRLMoneyInput value={form.price??''} onChange={value=>setForm({...form,price:value})} placeholder="0,00"/></div></div>
                 <label className="switch"><input type="checkbox" checked={!!form.publish_mercadolivre} onChange={e=>setForm({...form,publish_mercadolivre:e.target.checked})}/><i/></label>
                 <button type="button" className="videoExactManage" disabled={!form.publish_mercadolivre} onClick={()=>setMarketModal('mercadolivre')}>Ajustar</button>
               </div>
 
               <div className={'videoExactChannel shopee cdmPublishChannel '+(form.publish_shopee?'enabled':'')}>
                 <div className="videoExactChannelIdentity"><MarketLogo id="shopee"/><div><b>Shopee</b><span className={'cdmChannelState '+(form.publish_shopee?'ready':'off')}>{form.publish_shopee?'Canal ativado':'Canal desativado'}</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><BRLMoneyInput value={form.price??''} onChange={value=>setForm({...form,price:value})} placeholder="0,00"/></div></div>
                 <label className="switch"><input type="checkbox" checked={!!form.publish_shopee} onChange={e=>setForm({...form,publish_shopee:e.target.checked})}/><i/></label>
                 <button type="button" className="videoExactManage" disabled={!form.publish_shopee} onClick={()=>setMarketModal('shopee')}>Ajustar</button>
               </div>
 
               <div className={'videoExactChannel olx cdmPublishChannel '+(form.publish_olx?'enabled':'')}>
                 <div className="videoExactChannelIdentity"><MarketLogo id="olx"/><div><b>OLX</b><span className={'cdmChannelState '+(form.publish_olx?'ready':'off')}>{form.publish_olx?'Canal ativado':'Canal desativado'}</span></div></div>
-                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></div>
+                <div className="videoExactChannelPrice"><small>Preço de venda</small><div className="cdmMoneyInput"><span>R$</span><BRLMoneyInput value={form.price??''} onChange={value=>setForm({...form,price:value})} placeholder="0,00"/></div></div>
                 <label className="switch"><input type="checkbox" checked={!!form.publish_olx} onChange={e=>setForm({...form,publish_olx:e.target.checked})}/><i/></label>
                 <button type="button" className="videoExactManage" disabled={!form.publish_olx} onClick={()=>setMarketModal('olx')}>Ajustar</button>
               </div>
@@ -2797,8 +2986,8 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
           <div className="videoExactSectionHead"><div><h3>Precificação</h3><p>Precificação da peça.</p></div></div>
           <div className="videoExactSectionBody">
             <div className="videoExactPricingInputs cdmPricingInputs">
-              <Field label="Custo de compra"><div className="cdmMoneyInput cdmMoneyInputLarge"><span>R$</span><input type="number" step="0.01" value={form.cost??''} onChange={e=>setForm({...form,cost:e.target.value})} placeholder="0,00"/></div></Field>
-              <Field label="Preço de venda"><div className="cdmMoneyInput cdmMoneyInputLarge"><span>R$</span><input type="number" step="0.01" value={form.price??''} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0,00"/></div></Field>
+              <Field label="Custo de compra"><div className="cdmMoneyInput cdmMoneyInputLarge"><span>R$</span><BRLMoneyInput value={form.cost??''} onChange={value=>setForm({...form,cost:value})} placeholder="0,00"/></div></Field>
+              <Field label="Preço de venda"><div className="cdmMoneyInput cdmMoneyInputLarge"><span>R$</span><BRLMoneyInput value={form.price??''} onChange={value=>setForm({...form,price:value})} placeholder="0,00"/></div></Field>
             </div>
 
             <div className="videoExactPriceRecommendation">
@@ -2838,7 +3027,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     </div>
 
     {categoryOpen&&<div className="modalBackdrop" onMouseDown={e=>e.target===e.currentTarget&&setCategoryOpen(false)}><div className="v8Modal medium categoryPickerModal"><div className="modalHead"><div><small>CATEGORIAS</small><h2>Pesquisar Categoria</h2><p>Pesquise e selecione uma categoria do Mercado Livre.</p></div><button className="iconClose" onClick={()=>setCategoryOpen(false)}>×</button></div><div className="modalBody"><div className="categorySearchBar"><input autoFocus value={categoryQuery} onChange={e=>setCategoryQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&searchCategory()} placeholder="Pesquise categorias do Mercado Livre"/><button type="button" className="primary" onClick={searchCategory} disabled={categoryBusy}>{categoryBusy?'Buscando...':'Buscar'}</button></div>{categoryResults.length>0?<div className="categoryResults"><div className="categoryResultsHead">CATEGORIAS MERCADO LIVRE</div>{categoryResults.map(item=><button type="button" key={item.category_id} onClick={()=>chooseCategory(item)}><div><strong>{item.category_name||'Categoria'}</strong><span>{item.domain_name||item.domain_id||''}</span></div><small>{item.category_id}</small></button>)}</div>:<div className="categoryEmpty">Digite o nome da peça ou categoria e clique em Buscar.</div>}</div></div></div>}
-    <MarketplaceConfigModal market={marketModal} form={form} setForm={setForm} brands={brands} onClose={()=>setMarketModal(null)}/>
+    <MarketplaceConfigModal market={marketModal} form={form} setForm={setForm} brands={brands} onSuggestMl={suggestMl} findingCategory={findingCategory} onClose={()=>setMarketModal(null)}/>
   </section>
 }
 
@@ -3233,10 +3422,53 @@ function TaxConfig({data,refresh,notice}){const empty={state:'RJ',tax_profile:'S
 
 
 function LabelsModule({tab,products,company}){
-  const [selected,setSelected]=useState([]),[printItems,setPrintItems]=useState([])
+  const [selected,setSelected]=useState([]),[printItems,setPrintItems]=useState([]),[query,setQuery]=useState('')
+  const visible=useMemo(()=>{
+    const q=query.trim().toLowerCase()
+    return products.filter(p=>!q||`${p.id} ${p.sku||''} ${p.name||''} ${p.brand||''} ${p.model||''} ${p.year||''}`.toLowerCase().includes(q)).slice(0,60)
+  },[products,query])
+
   function toggle(id){setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id])}
   function printSelected(){const items=products.filter(p=>selected.includes(p.id));if(!items.length)return;setPrintItems(items);setTimeout(()=>window.print(),180)}
-  return <><section className="panel"><PanelHead eyebrow="ETIQUETAS" title={tab==='label-models'?'Modelo padrão CDM':'Gerar Etiquetas'} text="Selecione as peças e imprima etiquetas com Código QR, código grande e aplicação do veículo."/><div className="labelToolbar"><button className="labelBtn" onClick={printSelected} disabled={!selected.length}>▣ Imprimir selecionadas ({selected.length})</button><button className="ghost" onClick={()=>setSelected(selected.length===products.length?[]:products.map(p=>p.id))}>{selected.length===products.length&&products.length?'Limpar seleção':'Selecionar todas'}</button></div>{tab==='label-models'&&<div className="labelModelInfo"><b>Etiqueta CDM 100 × 50 mm</b><span>Empresa + Código QR + código grande + descrição + veículo/OEM + SKU.</span></div>}<div className="labelGrid">{products.slice(0,36).map(p=><label className={'labelPreview '+(selected.includes(p.id)?'selected':'')} key={p.id}><input type="checkbox" checked={selected.includes(p.id)} onChange={()=>toggle(p.id)}/><QRCodeSVG value={`${location.origin}/?produto=${p.id}&sku=${encodeURIComponent(p.sku||'')}`} size={62}/><div><small>#{p.id} · {p.sku}</small><b>{p.name}</b><strong>{p.brand} {p.model} {p.year||''}</strong></div></label>)}</div></section><LabelPrintOverlay products={printItems} company={company}/></>
+  function selectVisible(){
+    const ids=visible.map(p=>p.id)
+    const allSelected=ids.length&&ids.every(id=>selected.includes(id))
+    setSelected(s=>allSelected?s.filter(id=>!ids.includes(id)):[...new Set([...s,...ids])])
+  }
+
+  const visibleSelected=visible.length&&visible.every(p=>selected.includes(p.id))
+
+  return <>
+   <section className="panel labelsProPage">
+    <PanelHead eyebrow="ETIQUETAS" title={tab==='label-models'?'Modelo padrão CDM':'Gerar Etiquetas'} text="Pesquise, selecione e imprima etiquetas profissionais sem elementos sobrepostos."/>
+
+    <div className="labelsProToolbar">
+      <div className="labelsProSearch">
+        <span>⌕</span>
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por SKU, peça, marca, modelo ou ano..."/>
+      </div>
+      <div className="labelsProCount"><b>{visible.length}</b><span>peça(s) visível(is)</span></div>
+      <button className="ghost" onClick={selectVisible}>{visibleSelected?'Limpar visíveis':'Selecionar visíveis'}</button>
+      <button className="labelBtn" onClick={printSelected} disabled={!selected.length}>▣ Imprimir selecionadas ({selected.length})</button>
+    </div>
+
+    {tab==='label-models'&&<div className="labelModelInfo labelsModelPro">
+      <div><small>MODELO ATIVO</small><b>Etiqueta CDM 100 × 50 mm</b><span>Empresa + Código QR + código grande + descrição + veículo/OEM + SKU.</span></div>
+      <strong>100 × 50 mm</strong>
+    </div>}
+
+    <div className="labelGrid labelsProGrid">
+      {visible.map(p=><label className={'labelPreview labelsProCard '+(selected.includes(p.id)?'selected':'')} key={p.id}>
+        <span className="labelsProCheck"><input type="checkbox" checked={selected.includes(p.id)} onChange={()=>toggle(p.id)}/></span>
+        <span className="labelsProQr"><QRCodeSVG value={`${location.origin}/?produto=${p.id}&sku=${encodeURIComponent(p.sku||'')}`} size={62}/></span>
+        <span className="labelsProInfo"><small>#{p.id} · SKU {p.sku||'—'}</small><b>{p.name}</b><strong>{[p.brand,p.model,p.year].filter(Boolean).join(' ')||'Aplicação não informada'}</strong></span>
+      </label>)}
+    </div>
+
+    {!visible.length&&<div className="emptyState">Nenhuma peça encontrada para esta busca.</div>}
+   </section>
+   <LabelPrintOverlay products={printItems} company={company}/>
+  </>
 }
 
 // CDM PDV V2

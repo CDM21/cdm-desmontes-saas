@@ -6658,3 +6658,386 @@ body[data-theme="light"] .cdmMoneyInput>span{background:#f4f7f5}
  .videoExactPriceRecommendation{grid-template-columns:1fr!important}
 }
 
+/* =========================================================
+   CDM V21 — ACABAMENTO EMPRESARIAL + ML PRO + CONTROLES
+   ========================================================= */
+
+/* 1) Tipografia comum: remove sensação de letras microscópicas */
+.sidebar .navMain{font-size:12px!important;min-height:40px!important}
+.sidebar .subNav button{font-size:11px!important;min-height:36px!important}
+.sidebar .sidebarFoot span{font-size:11px!important}
+.sidebar .sidebarFoot small{font-size:9px!important}
+.topbar .globalSearch input{font-size:12px!important}
+.content .pageTitle>div>span{font-size:10px!important}
+.content .pageTitle h2{font-size:24px!important}
+.content .pageTitle p{font-size:12px!important;line-height:1.5}
+.content .panelTitle small{font-size:9.5px!important}
+.content .panelTitle h2{font-size:19px!important}
+.content .panelTitle p{font-size:11px!important;line-height:1.5}
+.content .field>span{font-size:10.5px!important;line-height:1.35}
+.content input:not([type="checkbox"]):not([type="radio"]),
+.content select,
+.content textarea{font-size:12px!important}
+.content button,
+.content .primary,
+.content .ghost,
+.content .excelBtn,
+.content .filterBtn,
+.content .publishBtn{font-size:11px!important}
+.content .pill{font-size:9px!important}
+.content table th{font-size:10px!important}
+.content table td{font-size:11px!important}
+
+/* 2) Evita elementos invadindo textos em grids/flex */
+.content .formGrid>*,
+.content .grid>*,
+.content .twoCols>*,
+.content .moduleCards>*,
+.content .inventoryToolbar>*,
+.content .labelGrid>*{min-width:0}
+.content input,
+.content select,
+.content textarea,
+.content button{max-width:100%}
+.content label{min-width:0}
+
+/* 3) Checkbox/radio: tamanho previsível em TODAS as abas */
+.content input[type="checkbox"],
+.content input[type="radio"]{
+  width:16px!important;
+  height:16px!important;
+  min-width:16px!important;
+  min-height:16px!important;
+  padding:0!important;
+  margin:0;
+  box-shadow:none!important;
+  flex:0 0 16px
+}
+.content .switch input[type="checkbox"]{display:none!important}
+
+/* 4) Selects modernos e uniformes */
+.content select{
+  -webkit-appearance:none;
+  appearance:none;
+  padding-right:36px!important;
+  background-image:
+    linear-gradient(45deg,transparent 50%,#86938e 50%),
+    linear-gradient(135deg,#86938e 50%,transparent 50%)!important;
+  background-position:
+    calc(100% - 16px) calc(50% - 2px),
+    calc(100% - 11px) calc(50% - 2px)!important;
+  background-size:5px 5px,5px 5px!important;
+  background-repeat:no-repeat!important
+}
+
+/* 5) Campos de busca reconhecíveis e com respiro */
+.content input[placeholder*="Buscar"],
+.content input[placeholder*="buscar"],
+.content input[placeholder*="Pesquise"],
+.content input[placeholder*="Pesquisar"]{
+  padding-left:36px!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23889590' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;
+  background-position:11px center!important;
+  background-size:16px 16px!important
+}
+
+/* 6) Etiquetas: checkbox nunca mais em cima do conteúdo */
+.labelsProPage{overflow:visible!important}
+.labelsProToolbar{
+  display:grid;
+  grid-template-columns:minmax(280px,1fr) auto auto auto;
+  gap:10px;
+  align-items:center;
+  margin-bottom:16px
+}
+.labelsProSearch{
+  min-width:0;
+  position:relative;
+  display:flex;
+  align-items:center
+}
+.labelsProSearch>span{
+  position:absolute;
+  left:12px;
+  z-index:2;
+  color:var(--muted);
+  font-size:15px;
+  pointer-events:none
+}
+.labelsProSearch input{
+  min-height:42px;
+  padding-left:38px!important;
+  border-radius:10px!important
+}
+.labelsProCount{
+  min-width:92px;
+  display:grid;
+  gap:1px;
+  padding:6px 10px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--soft)
+}
+.labelsProCount b{font-size:13px}
+.labelsProCount span{font-size:9px;color:var(--muted)}
+.labelsModelPro{
+  display:flex!important;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:14px 16px!important;
+  border-style:solid!important;
+  border-radius:11px!important
+}
+.labelsModelPro>div{display:grid;gap:3px}
+.labelsModelPro small{font-size:9px;color:var(--cdm-brand);font-weight:900;letter-spacing:.08em}
+.labelsModelPro strong{font-size:15px;white-space:nowrap}
+.labelsProGrid{
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr))!important;
+  gap:10px!important
+}
+.labelsProCard{
+  position:relative!important;
+  display:grid!important;
+  grid-template-columns:20px 70px minmax(0,1fr)!important;
+  gap:11px!important;
+  align-items:center!important;
+  min-height:92px!important;
+  padding:11px 12px!important;
+  border:1px solid var(--line)!important;
+  border-radius:11px!important;
+  background:linear-gradient(135deg,var(--panel),var(--soft))!important;
+  cursor:pointer;
+  overflow:hidden!important
+}
+.labelsProCard:hover{
+  border-color:rgba(21,151,97,.30)!important;
+  transform:translateY(-1px)
+}
+.labelsProCard.selected{
+  border-color:var(--cdm-brand)!important;
+  box-shadow:inset 0 0 0 1px rgba(21,151,97,.14)!important
+}
+.labelsProCheck{
+  width:20px;
+  display:grid;
+  place-items:center;
+  align-self:start;
+  padding-top:3px
+}
+.labelsProQr{
+  width:70px;
+  height:70px;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:#fff
+}
+.labelsProQr svg{width:58px!important;height:58px!important}
+.labelsProInfo{
+  min-width:0;
+  display:grid;
+  gap:5px
+}
+.labelsProInfo small{
+  font-size:9px!important;
+  color:var(--muted)
+}
+.labelsProInfo b{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-size:12px;
+  line-height:1.35
+}
+.labelsProInfo strong{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:10px;
+  color:var(--muted)
+}
+
+/* 7) Valores em reais */
+.cdmMoneyInput input{
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.01em
+}
+
+/* 8) Mercado Livre — fluxo empresarial, sem caixas espremidas */
+.marketConfigModalML{
+  width:min(1120px,96vw)!important;
+  max-height:94vh!important;
+  border-radius:20px!important;
+  border:1px solid rgba(89,111,104,.30)!important;
+  background:radial-gradient(circle at 14% 0%,rgba(20,151,97,.08),transparent 28%),#111821!important;
+  box-shadow:0 34px 100px rgba(0,0,0,.58)!important
+}
+.marketConfigModalML .modalHead{
+  padding:18px 22px!important;
+  background:#131b24!important;
+  border-bottom:1px solid rgba(148,163,184,.12)!important
+}
+.marketConfigModalML .modalHead:before{
+  width:4px!important;
+  background:linear-gradient(180deg,#16b878,#0f8c5b)!important
+}
+.marketConfigModalML .modalHead small{font-size:9px!important;color:#75cfa8!important}
+.marketConfigModalML .modalHead h2{font-size:23px!important}
+.marketConfigModalML .modalHead p{font-size:11px!important;max-width:760px!important}
+.mlProBody{
+  padding:18px 20px 24px!important;
+  display:grid;
+  gap:14px!important
+}
+.mlProHero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:16px;
+  align-items:center;
+  padding:16px;
+  border:1px solid rgba(148,163,184,.13);
+  border-radius:14px;
+  background:linear-gradient(135deg,rgba(24,34,45,.96),rgba(16,24,33,.96))
+}
+.mlProHeroBrand{display:flex;align-items:center;gap:13px;min-width:0}
+.mlProHeroLogo{width:48px;height:48px;min-width:48px;display:grid;place-items:center;border-radius:13px;background:#ffe600}
+.mlProHeroLogo .marketLogo{width:36px!important;height:36px!important}
+.mlProHeroBrand small{display:block;margin-bottom:3px;color:#72cfa7;font-size:9px!important;font-weight:900;letter-spacing:.12em}
+.mlProHeroBrand h3{margin:0;font-size:18px}
+.mlProHeroBrand p{margin:4px 0 0;max-width:640px;color:var(--muted);font-size:10px!important;line-height:1.5}
+.mlProConnection{min-width:190px;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(148,163,184,.14);border-radius:11px;background:rgba(5,11,17,.38)}
+.mlProConnection>span{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;font-size:13px;font-weight:900}
+.mlProConnection.ok>span{background:rgba(21,151,97,.14);color:#73dfa9}
+.mlProConnection.pending>span{background:rgba(245,158,11,.12);color:#f3bc55}
+.mlProConnection div{display:grid;gap:1px}
+.mlProConnection small{color:var(--muted);font-size:8px!important;font-weight:900;letter-spacing:.09em}
+.mlProConnection b{font-size:11px}
+.mlProConnection em{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:9px;font-style:normal}
+
+.mlProProductBar{display:grid;grid-template-columns:minmax(260px,1.6fr) repeat(3,minmax(100px,.55fr));gap:8px}
+.mlProProductBar>div{min-width:0;display:grid;align-content:center;gap:2px;min-height:58px;padding:9px 11px;border:1px solid rgba(148,163,184,.11);border-radius:10px;background:rgba(15,23,31,.72)}
+.mlProProductBar small{color:var(--muted);font-size:8px!important;font-weight:900;letter-spacing:.08em}
+.mlProProductBar b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.mlProProductBar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:9px}
+
+.mlProTitleEditor{
+  display:grid;
+  grid-template-columns:minmax(180px,.55fr) minmax(0,1.45fr);
+  gap:14px;
+  align-items:center;
+  padding:12px 14px;
+  border:1px solid rgba(148,163,184,.12);
+  border-radius:11px;
+  background:rgba(8,14,20,.38)
+}
+.mlProTitleEditor>div:first-child{display:grid;gap:2px}
+.mlProTitleEditor small{font-size:8px!important;color:var(--muted);font-weight:900;letter-spacing:.08em}
+.mlProTitleEditor b{font-size:11px}
+.mlProTitleEditor>div:last-child{position:relative}
+.mlProTitleEditor input{padding-right:48px!important}
+.mlProTitleEditor>div:last-child>span{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--muted)}
+
+.mlProProgress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:10px;border:1px solid rgba(148,163,184,.10);border-radius:12px;background:rgba(8,14,20,.46)}
+.mlProProgress>div{display:flex;align-items:center;gap:8px;min-width:0;padding:7px 9px;border-radius:9px}
+.mlProProgress i{width:27px;height:27px;min-width:27px;display:grid;place-items:center;border:1px solid rgba(148,163,184,.18);border-radius:8px;color:var(--muted);font-size:10px;font-style:normal;font-weight:900}
+.mlProProgress .done i{border-color:rgba(21,151,97,.28);background:rgba(21,151,97,.12);color:#70d9a6}
+.mlProProgress .current{background:rgba(21,151,97,.055)}
+.mlProProgress .current i{border-color:var(--cdm-brand);color:#7bdfae}
+.mlProProgress span{min-width:0;display:grid;gap:1px}
+.mlProProgress b{font-size:10px}
+.mlProProgress small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:8px!important}
+
+.mlProSection{display:grid;gap:12px;padding:16px;border:1px solid rgba(148,163,184,.12);border-radius:14px;background:linear-gradient(180deg,rgba(24,33,43,.84),rgba(17,25,34,.90))}
+.mlProSectionHead{display:grid;grid-template-columns:38px minmax(0,1fr);gap:11px;align-items:start}
+.mlProSectionHead>span{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(21,151,97,.28);border-radius:10px;background:rgba(21,151,97,.10);color:#7addad;font-size:11px;font-weight:900}
+.mlProSectionHead h4{margin:1px 0 2px;font-size:14px}
+.mlProSectionHead p{margin:0;color:var(--muted);font-size:9px!important;line-height:1.5}
+.mlProChoiceGrid{gap:9px!important}
+.mlProfessionalBody .mlProChoice{min-height:86px!important;padding:13px 14px!important;border-radius:11px!important;border:1px solid rgba(148,163,184,.13)!important;background:rgba(7,13,19,.30)!important;box-shadow:none!important;cursor:pointer}
+.mlProfessionalBody .mlProChoice:hover{transform:none!important;border-color:rgba(21,151,97,.30)!important;background:rgba(21,151,97,.04)!important}
+.mlProfessionalBody .mlProChoice.selected{border-color:rgba(21,151,97,.62)!important;background:linear-gradient(135deg,rgba(21,151,97,.12),rgba(21,151,97,.055))!important;box-shadow:inset 0 0 0 1px rgba(21,151,97,.08)!important}
+.mlProfessionalBody .mlProChoice input{top:12px!important;right:12px!important;width:16px!important;height:16px!important;accent-color:var(--cdm-brand)!important}
+.mlProfessionalBody .mlProChoice b{font-size:12px!important}
+.mlProfessionalBody .mlProChoice small{margin-top:5px!important;font-size:9px!important;line-height:1.4!important}
+.mlProChoiceIcon{display:block;margin-bottom:7px;font-size:19px}
+.mlProChoiceGrid.compact .mlProChoice{min-height:74px!important}
+.mlProTip{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border:1px solid rgba(80,142,255,.16);border-radius:9px;background:rgba(80,142,255,.045)}
+.mlProTip>span{width:22px;height:22px;min-width:22px;display:grid;place-items:center;border-radius:7px;background:rgba(80,142,255,.12);color:#8bb5ff;font-size:10px;font-weight:900}
+.mlProTip p{margin:1px 0 0;color:var(--muted);font-size:9px!important;line-height:1.45}.mlProTip b{color:var(--text)}
+.mlProBlockLabel{display:flex;align-items:center;justify-content:space-between;gap:10px}.mlProBlockLabel b{font-size:10px}.mlProBlockLabel small{color:var(--muted);font-size:8px!important}
+.mlProSplit{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mlProSplit>div{display:grid;align-content:start;gap:8px;padding:12px;border:1px solid rgba(148,163,184,.10);border-radius:10px;background:rgba(7,13,19,.24)}
+.mlProSegmented{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border:1px solid rgba(148,163,184,.12);border-radius:9px;background:rgba(4,9,14,.34)}
+.mlProSegmented button{min-height:34px;padding:0 10px;border-radius:7px;background:transparent;color:var(--muted);font-size:10px!important;font-weight:800}
+.mlProSegmented button.active{background:var(--cdm-brand);color:#fff;box-shadow:0 5px 14px rgba(21,151,97,.20)}
+.mlProSwitchRows{grid-template-columns:1fr 1fr!important}
+.mlProfessionalBody .mlProSwitchRows label{min-height:62px!important;padding:11px 12px!important;border-radius:10px!important;background:rgba(7,13,19,.24)!important}
+.mlProInlinePanel{display:grid;gap:8px;padding:12px;border:1px solid rgba(148,163,184,.10);border-radius:10px;background:rgba(7,13,19,.24)}
+
+.mlProCategoryCard{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid rgba(148,163,184,.12);border-radius:11px;background:rgba(7,13,19,.26)}
+.mlProCategoryCard>div{display:flex;align-items:center;gap:10px;min-width:0}
+.mlProCategoryCard>div>span{width:32px;height:32px;min-width:32px;display:grid;place-items:center;border-radius:9px;font-weight:900}
+.mlProCategoryCard.ok>div>span{background:rgba(21,151,97,.13);color:#73dda9}
+.mlProCategoryCard.pending>div>span{background:rgba(245,158,11,.12);color:#f1ba55}
+.mlProCategoryCard small{font-size:8px!important;color:var(--muted);font-weight:900;letter-spacing:.06em}
+.mlProCategoryCard b{display:block;margin-top:2px;font-size:11px}
+.mlProCategoryCard p{margin:2px 0 0;color:var(--muted);font-size:9px!important}
+.mlProCategoryCard button{min-width:165px}
+.mlProLoading,.mlProEmpty,.mlProSuccess{padding:13px;border:1px dashed rgba(148,163,184,.16);border-radius:10px;color:var(--muted);font-size:10px}
+.mlProSuccess{border-style:solid;border-color:rgba(21,151,97,.20);background:rgba(21,151,97,.055);color:#79dcae}
+
+/* Corrige fontes minúsculas de regras antigas dentro do novo ML */
+.mlProBody .fieldHelp,
+.mlProBody .mlAutoSourceBar{font-size:9px!important}
+.mlProBody .mlManagedHint span{font-size:9px!important}
+.mlProBody .mlManagedHint small{font-size:8.5px!important}
+.mlProBody .mlAttributeGrid{gap:10px!important}
+.mlProBody .mlManagedField{padding:11px!important;border-radius:10px!important}
+
+/* Tema claro */
+body[data-theme="light"] .mlProHero,
+body[data-theme="light"] .mlProSection{
+  background:linear-gradient(180deg,#fff,#f7faf8)!important;
+  border-color:#d9e4df!important
+}
+body[data-theme="light"] .mlProProductBar>div,
+body[data-theme="light"] .mlProProgress,
+body[data-theme="light"] .mlProTitleEditor,
+body[data-theme="light"] .mlProSplit>div,
+body[data-theme="light"] .mlProInlinePanel,
+body[data-theme="light"] .mlProCategoryCard{
+  background:#f8faf9!important;
+  border-color:#dce5e1!important
+}
+
+/* Responsividade */
+@media(max-width:980px){
+ .labelsProToolbar{grid-template-columns:1fr 1fr}
+ .labelsProSearch{grid-column:1/-1}
+ .mlProProductBar{grid-template-columns:1fr 1fr}
+ .mlProProductBar .main{grid-column:1/-1}
+ .mlProProgress{grid-template-columns:1fr 1fr}
+}
+@media(max-width:760px){
+ .labelsProToolbar{grid-template-columns:1fr}
+ .labelsProSearch{grid-column:auto}
+ .labelsModelPro{align-items:flex-start;flex-direction:column}
+ .labelsProGrid{grid-template-columns:1fr!important}
+ .mlProHero{grid-template-columns:1fr}
+ .mlProConnection{min-width:0}
+ .mlProTitleEditor{grid-template-columns:1fr}
+ .mlProSplit{grid-template-columns:1fr}
+ .mlProSwitchRows{grid-template-columns:1fr!important}
+ .mlProCategoryCard{align-items:stretch;flex-direction:column}
+ .mlProCategoryCard button{width:100%;min-width:0}
+ .mlProProductBar{grid-template-columns:1fr 1fr}
+ .mlProProgress{grid-template-columns:1fr 1fr}
+}
+@media(max-width:460px){
+ .labelsProCard{grid-template-columns:20px 58px minmax(0,1fr)!important}
+ .labelsProQr{width:58px;height:58px}
+ .labelsProQr svg{width:50px!important;height:50px!important}
+ .mlProProductBar,.mlProProgress{grid-template-columns:1fr}
+}
