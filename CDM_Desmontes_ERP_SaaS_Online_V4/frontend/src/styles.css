@@ -7384,3 +7384,76 @@ body[data-theme="light"] .marketConfigModalML .modalFoot{
     min-width:0
   }
 }
+
+/* =========================================================
+   CDM V21.2 — MODAL ML FIXO + SCROLL ISOLADO
+   ========================================================= */
+
+/* O fundo do cadastro fica totalmente parado enquanto o ajuste está aberto */
+.marketplaceModalBackdrop{
+  position:fixed!important;
+  inset:0!important;
+  overflow:hidden!important;
+  overscroll-behavior:none!important;
+  touch-action:none
+}
+
+/* A janela fica fixa no centro da tela */
+.marketConfigModalML{
+  position:relative!important;
+  max-height:90dvh!important;
+  height:min(90dvh,860px);
+  overflow:hidden!important;
+  overscroll-behavior:contain!important
+}
+
+/* Só o conteúdo central do Mercado Livre rola */
+.marketConfigModalML .mlProBody{
+  min-height:0!important;
+  height:100%;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior:contain!important;
+  touch-action:pan-y;
+  scrollbar-gutter:stable
+}
+
+/* Cabeçalho e rodapé ficam parados */
+.marketConfigModalML .modalHead{
+  position:relative!important;
+  z-index:6
+}
+.marketConfigModalML .modalFoot{
+  position:relative!important;
+  z-index:7!important;
+  bottom:auto!important
+}
+
+/* Barra de rolagem discreta somente dentro do modal */
+.marketConfigModalML .mlProBody{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(125,145,138,.45) transparent
+}
+.marketConfigModalML .mlProBody::-webkit-scrollbar{
+  width:8px
+}
+.marketConfigModalML .mlProBody::-webkit-scrollbar-track{
+  background:transparent
+}
+.marketConfigModalML .mlProBody::-webkit-scrollbar-thumb{
+  border:2px solid transparent;
+  border-radius:999px;
+  background:rgba(125,145,138,.42);
+  background-clip:padding-box
+}
+.marketConfigModalML .mlProBody::-webkit-scrollbar-thumb:hover{
+  background:rgba(125,145,138,.62);
+  background-clip:padding-box
+}
+
+@media(max-width:900px){
+  .marketConfigModalML{
+    height:94dvh!important;
+    max-height:94dvh!important
+  }
+}

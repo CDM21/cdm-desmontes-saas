@@ -1979,6 +1979,23 @@ function mlIsManagedAttribute(id){
 function MarketplaceConfigModal({market,form,setForm,onClose,brands=[],onSuggestMl=null,findingCategory=false}){
   const [requiredAttrs,setRequiredAttrs]=useState([]),[attrsBusy,setAttrsBusy]=useState(false),[storesInfo,setStoresInfo]=useState({warehouse_management:false,multiwarehouse:false,stores:[]}),[mlConnection,setMlConnection]=useState(null)
   const [shopeeSetup,setShopeeSetup]=useState({connected:false,categories:[],logistics:[],enabled_logistics:[]}),[shopeeBusy,setShopeeBusy]=useState(false),[shopeeError,setShopeeError]=useState('')
+  useEffect(()=>{
+    if(!market)return
+    const body=document.body
+    const html=document.documentElement
+    const previousOverflow=body.style.overflow
+    const previousPaddingRight=body.style.paddingRight
+    const previousHtmlOverscroll=html.style.overscrollBehavior
+    const scrollbarWidth=Math.max(0,window.innerWidth-html.clientWidth)
+    body.style.overflow='hidden'
+    if(scrollbarWidth>0)body.style.paddingRight=`${scrollbarWidth}px`
+    html.style.overscrollBehavior='none'
+    return()=>{
+      body.style.overflow=previousOverflow
+      body.style.paddingRight=previousPaddingRight
+      html.style.overscrollBehavior=previousHtmlOverscroll
+    }
+  },[market])
   useEffect(()=>{let alive=true;if(market!=='mercadolivre'){setStoresInfo({warehouse_management:false,multiwarehouse:false,stores:[]});return}api.get('/marketplaces/mercadolivre/stores').then(r=>alive&&setStoresInfo(r.data||{warehouse_management:false,multiwarehouse:false,stores:[]})).catch(()=>alive&&setStoresInfo({warehouse_management:false,multiwarehouse:false,stores:[]}));return()=>{alive=false}},[market])
   useEffect(()=>{let alive=true;if(market!=='mercadolivre'){setMlConnection(null);return}api.get('/marketplaces/mercadolivre/connection-check').then(r=>alive&&setMlConnection(r.data||null)).catch(()=>alive&&setMlConnection(null));return()=>{alive=false}},[market])
   useEffect(()=>{let alive=true;if(market!=='mercadolivre'||!form.ml_category_id){setRequiredAttrs([]);return}setAttrsBusy(true);api.get(`/marketplaces/mercadolivre/category/${form.ml_category_id}/attributes`).then(r=>alive&&setRequiredAttrs(r.data||[])).catch(()=>alive&&setRequiredAttrs([])).finally(()=>alive&&setAttrsBusy(false));return()=>{alive=false}},[market,form.ml_category_id])
