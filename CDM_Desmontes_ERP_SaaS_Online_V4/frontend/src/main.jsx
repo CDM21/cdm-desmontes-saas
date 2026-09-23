@@ -2019,8 +2019,11 @@ function RacePhotoLoader({progress=0,elapsed=0,text='Processando foto...'}){
 function ProductImages({form,setForm,notice}){
  const [busy,setBusy]=useState(false),[zoom,setZoom]=useState(null),[elapsed,setElapsed]=useState(0),[raceDone,setRaceDone]=useState(false)
  const [pendingPreviews,setPendingPreviews]=useState([])
- const [whiteBusyIndex,setWhiteBusyIndex]=useState(null)
+ const [whiteJobs,setWhiteJobs]=useState({})
  const [whiteBgOriginals,setWhiteBgOriginals]=useState({})
+ const whiteQueueRef=useRef([])
+ const whiteQueuedRef=useRef(new Set())
+ const whiteWorkerRef=useRef(false)
  const images=imageList(form.image_urls)
  const zoomIndex=zoom?images.findIndex(x=>x===zoom):-1
  const progress=raceDone?100:Math.min(94,18+(elapsed*18))
@@ -2115,49 +2118,90 @@ function ProductImages({form,setForm,notice}){
    }
  }
 
- async function applyWhiteBackgroundAt(index){
-   if(busy||whiteBusyIndex!==null)return
+ function replacePhotoSource(fromSrc,toSrc){
+   setForm(current=>{
+     const currentImages=imageList(current.image_urls)
+     const pos=currentImages.findIndex(value=>value===fromSrc)
+     if(pos<0)return current
+     const next=[...currentImages]
+     next[pos]=toSrc
+     return {...current,image_urls:next.join('\n')}
+   })
+ }
+
+ async function processWhiteQueue(){
+   if(whiteWorkerRef.current)return
+   whiteWorkerRef.current=true
+
+   try{
+     while(whiteQueueRef.current.length){
+       const job=whiteQueueRef.current.shift()
+       const {src,index}=job
+       setWhiteJobs(map=>({...map,[src]:'processing'}))
+
+       const file=imageSourceToFile(src,index)
+       if(!file){
+         notice(`A foto ${index+1} não pôde ser preparada para o fundo branco`)
+         whiteQueuedRef.current.delete(src)
+         setWhiteJobs(map=>{
+           const next={...map}
+           delete next[src]
+           return next
+         })
+         continue
+       }
+
+       try{
+         const out=await prepareProductImageCore(file,true,'basic')
+         replacePhotoSource(src,out)
+         setZoom(current=>current===src?out:current)
+         setWhiteBgOriginals(map=>({...map,[out]:src}))
+         notice(`Fundo branco aplicado na foto ${index+1}`)
+       }catch(e){
+         console.error('CDM Pro não concluiu o fundo branco desta foto:',e)
+         notice(`Não foi possível aplicar o fundo branco na foto ${index+1}`)
+       }finally{
+         whiteQueuedRef.current.delete(src)
+         setWhiteJobs(map=>{
+           const next={...map}
+           delete next[src]
+           return next
+         })
+       }
+     }
+   }finally{
+     whiteWorkerRef.current=false
+     if(whiteQueueRef.current.length)processWhiteQueue()
+   }
+ }
+
+ function applyWhiteBackgroundAt(index){
+   if(busy)return
 
    const src=images[index]
    if(!src)return
 
    const originalSrc=whiteBgOriginals[src]
    if(originalSrc){
-     const next=[...images]
-     next[index]=originalSrc
-     save(next)
-     if(zoom===src)setZoom(originalSrc)
+     replacePhotoSource(src,originalSrc)
+     setZoom(current=>current===src?originalSrc:current)
      setWhiteBgOriginals(map=>{
-       const nextMap={...map}
-       delete nextMap[src]
-       return nextMap
+       const next={...map}
+       delete next[src]
+       return next
      })
      notice(`Fundo branco removido da foto ${index+1}`)
      return
    }
 
-   const file=imageSourceToFile(src,index)
-   if(!file){
-     notice('Esta foto não pôde ser preparada para o fundo branco')
-     return
-   }
+   if(whiteQueuedRef.current.has(src))return
 
-   setWhiteBusyIndex(index)
-   try{
-     const out=await prepareProductImageCore(file,true,'basic')
-     const next=[...images]
-     next[index]=out
-     save(next)
-     if(zoom===src)setZoom(out)
-     setWhiteBgOriginals(map=>({...map,[out]:src}))
-     notice(`Fundo branco aplicado na foto ${index+1}`)
-   }catch(e){
-     console.error('CDM Pro não concluiu o fundo branco desta foto:',e)
-     notice(`Não foi possível aplicar o fundo branco na foto ${index+1}`)
-   }finally{
-     setWhiteBusyIndex(null)
-   }
+   whiteQueuedRef.current.add(src)
+   whiteQueueRef.current.push({src,index})
+   setWhiteJobs(map=>({...map,[src]:'queued'}))
+   processWhiteQueue()
  }
+
 
  async function applyWhiteBackground(){
    if(busy)return
@@ -2265,7 +2309,7 @@ function ProductImages({form,setForm,notice}){
            </button>
 
            <button type="button" className="mediaDeletePhoto" onClick={()=>remove(i)} title="Excluir foto">×</button>
-           <button type="button" className={'mediaWhiteBgPhoto'+(whiteBgOriginals[src]?' active':'')} onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||whiteBusyIndex!==null} title={whiteBgOriginals[src]?'Remover fundo branco desta foto':'Aplicar fundo branco nesta foto'}>{whiteBusyIndex===i?'…':whiteBgOriginals[src]?'↺':'WB'}</button>
+           <button type="button" className={'mediaWhiteBgPhoto'+(whiteBgOriginals[src]?' active':'')} onClick={()=>applyWhiteBackgroundAt(i)} disabled={busy||!!whiteJobs[src]} title={whiteJobs[src]==='queued'?'Fundo branco na fila':whiteJobs[src]==='processing'?'Aplicando fundo branco':whiteBgOriginals[src]?'Remover fundo branco desta foto':'Aplicar fundo branco nesta foto'}>{whiteJobs[src]==='processing'?'…':whiteJobs[src]==='queued'?'•':whiteBgOriginals[src]?'↺':'🖌'}</button>
 
            <div className="mediaThumbTools">
              <button type="button" onClick={()=>setZoom(src)} title="Ampliar">⌕</button>
