@@ -723,18 +723,80 @@ function Login({onLogin}){
    finally{setBusy(false)}
  }
 
- return <div className="loginPage"><section className="loginHero"><div className="heroLogo">CDM</div><span>CDM DESMONTES ERP</span><h1>Seu desmanche conectado a todos os canais.</h1><p>Estoque, sucatas, vendas, financeiro e publicação nos canais de venda em uma única operação.</p><div className="loginBenefits"><span>✓ Multiempresa</span><span>✓ Mercado Livre, Shopee e OLX</span><span>✓ Controle por assinatura</span><span>✓ 7 dias grátis · depois R$ 350/mês</span></div></section><section className="loginBox">
-   {mode!=='reset'&&<div className="loginTabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setErr('');setInfo('')}}>Entrar</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setErr('');setInfo('')}}>Criar conta</button></div>}
-   {mode==='login'&&<><h2>Bem-vindo</h2><p>Acesse o painel da sua empresa.</p><Field label="E-mail"><input value={login.email} onChange={e=>setLogin({...login,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={login.password} onChange={e=>setLogin({...login,password:e.target.value})}/></Field><button className="loginForgot" onClick={()=>{setForgotEmail(login.email);setMode('forgot');setErr('');setInfo('')}}>Esqueci minha senha</button></>}
-   {mode==='register'&&<><h2>Abra sua empresa no CDM</h2><p>O cliente cria a própria conta, testa por 7 dias e depois assina por R$ 350/mês. Os canais de venda são conectados pela própria empresa.</p><Field label="Nome da empresa"><input value={reg.company_name} onChange={e=>setReg({...reg,company_name:e.target.value})}/></Field><Field label="Seu nome"><input value={reg.name} onChange={e=>setReg({...reg,name:e.target.value})}/></Field><Field label="E-mail"><input value={reg.email} onChange={e=>setReg({...reg,email:e.target.value})}/></Field><Field label="Senha"><input type="password" value={reg.password} onChange={e=>setReg({...reg,password:e.target.value})}/></Field><div className="miniGrid"><Field label="CNPJ"><input value={reg.cnpj} onChange={e=>setReg({...reg,cnpj:e.target.value})}/></Field><Field label="Telefone"><input value={reg.phone} onChange={e=>setReg({...reg,phone:e.target.value})}/></Field></div></>}
-   {mode==='forgot'&&<><h2>Recuperar acesso</h2><p>Informe o e-mail usado no CDM. Se a conta existir, enviaremos um link temporário.</p><Field label="E-mail"><input value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)}/></Field><button className="loginBack" onClick={()=>{setMode('login');setErr('');setInfo('')}}>← Voltar para entrar</button></>}
-   {mode==='reset'&&<><h2>Criar nova senha</h2><p>Use uma senha forte com pelo menos 10 caracteres.</p><Field label="Nova senha"><input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></Field></>}
-   <button className="primary loginSubmit" disabled={busy} onClick={go}>{busy?'Aguarde...':mode==='login'?'Entrar no sistema →':mode==='register'?'Criar minha conta →':mode==='forgot'?'Enviar link de recuperação →':'Salvar nova senha →'}</button>
-   {err&&<div className="error">{err}</div>}{info&&<div className="loginSuccess">{info}</div>}
-   <small className="loginNote">Plano profissional: 7 dias de teste e depois R$ 350/mês. A cobrança recorrente é feita pelo Mercado Pago.</small><div className="loginLegal"><a href="/termos" target="_blank" rel="noreferrer">Termos de Uso</a><span>·</span><a href="/privacidade" target="_blank" rel="noreferrer">Privacidade</a></div>
- </section></div>
-}
+ return <div className="loginPage loginPagePro">
+   <section className="loginHero loginHeroPro">
+     <div className="loginHeroGlow one"/>
+     <div className="loginHeroGlow two"/>
+     <div className="loginHeroContent">
+       <div className="loginBrand">
+         <div className="heroLogo">CDM</div>
+         <div><b>CDM DESMONTES</b><span>ERP para desmontes e autopeças</span></div>
+       </div>
+       <div className="loginHeroCopy">
+         <small>GESTÃO PROFISSIONAL EM UMA ÚNICA PLATAFORMA</small>
+         <h1>Seu desmanche conectado, organizado e pronto para vender.</h1>
+         <p>Estoque, sucatas, vendas, financeiro e integração com os principais canais de venda em uma operação simples.</p>
+       </div>
+       <div className="loginBenefits">
+         <span>✓ Estoque integrado</span>
+         <span>✓ Mercado Livre, Shopee e OLX</span>
+         <span>✓ Gestão de sucatas e peças</span>
+         <span>✓ Operação multiempresa</span>
+       </div>
+       <div className="loginHeroFoot">
+         <i/>
+         <span>CDM Desmontes · Sistema online para sua operação</span>
+       </div>
+     </div>
+   </section>
 
+   <section className="loginBox loginBoxPro">
+     <div className="loginAccessBrand">
+       <small>Acesso ao</small>
+       <strong>CDM <span>WEB</span></strong>
+       <i/>
+     </div>
+
+     {mode!=='reset'&&<div className="loginTabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setErr('');setInfo('')}}>Entrar</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setErr('');setInfo('')}}>Começar agora</button></div>}
+
+     {mode==='login'&&<div className="loginFormIntro"><h2>Bem-vindo de volta</h2><p>Entre com seus dados para acessar sua empresa.</p></div>}
+     {mode==='register'&&<div className="loginFormIntro"><h2>Crie sua conta CDM</h2><p>Configure sua empresa e comece a organizar sua operação.</p></div>}
+     {mode==='forgot'&&<div className="loginFormIntro"><h2>Recuperar acesso</h2><p>Informe o e-mail usado no CDM para receber o link de recuperação.</p></div>}
+     {mode==='reset'&&<div className="loginFormIntro"><h2>Criar nova senha</h2><p>Defina uma nova senha segura para sua conta.</p></div>}
+
+     {mode==='login'&&<>
+       <Field label="E-mail"><input autoComplete="email" placeholder="seuemail@empresa.com.br" value={login.email} onChange={e=>setLogin({...login,email:e.target.value})}/></Field>
+       <Field label="Senha"><input autoComplete="current-password" placeholder="Digite sua senha" type="password" value={login.password} onChange={e=>setLogin({...login,password:e.target.value})}/></Field>
+       <button className="loginForgot" onClick={()=>{setForgotEmail(login.email);setMode('forgot');setErr('');setInfo('')}}>Esqueceu sua senha?</button>
+     </>}
+
+     {mode==='register'&&<>
+       <Field label="Nome da empresa"><input placeholder="Nome da sua empresa" value={reg.company_name} onChange={e=>setReg({...reg,company_name:e.target.value})}/></Field>
+       <Field label="Seu nome"><input placeholder="Seu nome completo" value={reg.name} onChange={e=>setReg({...reg,name:e.target.value})}/></Field>
+       <Field label="E-mail"><input autoComplete="email" placeholder="seuemail@empresa.com.br" value={reg.email} onChange={e=>setReg({...reg,email:e.target.value})}/></Field>
+       <Field label="Senha"><input autoComplete="new-password" placeholder="Crie uma senha segura" type="password" value={reg.password} onChange={e=>setReg({...reg,password:e.target.value})}/></Field>
+       <div className="miniGrid"><Field label="CNPJ"><input placeholder="Opcional" value={reg.cnpj} onChange={e=>setReg({...reg,cnpj:e.target.value})}/></Field><Field label="Telefone"><input placeholder="(00) 00000-0000" value={reg.phone} onChange={e=>setReg({...reg,phone:e.target.value})}/></Field></div>
+     </>}
+
+     {mode==='forgot'&&<>
+       <Field label="E-mail"><input autoComplete="email" placeholder="seuemail@empresa.com.br" value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)}/></Field>
+       <button className="loginBack" onClick={()=>{setMode('login');setErr('');setInfo('')}}>← Voltar para entrar</button>
+     </>}
+
+     {mode==='reset'&&<><Field label="Nova senha"><input autoComplete="new-password" placeholder="Digite sua nova senha" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></Field></>}
+
+     <button className="primary loginSubmit" disabled={busy} onClick={go}>{busy?'Aguarde...':mode==='login'?'Entrar no CDM':mode==='register'?'Criar minha conta':mode==='forgot'?'Enviar link de recuperação':'Salvar nova senha'}</button>
+
+     {err&&<div className="error">{err}</div>}
+     {info&&<div className="loginSuccess">{info}</div>}
+
+     <div className="loginDivider"><span>CDM DESMONTES</span></div>
+     <div className="loginSecurity"><span>Ambiente seguro e criptografado</span><small>Seus dados de acesso são protegidos.</small></div>
+     <small className="loginNote">7 dias de teste. Depois, R$ 350/mês no plano profissional.</small>
+     <div className="loginLegal"><a href="/termos" target="_blank" rel="noreferrer">Termos de Uso</a><span>·</span><a href="/privacidade" target="_blank" rel="noreferrer">Privacidade</a></div>
+   </section>
+ </div>
+}
 const Card=({icon,title,value,sub})=><div className="metric"><div className="metricIcon">{icon}</div><div><small>{title}</small><strong>{value}</strong><em>{sub}</em></div></div>
 
 // CDM ONBOARDING V11
