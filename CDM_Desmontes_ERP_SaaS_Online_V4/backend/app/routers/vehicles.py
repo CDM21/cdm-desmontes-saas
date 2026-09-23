@@ -221,6 +221,46 @@ def update_vehicle(vehicle_id:int,data:VehicleIn,db:Session=Depends(get_db),user
 
 
 
+@router.delete("/{vehicle_id}")
+def delete_vehicle(vehicle_id:int,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager"))):
+    row=db.query(Vehicle).filter(
+        Vehicle.id==vehicle_id,
+        Vehicle.company_id==user.company_id
+    ).first()
+    if not row:
+        raise HTTPException(404,"Veículo não encontrado")
+
+    linked_products=db.query(Product).filter(
+        Product.company_id==user.company_id,
+        Product.vehicle_id==vehicle_id
+    ).count()
+    if linked_products:
+        raise HTTPException(
+            409,
+            f"Esta sucata possui {linked_products} peça(s) vinculada(s). "
+            "Desvincule ou exclua essas peças antes de excluir a sucata."
+        )
+
+    try:
+        db.query(VehiclePhoto).filter(
+            VehiclePhoto.company_id==user.company_id,
+            VehiclePhoto.vehicle_id==vehicle_id
+        ).delete(synchronize_session=False)
+        db.query(VehicleExpense).filter(
+            VehicleExpense.company_id==user.company_id,
+            VehicleExpense.vehicle_id==vehicle_id
+        ).delete(synchronize_session=False)
+        db.query(Dismantling).filter(
+            Dismantling.company_id==user.company_id,
+            Dismantling.vehicle_id==vehicle_id
+        ).delete(synchronize_session=False)
+        db.delete(row)
+        db.commit()
+        return {"ok":True,"vehicle_id":vehicle_id}
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(500,"Não foi possível excluir a sucata agora")
+
 @router.get("/{vehicle_id}/expenses")
 def vehicle_expenses(vehicle_id:int,db:Session=Depends(get_db),user=Depends(active_user)):
     v=db.query(Vehicle).filter(Vehicle.id==vehicle_id,Vehicle.company_id==user.company_id).first()

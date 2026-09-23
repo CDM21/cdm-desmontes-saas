@@ -247,8 +247,8 @@ function App(){
        {tab==='dashboard'&&<Dashboard v={vehicles} p={products} s={sales} f={finance} marketplaces={marketplaces} session={session} setTab={setTab}/>}
        {tab==='company'&&<CompanyInfo session={session} reload={load} notice={notice}/>}
        {tab==='qrcode'&&<QRCodeModule products={products} locations={catalog.locations}/>}
-       {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
-       {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings}/>}
+       {tab==='vehicle-create'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings} canDelete={['owner','admin','manager'].includes(session?.user?.role||'user')}/>}
+       {tab==='vehicles'&&<Vehicles data={vehicles} refresh={load} notice={notice} brands={vehicleBrands} listings={listings} canDelete={['owner','admin','manager'].includes(session?.user?.role||'user')}/>}
        {tab==='product-create'&&<ProductForm refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations}/>}
        {tab==='products'&&<Inventory data={products} listings={listings} refresh={load} notice={notice} groups={catalog.partGroups} brands={vehicleBrands} vehicles={vehicles} locations={catalog.locations} company={session?.company} setTab={setTab} canCreate={canAccessTab(session?.user?.role||'user','product-create',!!session?.is_platform_admin)}/>}
        {['customers','suppliers','carriers','sellers','part-groups','locations','tax'].includes(tab)&&<CatalogModule tab={tab} data={catalog} refresh={load} notice={notice}/>} {tab==='users'&&<UsersPermissions notice={notice}/>}
@@ -1359,9 +1359,9 @@ async function prepareVehiclePhoto(file){
  return canvas.toDataURL('image/jpeg',0.75)
 }
 
-function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
+function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false,canDelete=false}){
  const empty={plate:'',brand:'',model:'',year:new Date().getFullYear(),vin:'',renavam:'',fuel:'Flex',transmission:'Automático',color:'',acquisition_value:'',other_costs:''}
- const [form,setForm]=useState(empty),[overview,setOverview]=useState(null),[search,setSearch]=useState(''),[editVehicle,setEditVehicle]=useState(null),[saving,setSaving]=useState(false),[photoData,setPhotoData]=useState([]),[photoBusy,setPhotoBusy]=useState(false)
+ const [form,setForm]=useState(empty),[overview,setOverview]=useState(null),[search,setSearch]=useState(''),[editVehicle,setEditVehicle]=useState(null),[saving,setSaving]=useState(false),[photoData,setPhotoData]=useState([]),[photoBusy,setPhotoBusy]=useState(false),[deletingId,setDeletingId]=useState(null)
  const filtered=useMemo(()=>{const q=search.trim().toLowerCase();if(!q)return data;return data.filter(v=>[v.plate,v.brand,v.model,v.year,v.status].some(x=>String(x||'').toLowerCase().includes(q)))},[data,search])
  const totalInvested=Number(form.acquisition_value||0)+Number(form.other_costs||0)
 
@@ -1415,6 +1415,28 @@ function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
    notice(msg||erroPt(detail)||`Erro ao cadastrar sucata${e.response?.status?` (HTTP ${e.response.status})`:''}`)
   }finally{setSaving(false)}
  }
+
+ async function removeVehicle(v){
+  if(deletingId)return
+  const label=[v.brand,v.model,v.year].filter(Boolean).join(' ')||v.plate||`Sucata #${v.id}`
+  const ok=confirm(`Excluir a sucata "${label}"?
+
+Essa ação não pode ser desfeita. Fotos e registros internos de custos desta sucata também serão removidos. Se houver peças vinculadas, o CDM bloqueará a exclusão para proteger o histórico.`)
+  if(!ok)return
+  setDeletingId(v.id)
+  try{
+   await api.delete(`/vehicles/${v.id}`)
+   if(overview?.id===v.id)setOverview(null)
+   if(editVehicle?.id===v.id)setEditVehicle(null)
+   await refresh()
+   notice('Sucata excluída com sucesso')
+  }catch(e){
+   notice(erroPt(e.response?.data?.detail)||'Não foi possível excluir a sucata')
+  }finally{
+   setDeletingId(null)
+  }
+ }
+
 
  return <>
   <section className="panel vehicleRegisterPanel">
@@ -1523,9 +1545,10 @@ function Vehicles({data,refresh,notice,brands=[],listings=[],createOnly=false}){
        <div><small>Compra</small><b>{money(v.acquisition_value)}</b></div>
        <div><small>Custos</small><b>{money(v.other_costs)}</b></div>
       </div>
-      <div className="vehicleStockActions">
+      <div className={'vehicleStockActions '+(canDelete?'withDelete':'')}>
        <button className="ghost editRegisterBtn" onClick={()=>setEditVehicle(v)}>✎ Editar</button>
        <button className="primary vehicle360Btn" onClick={()=>setOverview(v)}>◉ Visão 360</button>
+       {canDelete&&<button className="ghost vehicleDeleteBtn" disabled={deletingId===v.id} onClick={()=>removeVehicle(v)}>{deletingId===v.id?'Excluindo...':'🗑 Excluir'}</button>}
       </div>
      </div>
     </article>

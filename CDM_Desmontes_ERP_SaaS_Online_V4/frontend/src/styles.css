@@ -6541,3 +6541,37 @@ body[data-theme="dark"] .dashboardQuickIcon{color:#79dfae}
  .dashboardQuickActions{grid-template-columns:1fr}
  .inventoryActions>div{grid-template-columns:1fr}
 }
+
+/* =========================================================
+   CDM V19.1 — EXCLUSÃO SEGURA DE SUCATAS
+   ========================================================= */
+.vehicleStockActions.withDelete{
+  grid-template-columns:repeat(3,minmax(0,1fr))
+}
+.vehicleDeleteBtn{
+  border:1px solid rgba(196,72,72,.28)!important;
+  background:rgba(196,72,72,.07)!important;
+  color:#bd4d4d!important
+}
+.vehicleDeleteBtn:hover{
+  border-color:rgba(196,72,72,.48)!important;
+  background:rgba(196,72,72,.13)!important;
+  color:#d15353!important
+}
+.vehicleDeleteBtn:disabled{
+  opacity:.55!important;
+  cursor:wait!important
+}
+body[data-theme="dark"] .vehicleDeleteBtn{
+  color:#ef8b8b!important;
+  border-color:rgba(239,105,105,.24)!important;
+  background:rgba(180,58,58,.10)!important
+}
+@media(max-width:760px){
+  .vehicleStockActions.withDelete{
+    grid-template-columns:1fr 1fr
+  }
+  .vehicleStockActions.withDelete .vehicleDeleteBtn{
+    grid-column:1/-1
+  }
+}
