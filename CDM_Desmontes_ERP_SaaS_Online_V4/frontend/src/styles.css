@@ -7457,3 +7457,586 @@ body[data-theme="light"] .marketConfigModalML .modalFoot{
     max-height:94dvh!important
   }
 }
+
+/* =========================================================
+   CDM V22 — ENTERPRISE DESIGN SYSTEM
+   Camada visual final: mais profissional, legível e uniforme.
+   ========================================================= */
+:root{
+  --cdm22-brand:#18a96f;
+  --cdm22-brand-strong:#0f8356;
+  --cdm22-brand-soft:rgba(24,169,111,.10);
+  --cdm22-line:rgba(125,151,140,.18);
+  --cdm22-shadow:0 10px 28px rgba(2,8,6,.10);
+  --cdm22-shadow-hover:0 16px 38px rgba(2,8,6,.16);
+  --cdm22-radius:12px;
+  --cdm22-radius-lg:16px;
+  --cdm22-fast:150ms ease;
+}
+
+/* BASE */
+body{
+  text-rendering:optimizeLegibility;
+  -webkit-font-smoothing:antialiased;
+}
+.mainArea{
+  background:
+    radial-gradient(circle at 88% 3%,rgba(24,169,111,.035),transparent 24%),
+    var(--bg);
+}
+.content{padding:24px!important}
+.content>*{min-width:0}
+.content p,.content small,.content span,.content label{line-height:1.45}
+.content .field>span{
+  margin-bottom:6px!important;
+  font-size:11px!important;
+  font-weight:750!important;
+  color:var(--muted)!important;
+}
+.content .fieldHelp{
+  font-size:10px!important;
+  line-height:1.55!important;
+}
+.content input:not([type="checkbox"]):not([type="radio"]),
+.content select,
+.content textarea{
+  min-height:42px;
+  border-radius:10px!important;
+  font-size:12px!important;
+  transition:border-color var(--cdm22-fast),box-shadow var(--cdm22-fast),background var(--cdm22-fast)!important;
+}
+.content textarea{line-height:1.55}
+.content input:focus,
+.content select:focus,
+.content textarea:focus{
+  border-color:rgba(24,169,111,.58)!important;
+  box-shadow:0 0 0 3px rgba(24,169,111,.09)!important;
+}
+
+/* SIDEBAR */
+.sidebar{
+  border-right:1px solid rgba(130,151,141,.14)!important;
+  background:
+    radial-gradient(circle at 15% 0%,rgba(24,169,111,.08),transparent 25%),
+    linear-gradient(180deg,#121816,#0d1210)!important;
+  box-shadow:14px 0 38px rgba(0,0,0,.08);
+}
+.brand{
+  min-height:66px!important;
+  padding:14px 13px!important;
+  border-bottom-color:rgba(130,151,141,.12)!important;
+}
+.brandMark{
+  width:40px!important;height:40px!important;
+  border-radius:11px!important;
+  background:linear-gradient(145deg,#1ab575,#0c7049)!important;
+  box-shadow:0 8px 22px rgba(10,108,70,.26),inset 0 1px 0 rgba(255,255,255,.12);
+}
+.brand h1{font-size:12.5px!important;letter-spacing:.055em!important}
+.brand small{font-size:9.5px!important;color:#8da89c!important}
+.sideNav{padding:10px 8px 14px!important}
+.navMain{
+  min-height:41px!important;
+  padding:9px 10px!important;
+  border-radius:9px!important;
+  font-size:11.5px!important;
+  transition:all var(--cdm22-fast)!important;
+}
+.navMain:hover{background:rgba(255,255,255,.045)!important;transform:translateX(1px)}
+.navMain.active{
+  color:#f4fff9!important;
+  background:linear-gradient(90deg,rgba(24,169,111,.17),rgba(24,169,111,.045))!important;
+  box-shadow:inset 3px 0 0 var(--cdm22-brand)!important;
+}
+.navIcon{width:21px!important;color:#87a497!important}
+.navMain.active .navIcon{color:#67d6a5!important}
+.subNav{
+  margin-left:29px!important;padding-left:8px!important;
+  border-left-color:rgba(125,150,139,.18)!important;
+  gap:2px!important
+}
+.subNav button{
+  min-height:36px!important;padding:8px 9px!important;
+  border-radius:8px!important;font-size:10.5px!important;
+  transition:all var(--cdm22-fast)!important
+}
+.subNav button:hover,.subNav button.active{
+  background:rgba(24,169,111,.08)!important;color:#f0fff7!important
+}
+.sidebarFoot{padding:12px 13px!important;border-top-color:rgba(130,151,141,.12)!important}
+.sidebarFoot span{font-size:10.5px!important}.sidebarFoot small{font-size:9px!important}
+
+/* TOPBAR */
+.topbar{
+  height:64px!important;padding:0 17px!important;
+  background:rgba(13,20,17,.94)!important;
+  border-bottom:1px solid rgba(24,169,111,.16)!important;
+  box-shadow:0 8px 26px rgba(0,0,0,.12)!important;
+  backdrop-filter:blur(18px)
+}
+.globalSearch{
+  height:40px!important;border:1px solid rgba(132,157,146,.16)!important;
+  border-radius:10px!important;background:rgba(255,255,255,.045)!important;
+  transition:all var(--cdm22-fast)!important
+}
+.globalSearch:focus-within{
+  border-color:rgba(24,169,111,.46)!important;
+  background:rgba(24,169,111,.055)!important;
+  box-shadow:0 0 0 3px rgba(24,169,111,.08)
+}
+.globalSearch input{font-size:11.5px!important}
+.topAddPro{
+  min-height:40px!important;border-radius:10px!important;
+  background:linear-gradient(135deg,#1ab676,#10905d)!important;
+  box-shadow:0 8px 20px rgba(16,144,93,.22)!important;
+  transition:all var(--cdm22-fast)!important
+}
+.topAddPro:hover{transform:translateY(-1px);filter:brightness(1.05);box-shadow:0 12px 28px rgba(16,144,93,.28)!important}
+.topIcon,.profileButton,.hamb{transition:all var(--cdm22-fast)!important}
+.topIcon:hover,.profileButton:hover,.hamb:hover{background:rgba(255,255,255,.07)!important;transform:translateY(-1px)}
+
+/* CABEÇALHOS */
+.pageTitle{
+  min-height:106px;
+  padding:22px 24px!important;
+  border:1px solid rgba(125,151,140,.20)!important;
+  border-radius:16px!important;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(24,169,111,.13),transparent 28%),
+    linear-gradient(135deg,#151f1b,#1a2822)!important;
+  box-shadow:0 12px 32px rgba(0,0,0,.09)!important
+}
+.pageTitle>div>span{
+  color:#73d5aa!important;font-size:10px!important;
+  letter-spacing:.13em!important;font-weight:900!important
+}
+.pageTitle h2{margin:4px 0 5px!important;font-size:25px!important;letter-spacing:-.025em}
+.pageTitle p{font-size:11.5px!important;color:#bdcbc5!important}
+.statusBadge{
+  min-height:34px;display:inline-flex;align-items:center;
+  border-radius:999px!important;padding:7px 11px!important;
+  font-size:9.5px!important
+}
+.panelTitle{align-items:flex-start!important;gap:12px}
+.panelTitle small{font-size:9.5px!important;letter-spacing:.12em!important}
+.panelTitle h2{font-size:19px!important;letter-spacing:-.015em!important}
+.panelTitle p{font-size:11px!important;line-height:1.5!important}
+
+/* PAINÉIS / CARDS */
+.panel,
+.smartStockPanel,
+.vehicleRegisterPanel,
+.vehicleManagementPanel{
+  border:1px solid var(--cdm22-line)!important;
+  border-radius:var(--cdm22-radius-lg)!important;
+  box-shadow:var(--cdm22-shadow)!important;
+}
+.panel{
+  padding:19px!important
+}
+.moduleCard,.marketCard,.channel,.metric,
+.qrUseCards>div,.pricingMetric,.vehicleStockCard,
+.smartStockSummary>div,.productQuickSummary,.productStepNav,.productSideActions{
+  border-radius:var(--cdm22-radius)!important;
+  transition:border-color var(--cdm22-fast),box-shadow var(--cdm22-fast),transform var(--cdm22-fast),background var(--cdm22-fast)!important
+}
+.moduleCard.clickable:hover,.marketCard:hover,.vehicleStockCard:hover{
+  transform:translateY(-2px)!important;
+  border-color:rgba(24,169,111,.32)!important;
+  box-shadow:var(--cdm22-shadow-hover)!important
+}
+
+/* MÉTRICAS */
+.grid.metrics{gap:12px!important}
+.metric{
+  min-height:92px!important;
+  padding:15px 16px!important;
+  border-color:var(--cdm22-line)!important;
+  background:linear-gradient(145deg,var(--panel),var(--soft))!important
+}
+.metricIcon{
+  width:42px!important;height:42px!important;min-width:42px!important;
+  border-radius:11px!important;
+  background:var(--cdm22-brand-soft)!important;
+  color:var(--cdm22-brand)!important
+}
+.metric small,.metric em{font-size:9.5px!important}
+.metric strong{font-size:19px!important;letter-spacing:-.02em}
+
+/* BOTÕES */
+.content .primary,
+.content .ghost,
+.content .excelBtn,
+.content .filterBtn,
+.content .publishBtn,
+.content .labelBtn{
+  min-height:38px;
+  padding:9px 13px;
+  border-radius:9px!important;
+  font-size:10.5px!important;
+  font-weight:800!important;
+  transition:transform var(--cdm22-fast),filter var(--cdm22-fast),background var(--cdm22-fast),border-color var(--cdm22-fast),box-shadow var(--cdm22-fast)!important
+}
+.content .primary{
+  background:linear-gradient(135deg,#1ab676,#0f8758)!important;
+  box-shadow:0 7px 18px rgba(15,135,88,.17)
+}
+.content .primary:hover:not(:disabled){
+  transform:translateY(-1px);
+  filter:brightness(1.04);
+  box-shadow:0 10px 24px rgba(15,135,88,.23)
+}
+.content .ghost:hover:not(:disabled),
+.content .filterBtn:hover:not(:disabled){
+  transform:translateY(-1px);
+  border-color:rgba(24,169,111,.32)!important;
+  background:var(--cdm22-brand-soft)!important
+}
+.content button:active:not(:disabled){transform:translateY(0)!important}
+.content button:disabled{cursor:not-allowed;filter:saturate(.65)}
+.dangerText,.vehicleDeleteBtn{transition:all var(--cdm22-fast)!important}
+
+/* TABS / CHIPS / STATUS */
+.pill,.mini,.statusBadge,.cdmChannelState{
+  font-weight:800!important;
+  letter-spacing:.02em!important
+}
+.pill{font-size:9px!important}
+.cardTabs button,.qrModeTabs button{
+  transition:all var(--cdm22-fast)!important
+}
+.cardTabs button.active,.qrModeTabs button.active{
+  color:var(--cdm22-brand)!important;
+  border-color:var(--cdm22-brand)!important
+}
+
+/* TABELAS */
+.tableWrap,.productTable{
+  border:1px solid var(--cdm22-line);
+  border-radius:11px;
+  overflow:auto!important
+}
+.tableWrap table,.productTable table{border-collapse:separate!important;border-spacing:0!important}
+.tableWrap th,.productTable th{
+  position:sticky;top:0;z-index:2;
+  padding:10px 11px!important;
+  background:var(--panel)!important;
+  color:var(--muted)!important;
+  font-size:9.5px!important;
+  letter-spacing:.055em!important
+}
+.tableWrap td,.productTable td{
+  padding:11px!important;
+  font-size:11px!important
+}
+.tableWrap tbody tr,.productTable tbody tr{transition:background var(--cdm22-fast)}
+.tableWrap tbody tr:hover,.productTable tbody tr:hover{background:var(--cdm22-brand-soft)!important}
+
+/* FORMULÁRIOS E SELECTS */
+.content select{
+  padding-right:36px!important
+}
+.companyGrid{gap:13px 15px!important}
+.companyGrid input{
+  min-height:41px!important;
+  padding:8px 3px!important
+}
+.formGrid{gap:11px 12px!important}
+.check{
+  align-items:center!important;
+  min-height:48px!important;
+  border-radius:10px!important
+}
+.check b{font-size:11px!important}.check small{font-size:9.5px!important}
+.content input[type="checkbox"],
+.content input[type="radio"]{
+  width:16px!important;height:16px!important;
+  min-width:16px!important;min-height:16px!important
+}
+
+/* DASHBOARD */
+.dashboardQuickActions{gap:10px!important}
+.dashboardQuickActions button{
+  min-height:74px!important;
+  border:1px solid var(--cdm22-line)!important;
+  border-radius:13px!important;
+  background:linear-gradient(145deg,var(--panel),var(--soft))!important;
+  box-shadow:0 6px 18px rgba(0,0,0,.05);
+  transition:all var(--cdm22-fast)!important
+}
+.dashboardQuickActions button:hover{
+  transform:translateY(-2px);
+  border-color:rgba(24,169,111,.32)!important;
+  box-shadow:var(--cdm22-shadow-hover)!important
+}
+.dashboardQuickIcon{
+  border-radius:10px!important;
+  background:var(--cdm22-brand-soft)!important;
+  color:var(--cdm22-brand)!important
+}
+.dashboardQuickActions b{font-size:11px!important}
+.dashboardQuickActions small{font-size:9.5px!important}
+
+/* ESTOQUE */
+.inventoryActions,.inventoryViewBar{gap:9px!important}
+.inventoryToolbar{gap:9px!important}
+.inventoryToolbar label{font-size:10px!important}
+.inventoryPanel{padding:15px!important}
+.productCards{gap:13px!important}
+.productCard{
+  border-radius:13px!important;
+  border-color:rgba(122,142,135,.25)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.12)!important;
+  transition:all var(--cdm22-fast)!important
+}
+.productCard:hover{
+  transform:translateY(-2px);
+  border-color:rgba(24,169,111,.35)!important;
+  box-shadow:0 14px 34px rgba(0,0,0,.18)!important
+}
+.productName strong{font-size:11px!important}.productName small{font-size:9.5px!important}
+.productMeta small{font-size:9px!important}.productMeta b{font-size:10.5px!important}
+.badges .mini{font-size:8.5px!important}
+
+/* SUCATAS */
+.vehicleRegisterHero h2,.vehicleCardsHead h2{letter-spacing:-.02em}
+.vehicleFormSection{border-radius:13px!important}
+.vehicleFormSectionHead b{font-size:11.5px!important}
+.vehicleFormSectionHead span{font-size:9.5px!important}
+.vehicleFormIndex{
+  border-radius:9px!important;
+  background:var(--cdm22-brand-soft)!important;
+  color:var(--cdm22-brand)!important
+}
+.vehicleStockCard{
+  overflow:hidden;
+  border-color:var(--cdm22-line)!important
+}
+.vehicleStockBody h3{font-size:13px!important}
+.vehicleStockSub,.vehicleStockTags span{font-size:9.5px!important}
+.vehicleStockMeta small{font-size:9px!important}
+.vehicleStockMeta b{font-size:11px!important}
+
+/* PDV / VENDAS */
+.pdvQuickSummary{
+  gap:8px!important
+}
+.pdvQuickSummary>span{
+  min-height:64px;
+  padding:10px 11px!important;
+  border:1px solid var(--cdm22-line)!important;
+  border-radius:10px!important;
+  background:linear-gradient(145deg,var(--panel),var(--soft))!important
+}
+.pdvQuickSummary small{font-size:9px!important}
+.pdvQuickSummary b{font-size:13px!important}
+.saleCartRow{
+  border-radius:10px!important;
+  border-color:var(--cdm22-line)!important
+}
+.saleTotal{
+  margin-top:14px!important;
+  padding:14px 2px!important
+}
+.saleTotal span{font-size:10px!important}
+.saleTotal strong{font-size:24px!important;letter-spacing:-.03em}
+
+/* QR / ETIQUETAS */
+.qrAdvancedLayout{gap:16px!important}
+.qrModeTabs{
+  padding:4px!important;
+  border-radius:11px!important
+}
+.qrModeTabs button{min-height:38px!important;border-radius:8px!important}
+.qrUseCards{gap:8px!important}
+.qrUseCards>div{min-height:78px}
+.qrAdvancedCard{
+  border-radius:14px!important;
+  border-color:var(--cdm22-line)!important
+}
+.qrActions{gap:8px!important}
+.labelsProToolbar{gap:9px!important}
+.labelsProCard{
+  border-radius:12px!important;
+  transition:all var(--cdm22-fast)!important
+}
+.labelsProCard:hover{
+  transform:translateY(-2px)!important;
+  box-shadow:var(--cdm22-shadow)!important
+}
+.labelsProInfo small{font-size:9.5px!important}
+.labelsProInfo b{font-size:11.5px!important}
+.labelsProInfo strong{font-size:9.5px!important}
+
+/* MARKETPLACES */
+.marketGrid{gap:12px!important}
+.marketCard{
+  border-color:var(--cdm22-line)!important;
+  box-shadow:0 7px 20px rgba(0,0,0,.05)
+}
+.marketBody h3{font-size:14px!important}
+.marketBody p{font-size:10px!important;line-height:1.5!important}
+.marketStats span{font-size:9px!important}
+.marketStats b{font-size:11px!important}
+.connection{font-size:9.5px!important;border-radius:9px!important}
+
+/* FINANCEIRO / RELATÓRIOS */
+.cashFlowMetrics .metric strong,
+.reportTitle h2{letter-spacing:-.025em}
+.reportActions{gap:8px!important}
+.reportFilters{
+  border-radius:13px!important
+}
+.reportFilters>div{gap:9px!important}
+.reportVehicleMini{
+  border-left:3px solid var(--cdm22-brand)!important
+}
+.reportVehicleMini span,.reportVehicleMini small{font-size:10px!important}
+.reportVehicleMini strong{font-size:24px!important}
+
+/* ASSISTENTE */
+.assistantShell{
+  border-color:var(--cdm22-line)!important;
+  box-shadow:var(--cdm22-shadow)!important
+}
+.assistantQuick{gap:7px!important}
+.assistantQuick button{
+  border-radius:999px!important;
+  min-height:34px!important
+}
+.assistantMsg{
+  border-radius:13px!important
+}
+.assistantMsg small{font-size:9px!important}
+.assistantMsg p{font-size:11px!important;line-height:1.55!important}
+.assistantComposer{
+  gap:9px!important
+}
+.assistantComposer textarea{
+  border-radius:12px!important
+}
+
+/* MODAIS GERAIS — sem alterar lógica */
+.modalBackdrop{
+  backdrop-filter:blur(5px)
+}
+.v8Modal,.productEditModal,.vehicle360Modal,.customerModal,.carrierModal,
+.sellerModal,.partGroupModal,.locationEasyModal,.categoryPickerModal,.imageViewerModal{
+  border-radius:16px!important;
+  border-color:var(--cdm22-line)!important;
+  box-shadow:0 28px 90px rgba(0,0,0,.48)!important
+}
+.modalHead{
+  border-bottom-color:var(--cdm22-line)!important
+}
+.modalHead h2{letter-spacing:-.02em}
+.iconClose{
+  transition:all var(--cdm22-fast)!important
+}
+.iconClose:hover{
+  transform:rotate(3deg) scale(1.03)
+}
+
+/* EMPTY / ERRO / TOAST */
+.emptyState,.empty{
+  border-radius:11px;
+  font-size:11px!important;
+  line-height:1.55!important
+}
+.error{
+  border-radius:10px!important;
+  font-size:10.5px!important
+}
+.toast{
+  border-radius:11px!important;
+  font-size:10.5px!important;
+  box-shadow:0 18px 46px rgba(0,0,0,.28)!important
+}
+
+/* CADASTRO DE PEÇAS — neutraliza fontes antigas microscópicas */
+.videoExactPage .field>span{font-size:10px!important}
+.videoExactPage input,
+.videoExactPage select,
+.videoExactPage textarea{font-size:11px!important}
+.videoExactInnovation .productAiPhotoHead h4{font-size:11px!important}
+.videoExactInnovation .productAiPhotoHead p,
+.videoExactInnovation .aiPrivacyNote{font-size:9px!important;line-height:1.45!important}
+.videoExactInnovation .aiPhotoButton,
+.videoExactInnovation .duplicateDetectorHead button{font-size:9px!important}
+.videoExactInnovation .duplicateDetectorHead b{font-size:10px!important}
+.videoExactInnovation .duplicateDetectorHead small{font-size:9px!important}
+.videoExactMediaBody .mediaRailHelp,
+.videoExactMediaBody .imageUrlsAdvanced{font-size:9px!important}
+.videoExactCollapse summary{font-size:10px!important}
+.videoExactReadyHead h4{font-size:11px!important}
+.videoExactReadyHead p{font-size:9px!important}
+.videoExactReadyLegend{font-size:9px!important}
+.videoExactChannelPrice small{font-size:9px!important}
+.videoExactChannelPrice span{font-size:9px!important}
+.videoExactChannelIdentity b{font-size:11px!important}
+.videoExactChannelIdentity span{font-size:9px!important}
+
+/* MERCADO LIVRE PRO — legibilidade final */
+.mlProHeroBrand small,
+.mlProConnection small,
+.mlProProductBar small,
+.mlProTitleEditor small,
+.mlProProgress small,
+.mlProBlockLabel small,
+.mlProCategoryCard small{font-size:9px!important}
+.mlProHeroBrand p,
+.mlProProductBar span,
+.mlProSectionHead p,
+.mlProfessionalBody .mlProChoice small,
+.mlProTip p,
+.mlProCategoryCard p,
+.mlProBody .mlManagedHint small{font-size:9.5px!important}
+.mlProProgress b,.mlProBlockLabel b{font-size:10.5px!important}
+.mlProCategoryCard b{font-size:11px!important}
+.mlProBody .fieldHelp,.mlProBody .mlAutoSourceBar{font-size:9.5px!important}
+
+/* TEMA CLARO */
+body[data-theme="light"] .pageTitle{
+  color:#173028!important;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(24,169,111,.09),transparent 28%),
+    linear-gradient(135deg,#ffffff,#f1f7f4)!important;
+  border-color:#d9e6df!important
+}
+body[data-theme="light"] .pageTitle p{color:#64756e!important}
+body[data-theme="light"] .pageTitle h2{color:#173028!important}
+body[data-theme="light"] .panel,
+body[data-theme="light"] .metric,
+body[data-theme="light"] .moduleCard,
+body[data-theme="light"] .marketCard{
+  box-shadow:0 8px 24px rgba(29,50,41,.06)!important
+}
+
+/* RESPONSIVIDADE */
+@media(max-width:1200px){
+  .content{padding:20px!important}
+}
+@media(max-width:900px){
+  .content{padding:16px!important}
+  .pageTitle{min-height:auto;padding:18px!important}
+  .pageTitle h2{font-size:22px!important}
+  .panel{padding:16px!important}
+}
+@media(max-width:620px){
+  .content{padding:12px!important}
+  .pageTitle{border-radius:13px!important;padding:16px!important}
+  .pageTitle h2{font-size:20px!important}
+  .pageTitle p{font-size:10.5px!important}
+  .content .primary,.content .ghost,.content .excelBtn,.content .filterBtn,.content .publishBtn,.content .labelBtn{
+    min-height:40px
+  }
+}
+
+/* ACESSIBILIDADE DE MOVIMENTO */
+@media(prefers-reduced-motion:reduce){
+  .content *, .sidebar *, .topbar *{
+    transition:none!important;
+    animation:none!important;
+    scroll-behavior:auto!important
+  }
+}
