@@ -7041,3 +7041,346 @@ body[data-theme="light"] .mlProCategoryCard{
  .labelsProQr svg{width:50px!important;height:50px!important}
  .mlProProductBar,.mlProProgress{grid-template-columns:1fr}
 }
+
+/* =========================================================
+   CDM V21.1 — UNIFORMIDADE DO CADASTRO + ML AJUSTES PRO
+   ========================================================= */
+
+/* Cadastro principal: fecha o vazio deixado pela remoção da garantia */
+.videoExactFormGrid.cdmProductCoreGrid{
+  align-items:start
+}
+.videoExactFormGrid.cdmProductCoreGrid>.field,
+.videoExactFormGrid.cdmProductCoreGrid>div>.field{
+  min-width:0
+}
+.videoExactFormGrid .span3{
+  grid-column:span 3
+}
+.cdmProductCoreGrid .cdmOriginField,
+.cdmProductCoreGrid .cdmQualityField{
+  align-self:start
+}
+.cdmProductCoreGrid .cdmOriginField .field,
+.cdmProductCoreGrid .cdmQualityField .field{
+  height:100%
+}
+.cdmProductCoreGrid .cdmOriginField select,
+.cdmProductCoreGrid .cdmQualityField select{
+  width:100%
+}
+.cdmProductCoreGrid .span4 textarea{
+  min-height:72px!important
+}
+
+/* Mantém as quatro colunas equilibradas no desktop */
+@media(min-width:901px){
+  .cdmProductCoreGrid{
+    grid-auto-flow:row
+  }
+}
+
+/* Mercado Livre: modal mais limpo, sem aspecto de bloco antigo */
+.marketConfigModalML{
+  width:min(1060px,94vw)!important;
+  max-height:90vh!important;
+  border-radius:18px!important
+}
+.marketConfigModalML .modalHead{
+  padding:16px 20px 15px!important
+}
+.marketConfigModalML .modalHead h2{
+  font-size:22px!important
+}
+.marketConfigModalML .modalHead p{
+  margin-top:3px!important;
+  font-size:11px!important;
+  line-height:1.45!important
+}
+.marketConfigModalML .iconClose{
+  width:38px!important;
+  height:38px!important;
+  border-radius:10px!important
+}
+
+.mlProBody{
+  padding:14px 17px 18px!important;
+  gap:11px!important;
+  scrollbar-gutter:stable both-edges
+}
+
+/* Cabeçalho interno compacto e alinhado */
+.mlProHero{
+  padding:13px 14px!important;
+  border-radius:12px!important
+}
+.mlProHeroLogo{
+  width:44px!important;
+  height:44px!important;
+  min-width:44px!important;
+  border-radius:11px!important
+}
+.mlProHeroBrand h3{
+  font-size:16px!important
+}
+.mlProHeroBrand p{
+  font-size:10px!important
+}
+.mlProConnection{
+  min-width:178px!important;
+  padding:9px 11px!important;
+  border-radius:10px!important
+}
+
+/* Resumo da peça sem excesso de altura */
+.mlProProductBar{
+  grid-template-columns:minmax(250px,1.55fr) repeat(3,minmax(92px,.55fr))!important;
+  gap:7px!important
+}
+.mlProProductBar>div{
+  min-height:52px!important;
+  padding:8px 10px!important;
+  border-radius:9px!important
+}
+.mlProProductBar b{
+  font-size:11px!important
+}
+
+/* Título com hierarquia visual mais clara */
+.mlProTitleEditor{
+  grid-template-columns:minmax(170px,.48fr) minmax(0,1.52fr)!important;
+  gap:12px!important;
+  padding:10px 12px!important;
+  border-radius:10px!important
+}
+.mlProTitleEditor input{
+  min-height:40px!important;
+  border-radius:9px!important
+}
+
+/* Etapas como faixa única, sem quadrados brigando com texto */
+.mlProProgress{
+  position:relative;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:5px!important;
+  padding:7px!important;
+  border-radius:11px!important;
+  overflow:hidden
+}
+.mlProProgress:before{
+  content:"";
+  position:absolute;
+  left:8%;
+  right:8%;
+  top:50%;
+  height:1px;
+  background:rgba(148,163,184,.12);
+  z-index:0
+}
+.mlProProgress>div{
+  position:relative;
+  z-index:1;
+  padding:7px 8px!important;
+  background:#111922!important;
+  border:1px solid rgba(148,163,184,.08);
+  border-radius:9px!important
+}
+.mlProProgress .done{
+  border-color:rgba(21,151,97,.18)!important
+}
+.mlProProgress .current{
+  border-color:rgba(21,151,97,.35)!important;
+  background:rgba(21,151,97,.07)!important
+}
+.mlProProgress i{
+  width:25px!important;
+  height:25px!important;
+  min-width:25px!important;
+  border-radius:7px!important
+}
+.mlProProgress b{
+  font-size:10px!important
+}
+.mlProProgress small{
+  font-size:8.5px!important
+}
+
+/* Seções: mais compactas e com cara de produto empresarial */
+.mlProSection{
+  gap:10px!important;
+  padding:13px 14px!important;
+  border-radius:12px!important;
+  border-color:rgba(148,163,184,.11)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.018)
+}
+.mlProSectionHead{
+  grid-template-columns:34px minmax(0,1fr)!important;
+  gap:9px!important;
+  align-items:center!important
+}
+.mlProSectionHead>span{
+  width:34px!important;
+  height:34px!important;
+  border-radius:9px!important
+}
+.mlProSectionHead h4{
+  font-size:13px!important
+}
+.mlProSectionHead p{
+  font-size:9px!important
+}
+
+/* Cards de opção menos quadrados e mais instrutivos */
+.mlProfessionalBody .mlProChoice{
+  min-height:76px!important;
+  padding:12px 13px!important;
+  border-radius:10px!important
+}
+.mlProChoiceGrid.compact .mlProChoice{
+  min-height:68px!important
+}
+.mlProfessionalBody .mlProChoice input{
+  top:11px!important;
+  right:11px!important
+}
+.mlProfessionalBody .mlProChoice.selected:after{
+  content:"Selecionado";
+  position:absolute;
+  right:34px;
+  top:10px;
+  padding:3px 6px;
+  border-radius:999px;
+  background:rgba(21,151,97,.12);
+  color:#70d9a6;
+  font-size:8px;
+  font-weight:850
+}
+.mlProChoiceIcon{
+  margin-bottom:5px!important;
+  font-size:18px!important
+}
+
+/* Caixas auxiliares e botões */
+.mlProTip{
+  padding:8px 10px!important;
+  border-radius:8px!important
+}
+.mlProSplit{
+  gap:9px!important
+}
+.mlProSplit>div{
+  padding:10px!important;
+  border-radius:9px!important
+}
+.mlProSegmented{
+  padding:3px!important;
+  border-radius:8px!important
+}
+.mlProSegmented button{
+  min-height:32px!important;
+  border-radius:6px!important
+}
+.mlProSwitchRows{
+  gap:8px!important
+}
+.mlProfessionalBody .mlProSwitchRows label{
+  min-height:56px!important;
+  padding:9px 10px!important
+}
+.mlProCategoryCard{
+  padding:10px 11px!important;
+  border-radius:10px!important
+}
+.mlProCategoryCard button{
+  min-height:38px!important;
+  border-radius:8px!important
+}
+.mlProBody .mlManagedField{
+  padding:10px!important;
+  border-radius:9px!important
+}
+
+/* Rodapé fixo, limpo e explicativo */
+.marketConfigModalML .modalFoot{
+  position:sticky!important;
+  bottom:0;
+  gap:8px!important;
+  padding:11px 17px!important;
+  background:#101720!important;
+  box-shadow:0 -12px 30px rgba(0,0,0,.16)
+}
+.marketConfigModalML .modalFootInfo{
+  gap:2px!important
+}
+.marketConfigModalML .modalFootInfo b{
+  font-size:10.5px!important
+}
+.marketConfigModalML .modalFootInfo small{
+  font-size:9px!important
+}
+.marketConfigModalML .modalFoot button{
+  min-height:39px!important;
+  border-radius:9px!important;
+  font-size:10.5px!important;
+  font-weight:800!important
+}
+.marketConfigModalML .modalFoot .primary{
+  min-width:172px;
+  background:linear-gradient(135deg,#18a96f,#0f8356)!important;
+  box-shadow:0 8px 22px rgba(15,131,86,.20)
+}
+
+/* Tema claro */
+body[data-theme="light"] .mlProProgress>div{
+  background:#fff!important
+}
+body[data-theme="light"] .marketConfigModalML .modalFoot{
+  background:#fff!important;
+  border-top-color:#dbe5e0!important
+}
+
+/* Responsividade sem buracos */
+@media(max-width:900px){
+  .videoExactFormGrid .span3{
+    grid-column:span 2
+  }
+  .marketConfigModalML{
+    width:100%!important;
+    max-height:96vh!important
+  }
+  .mlProBody{
+    padding:12px 13px 16px!important
+  }
+  .mlProProductBar{
+    grid-template-columns:1fr 1fr!important
+  }
+  .mlProProductBar .main{
+    grid-column:1/-1
+  }
+  .mlProTitleEditor{
+    grid-template-columns:1fr!important
+  }
+}
+@media(max-width:620px){
+  .videoExactFormGrid .span3{
+    grid-column:1/-1
+  }
+  .mlProProgress{
+    grid-template-columns:1fr 1fr!important
+  }
+  .mlProProgress:before{
+    display:none
+  }
+  .marketConfigModalML .modalFoot{
+    flex-wrap:wrap
+  }
+  .marketConfigModalML .modalFootInfo{
+    width:100%
+  }
+  .marketConfigModalML .modalFoot button{
+    flex:1
+  }
+  .marketConfigModalML .modalFoot .primary{
+    min-width:0
+  }
+}

@@ -1984,7 +1984,7 @@ function MarketplaceConfigModal({market,form,setForm,onClose,brands=[],onSuggest
   useEffect(()=>{let alive=true;if(market!=='mercadolivre'||!form.ml_category_id){setRequiredAttrs([]);return}setAttrsBusy(true);api.get(`/marketplaces/mercadolivre/category/${form.ml_category_id}/attributes`).then(r=>alive&&setRequiredAttrs(r.data||[])).catch(()=>alive&&setRequiredAttrs([])).finally(()=>alive&&setAttrsBusy(false));return()=>{alive=false}},[market,form.ml_category_id])
   useEffect(()=>{let alive=true;if(market!=='shopee'){setShopeeSetup({connected:false,categories:[],logistics:[],enabled_logistics:[]});setShopeeError('');return}setShopeeBusy(true);setShopeeError('');api.get('/marketplaces/shopee/setup-options').then(r=>{if(!alive)return;const data=r.data||{};setShopeeSetup(data);const enabled=data.enabled_logistics||[];if(!form.shopee_logistic_id&&enabled.length===1)setForm(f=>({...f,shopee_logistic_id:String(enabled[0].id)}))}).catch(e=>{if(!alive)return;setShopeeSetup({connected:false,categories:[],logistics:[],enabled_logistics:[]});setShopeeError(erroPt(e.response?.data?.detail)||'Conecte sua loja Shopee na Central de Integrações')}).finally(()=>alive&&setShopeeBusy(false));return()=>{alive=false}},[market])
   if(!market)return null
-  return <div className={'modalBackdrop '+(market==='mercadolivre'?'marketplaceModalBackdrop':'')} onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className={'marketConfigModal '+(market==='mercadolivre'?'marketConfigModalML':'')}><div className="modalHead"><div><small>{market==='mercadolivre'?'PUBLICAÇÃO • MERCADO LIVRE':'CONFIGURAÇÃO DO CANAL'}</small><h2>{market==='mercadolivre'?'Mercado Livre':marketName(market)}</h2><p>{market==='mercadolivre'?'Preencha as informações específicas para o Mercado Livre, bem como os detalhes da publicação.':'Preencha apenas o que esse canal precisa para publicar esta peça.'}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
+  return <div className={'modalBackdrop '+(market==='mercadolivre'?'marketplaceModalBackdrop':'')} onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className={'marketConfigModal '+(market==='mercadolivre'?'marketConfigModalML':'')}><div className="modalHead"><div><small>{market==='mercadolivre'?'PUBLICAÇÃO • MERCADO LIVRE':'CONFIGURAÇÃO DO CANAL'}</small><h2>{market==='mercadolivre'?'Configurar Mercado Livre':marketName(market)}</h2><p>{market==='mercadolivre'?'Revise as etapas abaixo. O CDM reaproveita os dados da peça e destaca somente o que precisa de confirmação.':'Preencha apenas o que esse canal precisa para publicar esta peça.'}</p></div><button className="iconClose" onClick={onClose}>×</button></div>
     {market==='mercadolivre'&&<div className="modalBody mlProfessionalBody mlProBody">
       <div className="mlProHero">
         <div className="mlProHeroBrand">
@@ -2154,7 +2154,7 @@ function MarketplaceConfigModal({market,form,setForm,onClose,brands=[],onSuggest
       </>}
     </div>}
     {market==='olx'&&<div className="modalBody"><Field label="ID da categoria OLX"><input value={form.olx_category_id} onChange={e=>setForm({...form,olx_category_id:e.target.value})}/></Field><p className="fieldHelp">A OLX também utiliza telefone e CEP cadastrados nas Informações da Empresa e exige conta/plano compatível com a integração.</p></div>}
-    <div className="modalFoot"><div className="modalFootInfo">{market==='mercadolivre'&&<><b>Configuração do Mercado Livre</b><small>Revise os campos e depois salve a peça no cadastro.</small></>}</div><button className="ghost" onClick={onClose}>Fechar</button><button className="primary" onClick={onClose}>Concluir configuração</button></div></div></div>
+    <div className="modalFoot"><div className="modalFootInfo">{market==='mercadolivre'&&<><b>Configuração do Mercado Livre</b><small>As escolhas ficam nesta peça. Depois, finalize em “Salvar e publicar”.</small></>}</div><button className="ghost" onClick={onClose}>Fechar</button><button className="primary" onClick={onClose}>{market==='mercadolivre'?'✓ Aplicar configuração':'Concluir configuração'}</button></div></div></div>
 }
 
 
@@ -2879,7 +2879,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
               </div>
             </div>
 
-            <div className="videoExactFormGrid">
+            <div className="videoExactFormGrid cdmProductCoreGrid">
               <div className="span2"><Field label="Nome do produto *"><input value={form.name||''} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nome da peça"/></Field></div>
               <Field label="SKU"><input className="skuSequentialInput" value={form.sku||''} readOnly/></Field>
               <Field label="Quantidade"><input type="number" min="0" value={form.stock??1} onChange={e=>setForm({...form,stock:e.target.value})}/></Field>
@@ -2908,8 +2908,8 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
               </Field>
               <Field label="Localização"><select value={form.location_id||''} onChange={e=>setForm({...form,location_id:e.target.value})}><option value="">Sem localização</option>{locations.map(l=><option key={l.id} value={l.id}>{l.code||`LOC-${l.id}`} · {l.description||l.warehouse||'Local'}</option>)}</select></Field>
 
-              <div className="span2"><Field label="Sucata / veículo de origem"><select value={form.vehicle_id||''} onChange={e=>chooseVehicle(e.target.value)}><option value="">Sem vínculo / peça avulsa</option>{vehicles.map(v=><option key={v.id} value={v.id}>#{v.id} · {v.plate||'sem placa'} · {v.brand} {v.model} {v.year||''}</option>)}</select></Field></div>
-              <Field label="Qualidade"><select value={form.quality_grade||'B'} onChange={e=>setForm({...form,quality_grade:e.target.value})}><option value="A">A — excelente</option><option value="B">B — boa</option><option value="C">C — com marcas/uso</option></select></Field>
+              <div className="span3 cdmOriginField"><Field label="Sucata / veículo de origem"><select value={form.vehicle_id||''} onChange={e=>chooseVehicle(e.target.value)}><option value="">Sem vínculo / peça avulsa</option>{vehicles.map(v=><option key={v.id} value={v.id}>#{v.id} · {v.plate||'sem placa'} · {v.brand} {v.model} {v.year||''}</option>)}</select></Field></div>
+              <div className="cdmQualityField"><Field label="Qualidade"><select value={form.quality_grade||'B'} onChange={e=>setForm({...form,quality_grade:e.target.value})}><option value="A">A — excelente</option><option value="B">B — boa</option><option value="C">C — com marcas/uso</option></select></Field></div>
 
               <div className="span4"><Field label="Informações adicionais"><textarea value={form.quality_notes||''} onChange={e=>setForm({...form,quality_notes:e.target.value})} placeholder="Observações da peça"/></Field></div>
             </div>
