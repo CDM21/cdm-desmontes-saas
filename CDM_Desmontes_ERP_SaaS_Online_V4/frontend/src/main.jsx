@@ -2071,7 +2071,7 @@ function ProductImages({form,setForm,notice}){
        }
 
        try{
-         next[i]=await prepareProductImage(file,true,'basic')
+         next[i]=await prepareProductImageCore(file,true,'basic')
          completed++
        }catch(e){
          failed++
@@ -2237,6 +2237,7 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
   const [duplicateCheck,setDuplicateCheck]=useState({loading:false,items:[],checked:false})
   const editing=!!initialProduct,[form,setForm]=useState({...productEmpty,...(initialProduct||{}),auto_publish:false}),[mlSuggestions,setMlSuggestions]=useState([]),[findingCategory,setFindingCategory]=useState(false),[marketModal,setMarketModal]=useState(null),[step,setStep]=useState('cadastro'),[categoryOpen,setCategoryOpen]=useState(false),[categoryQuery,setCategoryQuery]=useState(''),[categoryResults,setCategoryResults]=useState([]),[categoryBusy,setCategoryBusy]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiResult,setAiResult]=useState(null)
   const [aiUsage,setAiUsage]=useState(null),[aiStage,setAiStage]=useState(0)
+  const [oemLookup,setOemLookup]=useState({loading:false,items:[],part_name:'',warning:'',source:''})
   const aiStages=['Preparando as fotos','Lendo códigos e detalhes','Identificando a peça','Montando o cadastro']
   useEffect(()=>{
     if(!aiBusy){setAiStage(0);return}
@@ -2294,6 +2295,44 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
     }))
     notice('Sugestões da IA aplicadas. Confira os dados antes de salvar')
   }
+
+  async function lookupVehicleByOem(){
+    const code=String(form.oem||'').trim()
+    if(code.length<3)return notice('Informe o código OEM / Part number primeiro')
+
+    setOemLookup({loading:true,items:[],part_name:'',warning:'',source:''})
+    try{
+      const r=await api.post('/intelligence/oem-vehicle-suggestion',{oem:code},{timeout:38000})
+      const data=r.data||{}
+      const items=Array.isArray(data.suggestions)?data.suggestions:[]
+      setOemLookup({
+        loading:false,
+        items,
+        part_name:data.part_name||'',
+        warning:data.warning||'',
+        source:data.source||''
+      })
+      if(data.usage)setAiUsage(data.usage)
+      notice(items.length?`${items.length} sugestão(ões) encontrada(s) pelo código`:'Nenhum veículo foi identificado com segurança para esse código')
+    }catch(e){
+      setOemLookup({loading:false,items:[],part_name:'',warning:'',source:''})
+      notice(erroPt(e.response?.data?.detail)||'Não foi possível buscar o veículo pelo código agora')
+    }
+  }
+
+  function applyOemVehicleSuggestion(item){
+    const yearText=String(item?.year||'').trim()
+    const exactYear=/^\d{4}$/.test(yearText)?yearText:''
+    setForm(f=>({
+      ...f,
+      brand:item?.brand||f.brand,
+      model:item?.model||f.model,
+      year:exactYear||f.year,
+      compatibility:f.compatibility||[item?.brand,item?.model,yearText].filter(Boolean).join(' ')
+    }))
+    notice('Sugestão de veículo aplicada. Confira antes de salvar.')
+  }
+
   async function checkDuplicates(silent=false){
     const name=String(form.name||'').trim(),oem=String(form.oem||'').trim()
     if(name.length<3&&oem.length<3){setDuplicateCheck({loading:false,items:[],checked:false});return}
@@ -2419,7 +2458,22 @@ function ProductForm({refresh,notice,groups=[],brands=[],vehicles=[],locations=[
 
               <Field label="Categoria"><div className="categoryField"><input value={form.category||''} onChange={e=>setForm({...form,category:e.target.value})} placeholder="Digite ou pesquise"/><button type="button" className="ghost categorySearchBtn" onClick={()=>{setCategoryQuery(form.name||form.category||'');setCategoryResults([]);setCategoryOpen(true)}}>⌕</button></div></Field>
               <Field label="Grupo"><select value={form.part_group||''} onChange={e=>setForm({...form,part_group:e.target.value})}><option value="">Selecione...</option>{groups.map(g=><option key={g.id}>{g.name}</option>)}</select></Field>
-              <Field label="Código OEM / Part number"><input value={form.oem||''} onChange={e=>setForm({...form,oem:e.target.value})}/></Field>
+              <Field label="Código OEM / Part number">
+                <div className="categoryField">
+                  <input value={form.oem||''} onChange={e=>{setForm({...form,oem:e.target.value});setOemLookup({loading:false,items:[],part_name:'',warning:'',source:''})}}/>
+                  <button type="button" className="ghost categorySearchBtn" onClick={lookupVehicleByOem} disabled={oemLookup.loading}>{oemLookup.loading?'…':'⌕'}</button>
+                </div>
+                <small className="fieldHelp">Digite o código e use a busca para receber sugestões de marca/modelo. Nada é aplicado automaticamente.</small>
+                {!!oemLookup.items.length&&<div className="aiTextSuggestion">
+                  <small>{oemLookup.source==='historico_cdm'?'SUGESTÕES DO HISTÓRICO CDM':'SUGESTÕES PELO CÓDIGO'}</small>
+                  {oemLookup.part_name&&<p>Peça provável: {oemLookup.part_name}</p>}
+                  {oemLookup.items.map((item,i)=><div key={`${item.brand}-${item.model}-${i}`} className="aiPhotoResultTop">
+                    <div><b>{[item.brand,item.model,item.year].filter(Boolean).join(' ')||'Aplicação não identificada'}</b><span className={'aiConfidence '+(item.confidence||'baixa')}>Confiança: {item.confidence||'baixa'}</span>{item.basis&&<small>{item.basis}</small>}</div>
+                    <button type="button" className="ghost" onClick={()=>applyOemVehicleSuggestion(item)}>Aplicar</button>
+                  </div>)}
+                  {oemLookup.warning&&<small className="aiPrivacyNote">{oemLookup.warning}</small>}
+                </div>}
+              </Field>
               <Field label="Localização"><select value={form.location_id||''} onChange={e=>setForm({...form,location_id:e.target.value})}><option value="">Sem localização</option>{locations.map(l=><option key={l.id} value={l.id}>{l.code||`LOC-${l.id}`} · {l.description||l.warehouse||'Local'}</option>)}</select></Field>
 
               <div className="span2"><Field label="Sucata / veículo de origem"><select value={form.vehicle_id||''} onChange={e=>chooseVehicle(e.target.value)}><option value="">Sem vínculo / peça avulsa</option>{vehicles.map(v=><option key={v.id} value={v.id}>#{v.id} · {v.plate||'sem placa'} · {v.brand} {v.model} {v.year||''}</option>)}</select></Field></div>

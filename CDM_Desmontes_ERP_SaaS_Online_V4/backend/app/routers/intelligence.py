@@ -600,6 +600,216 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
+
+class OemVehicleLookupIn(BaseModel):
+    oem: str = Field(min_length=3, max_length=80)
+
+
+OEM_VEHICLE_LOOKUP_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "part_name": {"type": "STRING"},
+        "suggestions": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "brand": {"type": "STRING"},
+                    "model": {"type": "STRING"},
+                    "year": {"type": "STRING"},
+                    "confidence": {"type": "STRING"},
+                    "basis": {"type": "STRING"},
+                },
+                "required": ["brand", "model", "year", "confidence", "basis"],
+            },
+        },
+        "warning": {"type": "STRING"},
+    },
+    "required": ["part_name", "suggestions", "warning"],
+}
+
+
+def _norm_oem_lookup(value):
+    return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
+
+
+@router.post("/oem-vehicle-suggestion")
+def oem_vehicle_suggestion(
+    data: OemVehicleLookupIn,
+    db: Session = Depends(get_db),
+    user = Depends(active_user),
+):
+    code = str(data.oem or "").strip()
+    normalized = _norm_oem_lookup(code)
+    if len(normalized) < 3:
+        raise HTTPException(400, "Informe um código OEM / Part number válido")
+
+    history = (
+        db.query(Product)
+        .filter(
+            Product.company_id == user.company_id,
+            Product.active == True,
+            Product.oem != "",
+        )
+        .order_by(Product.id.desc())
+        .limit(1200)
+        .all()
+    )
+
+    local_items = []
+    seen = set()
+    part_name = ""
+    for product in history:
+        if _norm_oem_lookup(product.oem) != normalized:
+            continue
+        brand = str(product.brand or "").strip()
+        model = str(product.model or "").strip()
+        year = str(product.year or "").strip()
+        if not brand and not model:
+            continue
+        row_key = (brand.lower(), model.lower(), year)
+        if row_key in seen:
+            continue
+        seen.add(row_key)
+        if not part_name:
+            part_name = str(product.name or "").strip()
+        local_items.append({
+            "brand": brand,
+            "model": model,
+            "year": year,
+            "confidence": "alta",
+            "basis": "Mesmo código OEM já cadastrado nesta empresa",
+        })
+        if len(local_items) >= 6:
+            break
+
+    if local_items:
+        return {
+            "oem": code,
+            "part_name": part_name,
+            "suggestions": local_items,
+            "source": "historico_cdm",
+            "warning": "Sugestão baseada no histórico do CDM. Confira a aplicação antes de salvar.",
+            "usage": None,
+        }
+
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
+    api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
+    if not api_key:
+        raise HTTPException(503, "A busca inteligente por código ainda não está configurada no servidor.")
+
+    usage_row = _get_part_ai_usage(db, user.company_id)
+    usage = _part_ai_usage_payload(usage_row)
+    if usage["remaining"] <= 0:
+        raise HTTPException(
+            402,
+            f"Os {usage['limit']} usos de IA deste mês já foram usados. Tente o cadastro manual.",
+        )
+
+    prompt = f"""
+Você auxilia um desmanche/autopeças brasileiro.
+Recebeu somente este código OEM / Part number: {code}
+
+OBJETIVO:
+Sugerir possíveis MARCAS e MODELOS de veículos relacionados a esse código, apenas quando você tiver conhecimento suficiente.
+
+REGRAS:
+- Não invente aplicação.
+- Não transforme número de série, lote ou homologação em OEM.
+- Se o código for ambíguo ou insuficiente, devolva suggestions vazio.
+- Traga no máximo 6 possibilidades.
+- "brand" = fabricante do veículo.
+- "model" = modelo do veículo.
+- "year" = ano ou faixa curta somente quando houver segurança; senão "".
+- "confidence" = exatamente "alta", "media" ou "baixa".
+- "basis" = frase curta explicando a base da sugestão.
+- "part_name" = nome provável da peça somente se houver segurança; senão "".
+- "warning" deve lembrar que a aplicação precisa ser conferida antes de salvar/publicar.
+- Responda somente no JSON solicitado.
+""".strip()
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.05,
+            "maxOutputTokens": 700,
+            "response_mime_type": "application/json",
+            "response_schema": OEM_VEHICLE_LOOKUP_SCHEMA,
+        },
+    }
+
+    response = None
+    last_error = None
+    for timeout_seconds in (18.0, 12.0):
+        try:
+            with httpx.Client(timeout=httpx.Timeout(timeout_seconds, connect=7.0)) as client:
+                candidate = client.post(
+                    PART_AI_URL.format(model=model),
+                    headers={
+                        "x-goog-api-key": api_key,
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+        except (httpx.TimeoutException, httpx.HTTPError) as exc:
+            last_error = exc
+            continue
+
+        response = candidate
+        if candidate.status_code not in {408, 429, 500, 502, 503, 504}:
+            break
+
+    if response is None:
+        if isinstance(last_error, httpx.TimeoutException):
+            raise HTTPException(504, "A busca pelo código demorou demais. Tente novamente.")
+        raise HTTPException(502, "A busca pelo código oscilou. Tente novamente.")
+
+    if response.status_code >= 400:
+        if response.status_code in {408, 429}:
+            detail = "A busca inteligente está ocupada agora. Tente novamente em alguns segundos."
+        elif response.status_code in {500, 502, 503, 504}:
+            detail = "A busca inteligente oscilou. Tente novamente."
+        else:
+            detail = f"Não foi possível buscar o código agora (HTTP {response.status_code})."
+        raise HTTPException(502 if response.status_code >= 500 else response.status_code, detail)
+
+    parsed = _json_from_ai_text(_gemini_result_text(response.json()))
+    if not isinstance(parsed, dict):
+        raise HTTPException(502, "A busca pelo código retornou um formato inesperado.")
+
+    clean_items = []
+    for item in (parsed.get("suggestions") or [])[:6]:
+        if not isinstance(item, dict):
+            continue
+        brand = str(item.get("brand") or "").strip()
+        model_name = str(item.get("model") or "").strip()
+        if not brand and not model_name:
+            continue
+        confidence = str(item.get("confidence") or "baixa").strip().lower()
+        if confidence not in {"alta", "media", "baixa"}:
+            confidence = "baixa"
+        clean_items.append({
+            "brand": brand,
+            "model": model_name,
+            "year": str(item.get("year") or "").strip()[:40],
+            "confidence": confidence,
+            "basis": str(item.get("basis") or "").strip()[:240],
+        })
+
+    _increment_part_ai_usage(db, usage_row)
+    updated_usage = _part_ai_usage_payload(usage_row)
+
+    return {
+        "oem": code,
+        "part_name": str(parsed.get("part_name") or "").strip()[:180],
+        "suggestions": clean_items,
+        "source": "ia_codigo",
+        "warning": str(parsed.get("warning") or "Confira a aplicação antes de salvar.").strip()[:360],
+        "usage": updated_usage,
+    }
+
+
 # CDM AI STABLE V15.6
 PART_AI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
 PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -659,7 +869,7 @@ def _part_ai_usage_payload(row: PartAiUsage):
     used = max(0, int(row.used or 0))
     model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
     return {
-        "version": "v15.6",
+        "version": "v15.9",
         "provider": "gemini",
         "model": model,
         "configured": bool((os.getenv("GEMINI_API_KEY") or "").strip()),
