@@ -600,7 +600,7 @@ class ProductPhotoAnalysisIn(BaseModel):
     context: dict = Field(default_factory=dict)
 
 
-# CDM AI STABLE V15.7
+# CDM AI STABLE V15.6
 PART_AI_MODEL_DEFAULT = "gemini-3.5-flash-lite"
 PART_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -659,7 +659,7 @@ def _part_ai_usage_payload(row: PartAiUsage):
     used = max(0, int(row.used or 0))
     model = (os.getenv("GEMINI_VISION_MODEL") or PART_AI_MODEL_DEFAULT).strip() or PART_AI_MODEL_DEFAULT
     return {
-        "version": "v15.7",
+        "version": "v15.6",
         "provider": "gemini",
         "model": model,
         "configured": bool((os.getenv("GEMINI_API_KEY") or "").strip()),
@@ -763,16 +763,6 @@ PART_AI_SCHEMA = {
             "items": {"type": "STRING"},
         },
         "quality_notes": {"type": "STRING"},
-        "visible_codes": {
-            "type": "ARRAY",
-            "items": {"type": "STRING"},
-        },
-        "visual_evidence": {
-            "type": "ARRAY",
-            "items": {"type": "STRING"},
-        },
-        "photo_quality": {"type": "STRING"},
-        "identification_basis": {"type": "STRING"},
         "confidence": {"type": "STRING"},
         "warnings": {
             "type": "ARRAY",
@@ -782,9 +772,7 @@ PART_AI_SCHEMA = {
     "required": [
         "name", "category", "part_group", "side", "position", "condition",
         "oem", "brand", "model", "year", "compatibility", "description",
-        "marketplace_title", "keywords", "quality_notes", "visible_codes",
-        "visual_evidence", "photo_quality", "identification_basis",
-        "confidence", "warnings",
+        "marketplace_title", "keywords", "quality_notes", "confidence", "warnings",
     ],
 }
 
@@ -885,14 +873,7 @@ REGRAS:
 - "compatibility" deve listar apenas aplicações possíveis e sempre de forma cautelosa. Se não houver evidência suficiente, deixe vazio.
 - "description" deve ser profissional em português do Brasil e não pode afirmar funcionamento/teste que a foto não comprova.
 - "marketplace_title" deve ser um título comercial claro, sem alegações não comprovadas.
-- Analise todas as fotos em conjunto. Uma foto pode mostrar a peça inteira e outra pode mostrar etiqueta/código.
-- Dê prioridade a códigos realmente legíveis em etiqueta, gravação, adesivo ou carcaça.
-- Diferencie OEM/part number de número de série, lote, homologação ou marca de fundição. Não misture esses códigos.
 - "quality_notes" descreve somente estado visual aparente: marcas, riscos, trincas, oxidação, conectores e detalhes visíveis.
-- "visible_codes" deve listar, sem corrigir nem completar, até 8 códigos/textos técnicos realmente legíveis nas fotos.
-- "visual_evidence" deve ter de 2 a 6 sinais visuais curtos que sustentam a identificação, como polia, conector, formato, suporte, etiqueta ou gravação.
-- "photo_quality" deve ser exatamente "alta", "media" ou "baixa" conforme nitidez, ângulo e legibilidade disponíveis.
-- "identification_basis" deve ser uma frase curta dizendo em que elementos visuais a identificação se baseou, sem inventar informação.
 - "keywords" deve ter no máximo 10 termos.
 - "warnings" deve dizer exatamente o que o funcionário precisa conferir antes de salvar/publicar.
 - "confidence" deve ser exatamente "alta", "media" ou "baixa".
@@ -900,11 +881,11 @@ REGRAS:
 - Responda somente no formato JSON solicitado.
 """.strip()
 
-    # V15.7: análise visual mais rica sem abandonar o retry rápido.
+    # V15.6: prioriza resposta mais completa, mantendo retry automático.
     attempts = [
-        {"images": image_parts, "timeout": 27.0, "max_tokens": 1280},
-        {"images": image_parts[:2], "timeout": 20.0, "max_tokens": 980},
-        {"images": image_parts[:1], "timeout": 15.0, "max_tokens": 760},
+        {"images": image_parts, "timeout": 26.0, "max_tokens": 1120},
+        {"images": image_parts[:2], "timeout": 20.0, "max_tokens": 900},
+        {"images": image_parts[:1], "timeout": 15.0, "max_tokens": 720},
     ]
 
     r = None
