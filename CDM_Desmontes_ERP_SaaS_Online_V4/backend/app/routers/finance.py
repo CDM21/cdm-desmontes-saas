@@ -15,7 +15,9 @@ class EntryIn(BaseModel):
     due_date:str=""
 
 def _manual_entry(row: FinancialEntry):
-    return not str(row.description or "").strip().lower().startswith("venda #")
+    description=str(row.description or "").strip().lower()
+    automatic_prefixes=("venda #","mercado livre pedido ","shopee pedido ","olx pedido ")
+    return not description.startswith(automatic_prefixes)
 
 @router.get("")
 def list_entries(db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager"))):

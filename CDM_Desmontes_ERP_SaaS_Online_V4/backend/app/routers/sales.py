@@ -106,6 +106,100 @@ def update_shipping(
     return _serialize_sale(db,sale)
 
 
+
+@router.post("/{sale_id}/cancel")
+def cancel_sale(
+    sale_id:int,
+    db:Session=Depends(get_db),
+    user=Depends(require_roles("owner","admin","manager")),
+):
+    sale=(
+        db.query(Sale)
+        .filter(Sale.id==sale_id,Sale.company_id==user.company_id)
+        .with_for_update()
+        .first()
+    )
+    if not sale:
+        raise HTTPException(404,"Venda não encontrada")
+
+    source=str(getattr(sale,"source","manual") or "manual").lower()
+    if source!="manual":
+        raise HTTPException(400,"Pedidos de marketplace devem ser cancelados no próprio canal")
+
+    if str(sale.status or "").lower() in {"canceled","cancelled","cancelada","cancelado","cancelled_by_user"}:
+        return _serialize_sale(db,sale)
+
+    if str(getattr(sale,"shipping_status","") or "").lower()=="shipped":
+        raise HTTPException(400,"Venda já despachada. Use o fluxo de devolução em vez de cancelar")
+
+    reversal_ref=f"sale:{sale.id}:cancel"
+    already_reversed=db.query(StockMovement).filter(
+        StockMovement.company_id==user.company_id,
+        StockMovement.reference==reversal_ref,
+    ).first()
+
+    touched={}
+    if not already_reversed:
+        items=db.query(SaleItem).filter(
+            SaleItem.sale_id==sale.id,
+            SaleItem.company_id==user.company_id,
+        ).all()
+
+        for item in items:
+            qty=max(0,int(item.quantity or 0))
+            if qty<=0:
+                continue
+
+            product=(
+                db.query(Product)
+                .filter(Product.id==item.product_id,Product.company_id==user.company_id)
+                .with_for_update()
+                .first()
+            )
+            if not product:
+                continue
+
+            product.stock=int(product.stock or 0)+qty
+            db.add(StockMovement(
+                company_id=user.company_id,
+                product_id=product.id,
+                kind="sale_cancel",
+                quantity_delta=qty,
+                balance_after=product.stock,
+                reference=reversal_ref,
+            ))
+            touched[product.id]=product
+
+    sale.status="canceled"
+
+    finance=db.query(FinancialEntry).filter(
+        FinancialEntry.company_id==user.company_id,
+        FinancialEntry.kind=="income",
+        FinancialEntry.description==f"Venda #{sale.id}",
+    ).first()
+    if finance:
+        finance.status="canceled"
+
+    audit(
+        db,user,"sale.cancel","sale",str(sale.id),
+        {
+            "total":sale.total,
+            "items_restored":len(touched),
+            "source":source,
+        },
+    )
+    db.commit()
+    db.refresh(sale)
+
+    for product in touched.values():
+        try:
+            sync_marketplace_stock_for_product(db,product,user.company_id)
+        except Exception:
+            pass
+
+    return _serialize_sale(db,sale)
+
+
 @router.post("")
 def create_sale(data:SaleIn,db:Session=Depends(get_db),user=Depends(require_roles("owner","admin","manager","cashier"))):
     if not data.items: raise HTTPException(400,"Venda sem itens")

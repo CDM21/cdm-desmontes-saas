@@ -255,7 +255,7 @@ function App(){
        {tab==='cadastros'&&<CadastrosHome setTab={setTab}/>}
        {['labels','label-models','etiquetas'].includes(tab)&&<LabelsModule tab={tab} products={products} company={session?.company}/>}
        {tab==='sales'&&<Sales products={products} sales={sales} customers={catalog.customers} refresh={load} notice={notice}/>}
-       {tab==='sales-history'&&<SalesHistory sales={sales} refresh={load}/>}
+       {tab==='sales-history'&&<SalesHistory sales={sales} refresh={load} notice={notice}/>}
        {tab==='shipping'&&<ShippingPanel sales={sales} refresh={load} notice={notice}/>}
        {['marketplaces','mercadolivre','shopee','olx','integracoes'].includes(tab)&&<Marketplaces data={marketplaces} listings={listings} products={products} refresh={load} notice={notice} focus={tab} subscription={session?.subscription}/>}
        {['purchase-new','purchases','compras'].includes(tab)&&<SimpleModule eyebrow="COMPRAS" title={tab==='purchase-new'?'Nova Compra':'Compras'} text="Controle pedidos de compra, fornecedores, custos e recebimentos." actions={['Novo pedido de compra','Compras realizadas','Recebimentos']}/>}
@@ -820,9 +820,11 @@ function OnboardingChecklist({v=[],p=[],s=[],marketplaces=[],session,setTab}){
 }
 
 function Dashboard({v,p,s,f,marketplaces,session,setTab}){
- const receita=s.reduce((a,x)=>a+x.total,0)
- const entr=f.filter(x=>x.kind==='income').reduce((a,x)=>a+x.amount,0)
- const sai=f.filter(x=>x.kind==='expense').reduce((a,x)=>a+x.amount,0)
+ const canceledStatuses=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
+ const activeSales=s.filter(x=>!canceledStatuses.has(String(x.status||'').toLowerCase()))
+ const receita=activeSales.reduce((a,x)=>a+Number(x.total||0),0)
+ const entr=f.filter(x=>x.kind==='income'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const sai=f.filter(x=>x.kind==='expense'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
  const stock=p.reduce((a,x)=>a+x.stock,0)
  const role=session?.user?.role||'user'
  const quickActions=[
@@ -841,7 +843,7 @@ function Dashboard({v,p,s,f,marketplaces,session,setTab}){
   <div className="grid metrics dashboardMetrics">
    <Card icon="🚗" title="Sucatas cadastradas" value={v.length} sub="Base de desmontagem"/>
    <Card icon="⚙" title="Peças em estoque" value={stock} sub={`${p.length} SKUs cadastrados`}/>
-   <Card icon="↗" title="Faturamento" value={money(receita)} sub={`${s.length} vendas registradas`}/>
+   <Card icon="↗" title="Faturamento" value={money(receita)} sub={`${activeSales.length} vendas válidas · ${s.length-activeSales.length} cancelada(s)`}/>
    <Card icon="▣" title="Saldo financeiro" value={money(entr-sai)} sub="Entradas menos saídas"/>
   </div>
   <div className="twoCols dashboardBottom">
@@ -3592,8 +3594,8 @@ function Sales({products,sales,customers=[],refresh,notice}){
 }
 
 // CDM ORDER CENTER V51
-function SalesHistory({sales,refresh}){
- const [query,setQuery]=useState(''),[channel,setChannel]=useState('all'),[statusFilter,setStatusFilter]=useState('all'),[openId,setOpenId]=useState(null),[busy,setBusy]=useState(false)
+function SalesHistory({sales,refresh,notice}){
+ const [query,setQuery]=useState(''),[channel,setChannel]=useState('all'),[statusFilter,setStatusFilter]=useState('all'),[openId,setOpenId]=useState(null),[busy,setBusy]=useState(false),[cancelingId,setCancelingId]=useState(null)
 
  const canceledValues=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
  const doneValues=new Set(['paid','completed','finished','shipped','delivered','to_confirm_receive'])
@@ -3633,6 +3635,21 @@ function SalesHistory({sales,refresh}){
    if(!refresh||busy)return
    setBusy(true)
    try{await refresh()}finally{setBusy(false)}
+ }
+
+ async function cancelSale(s){
+   if(String(s.source||'manual')!=='manual')return notice?.('Pedidos de marketplace devem ser cancelados no próprio canal')
+   if(!confirm(`Cancelar a venda #${s.id}?\n\nO estoque das peças será devolvido automaticamente e a entrada financeira ficará como cancelada.`))return
+   setCancelingId(s.id)
+   try{
+     await api.post(`/sales/${s.id}/cancel`)
+     await refresh?.()
+     notice?.(`Venda #${s.id} cancelada e estoque devolvido`)
+   }catch(e){
+     notice?.(erroPt(e.response?.data?.detail)||'Não foi possível cancelar a venda')
+   }finally{
+     setCancelingId(null)
+   }
  }
 
  return <div className="orderCenter">
@@ -3713,6 +3730,7 @@ function SalesHistory({sales,refresh}){
              <div className="orderDetailFoot">
                <span>Origem: <b>{src.label}</b></span>
                <span>Status: <b>{statusPt(s.status)}</b></span>
+               {String(s.source||'manual')==='manual'&&group!=='canceled'&&<button className="ghost dangerMini" disabled={cancelingId===s.id} onClick={()=>cancelSale(s)}>{cancelingId===s.id?'Cancelando...':'Cancelar venda e devolver estoque'}</button>}
                <strong>Total {money(s.total)}</strong>
              </div>
            </div>}
@@ -4092,17 +4110,18 @@ function SaleProtection({sales=[],products=[],notice}){
 function Finance({data,refresh,notice}){
  const empty={kind:'income',description:'',amount:0,status:'paid',due_date:''}
  const [form,setForm]=useState(empty),[editingId,setEditingId]=useState(null),[search,setSearch]=useState(''),[kindFilter,setKindFilter]=useState('all'),[statusFilter,setStatusFilter]=useState('all'),[busy,setBusy]=useState(false)
+ const automaticEntry=row=>/^(venda #|mercado livre pedido |shopee pedido |olx pedido )/i.test(String(row?.description||'').trim())
 
  const paidIncome=data.filter(x=>x.kind==='income'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
  const paidExpense=data.filter(x=>x.kind==='expense'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
- const pending=data.filter(x=>x.status!=='paid').reduce((a,x)=>a+Number(x.amount||0),0)
+ const pending=data.filter(x=>x.status==='pending').reduce((a,x)=>a+Number(x.amount||0),0)
  const filtered=useMemo(()=>data.filter(x=>{
    const q=search.trim().toLowerCase()
    return (!q||`${x.description||''} ${x.id||''}`.toLowerCase().includes(q))&&(kindFilter==='all'||x.kind===kindFilter)&&(statusFilter==='all'||x.status===statusFilter)
  }),[data,search,kindFilter,statusFilter])
 
  function edit(row){
-   if(String(row.description||'').trim().toLowerCase().startsWith('venda #'))return notice('Lançamentos automáticos de venda são controlados pela própria venda')
+   if(automaticEntry(row))return notice('Lançamentos automáticos de vendas e marketplaces são controlados pela própria operação')
    setEditingId(row.id)
    setForm({kind:row.kind||'income',description:row.description||'',amount:Number(row.amount||0),status:row.status||'paid',due_date:row.due_date||''})
    window.scrollTo({top:0,behavior:'smooth'})
@@ -4124,7 +4143,7 @@ function Finance({data,refresh,notice}){
  }
 
  async function remove(row){
-   if(String(row.description||'').trim().toLowerCase().startsWith('venda #'))return notice('Lançamentos automáticos de venda não podem ser excluídos aqui')
+   if(automaticEntry(row))return notice('Lançamentos automáticos de vendas e marketplaces não podem ser excluídos aqui')
    if(!confirm(`Excluir o lançamento "${row.description}"?`))return
    try{await api.delete(`/finance/${row.id}`);await refresh();notice('Lançamento excluído')}catch(e){notice(erroPt(e.response?.data?.detail)||'Não foi possível excluir')}
  }
@@ -4157,7 +4176,7 @@ function Finance({data,refresh,notice}){
        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="all">Todas as situações</option><option value="paid">Pagos</option><option value="pending">Pendentes</option></select>
      </div>
      <div className="tableWrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Situação</th><th>Vencimento</th><th>Ações</th></tr></thead><tbody>
-       {filtered.length?filtered.map(row=>{const automatic=String(row.description||'').trim().toLowerCase().startsWith('venda #');return <tr key={row.id}><td>#{row.id}</td><td>{valuePt('kind',row.kind)}</td><td><b>{row.description}</b>{automatic&&<small className="block">Automático da venda</small>}</td><td>{money(row.amount)}</td><td><span className={row.status==='paid'?'pill success':'pill warn'}>{statusPt(row.status)}</span></td><td>{row.due_date||'—'}</td><td><div className="rowActions"><button className="ghost" disabled={automatic} onClick={()=>edit(row)}>Editar</button><button className="ghost dangerMini" disabled={automatic} onClick={()=>remove(row)}>Excluir</button></div></td></tr>}):<tr><td colSpan="7" className="empty">Nenhum lançamento encontrado.</td></tr>}
+       {filtered.length?filtered.map(row=>{const automatic=automaticEntry(row);return <tr key={row.id}><td>#{row.id}</td><td>{valuePt('kind',row.kind)}</td><td><b>{row.description}</b>{automatic&&<small className="block">Automático da operação</small>}</td><td>{money(row.amount)}</td><td><span className={row.status==='paid'?'pill success':row.status==='canceled'?'pill neutral':'pill warn'}>{statusPt(row.status)}</span></td><td>{row.due_date||'—'}</td><td><div className="rowActions"><button className="ghost" disabled={automatic} onClick={()=>edit(row)}>Editar</button><button className="ghost dangerMini" disabled={automatic} onClick={()=>remove(row)}>Excluir</button></div></td></tr>}):<tr><td colSpan="7" className="empty">Nenhum lançamento encontrado.</td></tr>}
      </tbody></table></div>
    </section>
  </>
@@ -4191,10 +4210,12 @@ function Reports({products,sales,finance,vehicles}){
    return (!a||d>=a)&&(!b||d<=b)
  }
  const reportSales=sales.filter(x=>inRange(x.created_at))
+ const canceledStatuses=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
+ const validReportSales=reportSales.filter(x=>!canceledStatuses.has(String(x.status||'').toLowerCase()))
  const reportFinance=finance.filter(x=>inRange(x.due_date||x.created_at))
  const stockValue=products.reduce((a,p)=>a+Number(p.cost||0)*Number(p.stock||0),0)
  const stockSaleValue=products.reduce((a,p)=>a+Number(p.price||0)*Number(p.stock||0),0)
- const revenue=reportSales.reduce((a,s)=>a+Number(s.total||0),0)
+ const revenue=validReportSales.reduce((a,s)=>a+Number(s.total||0),0)
  const expenses=reportFinance.filter(x=>x.kind==='expense'&&x.status==='paid').reduce((a,x)=>a+Number(x.amount||0),0)
  const low=products.filter(p=>Number(p.stock||0)<=1).length
 
@@ -4226,7 +4247,7 @@ function Reports({products,sales,finance,vehicles}){
    <section className="panel reportFilters"><div><Field label="De"><input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></Field><Field label="Até"><input type="date" value={to} onChange={e=>setTo(e.target.value)}/></Field><button className="ghost" onClick={()=>{setFrom('');setTo('')}}>Limpar período</button></div><span>{reportSales.length} venda(s) no período</span></section>
 
    <div className="grid metrics">
-     <Card icon="R$" title="Vendas no período" value={money(revenue)} sub={`${reportSales.length} vendas`}/>
+     <Card icon="R$" title="Vendas no período" value={money(revenue)} sub={`${validReportSales.length} vendas válidas`}/>
      <Card icon="↓" title="Despesas pagas" value={money(expenses)} sub="No período selecionado"/>
      <Card icon="=" title="Resultado simples" value={money(revenue-expenses)} sub="Vendas - despesas"/>
      <Card icon="▤" title="Venda potencial em estoque" value={money(stockSaleValue)} sub={`${products.length} SKUs · custo ${money(stockValue)}`}/>
