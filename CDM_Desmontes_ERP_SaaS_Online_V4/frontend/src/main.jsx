@@ -3742,113 +3742,298 @@ function SalesHistory({sales,refresh,notice}){
 }
 
 // CDM SHIPPING V52
-function ShippingPanel({sales,refresh,notice}){
- const [filter,setFilter]=useState('active'),[query,setQuery]=useState(''),[busy,setBusy]=useState(''),[drafts,setDrafts]=useState({})
- const canceled=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
- const steps=[['awaiting_separation','Aguardando separação'],['separated','Separado'],['ready_to_ship','Pronto para envio'],['shipped','Despachado']]
- const labels=Object.fromEntries(steps)
- const order=Object.fromEntries(steps.map((x,i)=>[x[0],i]))
- const src=s=>({manual:['LOJA','Venda local'],mercadolivre:['ML','Mercado Livre'],shopee:['SH','Shopee'],olx:['OLX','OLX']}[s]||['•',valuePt('source',s)||'Outro'])
 
- const eligible=useMemo(()=>[...(sales||[])].filter(s=>!canceled.has(String(s.status||'').toLowerCase())).sort((a,b)=>{
-   const sa=order[s.shipping_status||'awaiting_separation']??0
-   const sb=order[b.shipping_status||'awaiting_separation']??0
-   return sa-sb||new Date(b.created_at||0)-new Date(a.created_at||0)
- }),[sales])
+function ShippingPanel({sales=[],refresh,notice}){
+ const [filter,setFilter]=useState('active')
+ const [query,setQuery]=useState('')
+ const [busy,setBusy]=useState('')
+ const [drafts,setDrafts]=useState({})
 
- const shown=useMemo(()=>{
-   const q=query.trim().toLowerCase()
-   return eligible.filter(s=>{
-     const st=s.shipping_status||'awaiting_separation'
-     if(filter==='active'&&st==='shipped')return false
-     if(filter!=='all'&&filter!=='active'&&st!==filter)return false
-     if(!q)return true
-     const items=(s.items||[]).map(i=>`${i.sku||''} ${i.name||''}`).join(' ')
-     return `${s.id} ${s.external_order_id||''} ${s.customer_name||''} ${s.carrier_name||''} ${s.tracking_code||''} ${items}`.toLowerCase().includes(q)
-   })
- },[eligible,filter,query])
+ const rows=Array.isArray(sales)?sales.filter(x=>x&&typeof x==='object'):[]
+ const cancelados=new Set(['cancelled','canceled','cancelada','cancelado','cancelled_by_user'])
+ const etapas=[
+  ['awaiting_separation','Aguardando separação'],
+  ['separated','Separado'],
+  ['ready_to_ship','Pronto para envio'],
+  ['shipped','Despachado']
+ ]
+ const nomes=Object.fromEntries(etapas)
+ const ordem={awaiting_separation:0,separated:1,ready_to_ship:2,shipped:3}
 
- const count=st=>eligible.filter(s=>(s.shipping_status||'awaiting_separation')===st).length
- const activeCount=eligible.filter(s=>(s.shipping_status||'awaiting_separation')!=='shipped').length
-
- function draftFor(s){return drafts[s.id]||{carrier_name:s.carrier_name||'',tracking_code:s.tracking_code||'',shipping_notes:s.shipping_notes||''}}
- function setDraft(id,key,value){
-   const s=(sales||[]).find(x=>x.id===id)||{}
-   setDrafts(d=>({...d,[id]:{...draftFor(s),...(d[id]||{}),[key]:value}}))
+ const status=s=>{
+  const v=String(s?.shipping_status||'awaiting_separation').toLowerCase()
+  return Object.prototype.hasOwnProperty.call(ordem,v)?v:'awaiting_separation'
  }
 
- async function move(s,next){
-   const d=draftFor(s)
-   setBusy(`${s.id}:${next}`)
-   try{
-     await api.patch(`/sales/${s.id}/shipping`,{shipping_status:next,carrier_name:d.carrier_name||'',tracking_code:d.tracking_code||'',shipping_notes:d.shipping_notes||''})
-     await refresh()
-     notice(`Pedido ${s.external_order_id||'#'+s.id}: ${labels[next]}`)
-   }catch(e){
-     notice(erroPt(e.response?.data?.detail)||'Não foi possível atualizar a expedição')
-   }finally{setBusy('')}
+ const itens=s=>Array.isArray(s?.items)?s.items.filter(Boolean):[]
+
+ const ativos=rows
+  .filter(s=>!cancelados.has(String(s?.status||'').toLowerCase()))
+  .sort((a,b)=>ordem[status(a)]-ordem[status(b)])
+
+ const busca=query.trim().toLowerCase()
+
+ const exibidos=ativos.filter(s=>{
+  const st=status(s)
+
+  if(filter==='active'&&st==='shipped')return false
+  if(filter!=='all'&&filter!=='active'&&st!==filter)return false
+
+  if(!busca)return true
+
+  const txtItens=itens(s).map(i=>`${i?.sku||''} ${i?.name||''}`).join(' ')
+
+  return `${s?.id||''} ${s?.customer_name||''} ${s?.external_order_id||''} ${txtItens}`
+   .toLowerCase()
+   .includes(busca)
+ })
+
+ const contar=st=>ativos.filter(s=>status(s)===st).length
+
+ function draftFor(s){
+  return drafts[s.id]||{
+   carrier_name:String(s?.carrier_name||''),
+   tracking_code:String(s?.tracking_code||''),
+   shipping_notes:String(s?.shipping_notes||'')
+  }
+ }
+
+ function setDraft(id,key,value){
+  const venda=rows.find(x=>x.id===id)||{}
+  setDrafts(d=>({
+   ...d,
+   [id]:{
+    ...draftFor(venda),
+    ...(d[id]||{}),
+    [key]:value
+   }
+  }))
+ }
+
+ async function mover(s,proximo){
+  const d=draftFor(s)
+  setBusy(`${s.id}:${proximo}`)
+
+  try{
+   await api.patch(`/sales/${s.id}/shipping`,{
+    shipping_status:proximo,
+    carrier_name:String(d.carrier_name||''),
+    tracking_code:String(d.tracking_code||''),
+    shipping_notes:String(d.shipping_notes||'')
+   })
+
+   if(refresh)await refresh()
+   if(notice)notice(`Pedido #${s.id}: ${nomes[proximo]}`)
+  }catch(e){
+   if(notice)notice(erroPt(e.response?.data?.detail)||'Não foi possível atualizar a expedição')
+  }finally{
+   setBusy('')
+  }
  }
 
  return <div className="shippingV52">
-   <div className="pageTitle shippingTitle">
-     <div><span>EXPEDIÇÃO</span><h2>Painel de Expedição</h2><p>Separe, confira e acompanhe os pedidos até o despacho sem alterar novamente o estoque.</p></div>
-     <button className="ghost shippingRefresh" onClick={refresh}>↻ Atualizar pedidos</button>
+
+  <div className="pageTitle shippingTitle">
+   <div>
+    <span>EXPEDIÇÃO</span>
+    <h2>Painel de Expedição</h2>
+    <p>Separe, confira e acompanhe os pedidos até o despacho.</p>
    </div>
 
-   <div className="shippingMetrics">
-     <button className={filter==='active'?'active':''} onClick={()=>setFilter('active')}><small>Fila ativa</small><strong>{activeCount}</strong><span>pedidos pendentes</span></button>
-     <button className={filter==='awaiting_separation'?'active':''} onClick={()=>setFilter('awaiting_separation')}><small>Aguardando separação</small><strong>{count('awaiting_separation')}</strong><span>para localizar no estoque</span></button>
-     <button className={filter==='ready_to_ship'?'active':''} onClick={()=>setFilter('ready_to_ship')}><small>Prontos para envio</small><strong>{count('ready_to_ship')}</strong><span>aguardando despacho</span></button>
-     <button className={filter==='shipped'?'active':''} onClick={()=>setFilter('shipped')}><small>Despachados</small><strong>{count('shipped')}</strong><span>pedidos concluídos</span></button>
+   <button className="ghost shippingRefresh" onClick={()=>refresh?.()}>
+    ↻ Atualizar pedidos
+   </button>
+  </div>
+
+  <div className="shippingMetrics">
+   <button className={filter==='active'?'active':''} onClick={()=>setFilter('active')}>
+    <small>Fila ativa</small>
+    <strong>{ativos.filter(s=>status(s)!=='shipped').length}</strong>
+    <span>pedidos pendentes</span>
+   </button>
+
+   <button className={filter==='awaiting_separation'?'active':''} onClick={()=>setFilter('awaiting_separation')}>
+    <small>Aguardando separação</small>
+    <strong>{contar('awaiting_separation')}</strong>
+    <span>para separar</span>
+   </button>
+
+   <button className={filter==='ready_to_ship'?'active':''} onClick={()=>setFilter('ready_to_ship')}>
+    <small>Prontos para envio</small>
+    <strong>{contar('ready_to_ship')}</strong>
+    <span>aguardando despacho</span>
+   </button>
+
+   <button className={filter==='shipped'?'active':''} onClick={()=>setFilter('shipped')}>
+    <small>Despachados</small>
+    <strong>{contar('shipped')}</strong>
+    <span>concluídos</span>
+   </button>
+  </div>
+
+  <section className="panel shippingPanel">
+
+   <div className="shippingToolbar">
+    <div className="shippingSearch">
+     <span>⌕</span>
+     <input
+      value={query}
+      onChange={e=>setQuery(e.target.value)}
+      placeholder="Buscar pedido, SKU, peça ou cliente..."
+     />
+    </div>
+
+    <select value={filter} onChange={e=>setFilter(e.target.value)}>
+     <option value="active">Fila ativa</option>
+     <option value="all">Todos</option>
+     {etapas.map(([k,v])=><option key={k} value={k}>{v}</option>)}
+    </select>
    </div>
 
-   <section className="panel shippingPanel">
-     <div className="shippingToolbar">
-       <div className="shippingSearch"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar pedido, SKU, peça, cliente ou rastreio..."/></div>
-       <select value={filter} onChange={e=>setFilter(e.target.value)}>
-         <option value="active">Fila ativa</option><option value="all">Todos</option>
-         {steps.map(([k,l])=><option key={k} value={k}>{l}</option>)}
-       </select>
-     </div>
+   <div className="shippingResult">
+    <b>{exibidos.length}</b> pedido(s) nesta visão
+   </div>
 
-     <div className="shippingResult"><b>{shown.length}</b> pedido(s) nesta visão</div>
+   <div className="shippingList">
 
-     <div className="shippingList">
-       {shown.length?shown.map(s=>{
-         const st=s.shipping_status||'awaiting_separation',idx=order[st]??0,channel=src(s.source||'manual'),items=s.items||[],d=draftFor(s),isBusy=busy.startsWith(`${s.id}:`)
-         return <article className={'shippingCard '+st} key={s.id}>
-           <div className="shippingCardHead">
-             <div className={'shippingSource '+(s.source||'manual')}><b>{channel[0]}</b><small>{channel[1]}</small></div>
-             <div className="shippingIdentity"><small>{s.external_order_id?`PEDIDO ${s.external_order_id}`:`VENDA #${s.id}`}</small><b>{items.length?items.map(i=>i.name||'Peça').slice(0,2).join(' + '):'Venda registrada'}</b><span>{s.customer_name||'Consumidor final'} · {items.reduce((a,i)=>a+Number(i.quantity||0),0)} item(ns) · {money(s.total)}</span></div>
-             <div className={'shippingStatus '+st}><i/><b>{labels[st]||st}</b></div>
-           </div>
+    {exibidos.length?exibidos.map(s=>{
+     const st=status(s)
+     const idx=ordem[st]
+     const lista=itens(s)
+     const travado=busy.startsWith(`${s.id}:`)
 
-           <div className="shippingProgress">
-             {steps.map(([k,l],i)=><div key={k} className={(i<idx?'done ':i===idx?'current ':'')+(k==='shipped'&&st==='shipped'?'done current':'')}><i>{i<idx||st==='shipped'?'✓':i+1}</i><span>{l}</span></div>)}
-           </div>
+     return <article className={'shippingCard '+st} key={s.id}>
 
-           <div className="shippingItems">{items.map((it,i)=><div key={it.id||i}><span><b>{it.name||'Peça'}</b><small>{it.sku?`SKU ${it.sku}`:`Produto #${it.product_id||'—'}`}</small></span><strong>{it.quantity||0} un.</strong></div>)}</div>
+      <div className="shippingCardHead">
 
-           <div className="shippingFields">
-             <label><span>Transportadora</span><input value={d.carrier_name} onChange={e=>setDraft(s.id,'carrier_name',e.target.value)} placeholder="Ex.: Correios, Jadlog..."/></label>
-             <label><span>Código de rastreio</span><input value={d.tracking_code} onChange={e=>setDraft(s.id,'tracking_code',e.target.value)} placeholder="Opcional"/></label>
-             <label className="shippingNotes"><span>Observações</span><input value={d.shipping_notes} onChange={e=>setDraft(s.id,'shipping_notes',e.target.value)} placeholder="Embalagem, retirada, conferência..."/></label>
-           </div>
+       <div className={'shippingSource '+String(s.source||'manual')}>
+        <b>{String(s.source||'manual')==='mercadolivre'?'ML':'LOJA'}</b>
+        <small>{valuePt('source',s.source||'manual')}</small>
+       </div>
 
-           <div className="shippingActions">
-             <div><small>Criado em {s.created_at?new Date(s.created_at).toLocaleString('pt-BR'):'—'}</small>{s.shipped_at&&<small>Despachado em {new Date(s.shipped_at).toLocaleString('pt-BR')}</small>}</div>
-             <div>
-               {idx>0&&<button className="ghost" disabled={isBusy} onClick={()=>move(s,steps[idx-1][0])}>← Voltar etapa</button>}
-               {st==='awaiting_separation'&&<button className="primary" disabled={isBusy} onClick={()=>move(s,'separated')}>✓ Marcar como separado</button>}
-               {st==='separated'&&<button className="primary" disabled={isBusy} onClick={()=>move(s,'ready_to_ship')}>Pronto para envio →</button>}
-               {st==='ready_to_ship'&&<button className="primary" disabled={isBusy} onClick={()=>move(s,'shipped')}>Despachar pedido →</button>}
-               {st==='shipped'&&<span className="shippingDone">✓ Expedição concluída</span>}
-             </div>
-           </div>
-         </article>
-       }):<div className="emptyState shippingEmpty">Nenhum pedido encontrado nesta etapa.</div>}
-     </div>
-   </section>
+       <div className="shippingIdentity">
+        <small>{s.external_order_id?`PEDIDO ${s.external_order_id}`:`VENDA #${s.id}`}</small>
+
+        <b>
+         {lista.length
+          ? lista.map(i=>i?.name||'Peça').slice(0,2).join(' + ')
+          : 'Venda registrada'}
+        </b>
+
+        <span>
+         {s.customer_name||'Consumidor final'} ·
+         {' '}
+         {lista.reduce((a,i)=>a+Number(i?.quantity||0),0)} item(ns) ·
+         {' '}
+         {money(s.total)}
+        </span>
+       </div>
+
+       <div className={'shippingStatus '+st}>
+        <i/>
+        <b>{nomes[st]}</b>
+       </div>
+
+      </div>
+
+      <div className="shippingProgress">
+       {etapas.map(([k,v],i)=>
+        <div key={k} className={i<idx?'done':i===idx?'current':''}>
+         <i>{i<idx?'✓':i+1}</i>
+         <span>{v}</span>
+        </div>
+       )}
+      </div>
+
+      <div className="shippingItems">
+       {lista.length
+        ? lista.map((it,i)=>
+         <div key={it?.id||`${s.id}-${i}`}>
+          <span>
+           <b>{it?.name||'Peça'}</b>
+           <small>{it?.sku?`SKU ${it.sku}`:`Produto #${it?.product_id||'—'}`}</small>
+          </span>
+          <strong>{Number(it?.quantity||0)} un.</strong>
+         </div>
+        )
+        : <div className="orderNoItems">Nenhum item detalhado.</div>
+       }
+      </div>
+
+      <div className="shippingFields">
+       <label>
+        <span>Transportadora</span>
+        <input
+         value={draftFor(s).carrier_name}
+         onChange={e=>setDraft(s.id,'carrier_name',e.target.value)}
+         placeholder="Ex.: Correios, Jadlog..."
+        />
+       </label>
+
+       <label>
+        <span>Código de rastreio</span>
+        <input
+         value={draftFor(s).tracking_code}
+         onChange={e=>setDraft(s.id,'tracking_code',e.target.value)}
+         placeholder="Opcional"
+        />
+       </label>
+
+       <label className="shippingNotes">
+        <span>Observações</span>
+        <input
+         value={draftFor(s).shipping_notes}
+         onChange={e=>setDraft(s.id,'shipping_notes',e.target.value)}
+         placeholder="Embalagem, retirada, conferência..."
+        />
+       </label>
+      </div>
+
+      <div className="shippingActions">
+       <div>
+        <small>
+         Criado em {s.created_at?new Date(s.created_at).toLocaleString('pt-BR'):'—'}
+        </small>
+       </div>
+
+       <div>
+        {idx>0&&
+         <button className="ghost" disabled={travado} onClick={()=>mover(s,etapas[idx-1][0])}>
+          ← Voltar etapa
+         </button>
+        }
+
+        {st==='awaiting_separation'&&
+         <button className="primary" disabled={travado} onClick={()=>mover(s,'separated')}>
+          ✓ Marcar como separado
+         </button>
+        }
+
+        {st==='separated'&&
+         <button className="primary" disabled={travado} onClick={()=>mover(s,'ready_to_ship')}>
+          Pronto para envio →
+         </button>
+        }
+
+        {st==='ready_to_ship'&&
+         <button className="primary" disabled={travado} onClick={()=>mover(s,'shipped')}>
+          Despachar pedido →
+         </button>
+        }
+
+        {st==='shipped'&&
+         <span className="shippingDone">✓ Expedição concluída</span>
+        }
+       </div>
+      </div>
+
+     </article>
+    })
+    : <div className="emptyState shippingEmpty">Nenhum pedido encontrado nesta etapa.</div>
+    }
+
+   </div>
+  </section>
  </div>
 }
 
